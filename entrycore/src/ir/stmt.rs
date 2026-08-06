@@ -8,6 +8,9 @@ pub enum Stmt {
     /// 변수 선언 (이름, 초기값).
     VarDecl(String, Expr),
 
+    /// 변수 값 정하기 (이름, 새값).
+    SetVar(String, Expr),
+
     /// 함수 정의 (이름, 인자, 본문).
     FuncDef {
         name: String,
