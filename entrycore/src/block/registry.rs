@@ -1,4 +1,4 @@
-use crate::{block::Block, Result};
+use crate::{Result, block::Block};
 
 /// Rust 표현 -> Entry 블록 매핑 레지스트리.
 /// 키: 캐노니컬 표현 문자열 (예: "if_stmt", "while_stmt", "var_decl").

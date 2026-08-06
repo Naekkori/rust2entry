@@ -39,21 +39,21 @@ fn parse_args(args: &[String]) -> Result<Options> {
     while i < args.len() {
         match args[i].as_str() {
             "-s" | "--source" => {
-                source = Some(PathBuf::from(args.get(i + 1).cloned().ok_or_else(|| {
-                    entrycore::Error::Parse("missing --source value".into())
-                })?));
+                source = Some(PathBuf::from(args.get(i + 1).cloned().ok_or_else(
+                    || entrycore::Error::Parse("missing --source value".into()),
+                )?));
                 i += 2;
             }
             "-r" | "--sprites" => {
-                sprites = Some(PathBuf::from(args.get(i + 1).cloned().ok_or_else(|| {
-                    entrycore::Error::Parse("missing --sprites value".into())
-                })?));
+                sprites = Some(PathBuf::from(args.get(i + 1).cloned().ok_or_else(
+                    || entrycore::Error::Parse("missing --sprites value".into()),
+                )?));
                 i += 2;
             }
             "-o" | "--output" => {
-                output = Some(PathBuf::from(args.get(i + 1).cloned().ok_or_else(|| {
-                    entrycore::Error::Parse("missing --output value".into())
-                })?));
+                output = Some(PathBuf::from(args.get(i + 1).cloned().ok_or_else(
+                    || entrycore::Error::Parse("missing --output value".into()),
+                )?));
                 i += 2;
             }
             "-h" | "--help" => {
@@ -65,10 +65,7 @@ fn parse_args(args: &[String]) -> Result<Options> {
                 i += 1;
             }
             _ => {
-                return Err(entrycore::Error::Parse(format!(
-                    "unknown arg: {}",
-                    args[i]
-                )));
+                return Err(entrycore::Error::Parse(format!("unknown arg: {}", args[i])));
             }
         }
     }

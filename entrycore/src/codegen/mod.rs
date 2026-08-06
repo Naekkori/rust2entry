@@ -2,7 +2,7 @@
 
 pub mod schema;
 
-use crate::{ir::Program, Result};
+use crate::{Result, ir::Program};
 use serde_json::Value;
 
 /// IR Program -> Entry project.json (serde_json::Value).
