@@ -2,9 +2,10 @@
 
 use syn::Block;
 
-use crate::ir::Stmt as IrStmt;
-use crate::parse::convert_stmt;
 use crate::Result;
+use crate::ir::Stmt as IrStmt;
+
+use super::stmt::convert_stmt;
 
 pub(crate) fn convert_block(block: Option<Block>) -> Result<Vec<IrStmt>> {
     let mut out = Vec::new();
