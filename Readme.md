@@ -1,6 +1,49 @@
 # Rust2Entry
 러스트 코드를 엔트리로 컴파일 합니다.
 
+## 진행 상태
+
+| # | 단계 | 상태 | 테스트 |
+|---|------|------|--------|
+| 1 | `parse` — Rust 소스 → IR Program | ✅ | 10/10 |
+| 2 | `block` — IR → Block enum | ✅ | 4/4 |
+| 3 | `codegen` — Block → project.json | ✅ | (in 4) |
+| 4 | `project` — zip 패키징 (`.ent`) | ⬜ | - |
+| 5 | `lib::compile` — 전체 조립 | ⬜ | - |
+| - | `block::registry` — 확장용 매핑 | ⬜ | - |
+
+### 완료된 모듈
+
+- `parse` — `syn::File` → `ir::Program`
+  - `syn::Item::Fn` → `when_start` / `when_click` / `when_*` 시점은 본문 평탄화, `fn main()` 등은 `FuncDef`
+  - `Stmt::VarDecl`, `SetVar`, `FuncDef`, `If`, `While`, `Repeat`, `For`, `Return`, `Break`, `Continue`
+  - `Expr::Lit` (Int/Float/Str/Bool), `Binary` (12개), `Unary`, `Path`, `Call`, `Paren`
+- `block` — `ir` → `Block` enum + `ParamBlock`
+  - 타이밍: `WhenStart`/`WhenClick`/`WhenCloneStart`/`WhenMessageRecv`
+  - 변수: `SetVar`/`ChangeVar`/`GetVar`/`ShowVar`/`HideVar`
+  - 흐름: `If`/`IfElse`/`While`/`Repeat`/`Forever`/`Break`/`Continue`/`StopAll`
+  - 산술: `CalcBinOp`/`Compare`/`BoolOp`/`UnaryOp`
+  - 리터럴: `Number`/`Text`/`Boolean`
+  - 문자열: `StringConcat`/`StringIncludes`
+  - 함수: `FuncCall`/`FuncDef`/`Return`
+- `codegen` — `Block` → `serde_json::Value`
+  - Entry 슬롯 형식 (params + null padding)
+  - 변수 드롭다운 `{ id, name, variableType }`
+  - BinOp → Entry 산술/비교 기호
+
+### 남은 작업 (TODO)
+
+- [ ] `project::pack::add_file` — `ZipWriter`로 파일 추가
+- [ ] `project::collect_sprites` — 스프라이트 디렉토리 walkdir
+- [ ] `project::build` — `project.json` + 스프라이트 → `.ent` zip 바이트
+- [ ] `lib::compile` — 전체 조립 + 테스트
+- [ ] `block::registry::convert` — 확장용 매핑 (선택)
+- [ ] `for-range` IR → Entry 풀어쓰기 (현재 `UnmappedBlock`)
+- [ ] 이미지 차원 자동 측정 (스프라이트 PNG → width/height)
+- [ ] `entities.default` (위치/크기) 처리
+- [ ] CLI 종료 시 `.ent` 작성 E2E 테스트
+- [ ] 실제 EntryJS import 테스트 (실행 환경 검증)
+
 ## 스킴구조 (EntryJS 에서 퍼옴)
 ```javascript
 /**
