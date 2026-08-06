@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 /// Entry 블록 카테고리.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum Category {
     /// 일반 동작 (흐름 아닌 부수효과).
     General,
@@ -29,11 +30,7 @@ pub enum Category {
     /// 정의 (함수).
     Define,
     /// 미분류.
+    #[default]
     Unknown,
 }
 
-impl Default for Category {
-    fn default() -> Self {
-        Self::Unknown
-    }
-}

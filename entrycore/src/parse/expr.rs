@@ -1,12 +1,11 @@
 //! syn::Expr -> IR Expr 변환.
 
-use std::path;
 
 use syn::Expr;
 
 use crate::Error::UnmappedBlock;
 use crate::ir::{self, Expr as IrExpr};
-use crate::{Error, Result};
+use crate::Result;
 
 pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
     // 엔트리는 자바스크립트 기반으로 돌아가고 있다, 사용자가 넣을수있는건
