@@ -44,6 +44,19 @@
 - [ ] CLI 종료 시 `.ent` 작성 E2E 테스트
 - [ ] 실제 EntryJS import 테스트 (실행 환경 검증)
 
+## Editor 통합 (로드맵)
+
+러스트 소스 자체는 `rust-analyzer`가 완전 지원. 본 프로젝트의 editor 통합은 **`.ent` 출력 + 매핑 진단** 두 축.
+
+- **v0.1** — `cargo run --bin entryc -- sample.rs -o sample.ent`로 수동 빌드. EntryJS에 드래그&드롭으로 확인.
+- **v0.2** — `build.rs` 훅으로 `cargo build` 중 자동 `.ent` 생성. `target/debug/sample.ent`.
+- **v0.3+** — VSCode 확장:
+  - `.rs` 저장 시 `.ent` 미리보기/JSON 다이프
+  - 매핑 안 되는 Rust 구문 인레이 진단 (e.g. `async {}` → "엔트리에 async 블록 없음")
+  - 가능하면 `entryc --lsp`로 사용자 LSP 서버 모드 지원
+
+핵심: **Rust 코드가 1급 시민**, `.ent`는 부산물. 사용자는 Rust LSP만으로 Rust 기능 100% 사용 가능하고, `entryc`는 변환 파이프라인 역할만.
+
 ## 스킴구조 (EntryJS 에서 퍼옴)
 ```javascript
 /**
