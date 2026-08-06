@@ -1,0 +1,8 @@
+[package]
+name = "entryc"
+description = "Rust -> Entry Compiler"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+entrycore = { path = "../entrycore" }
