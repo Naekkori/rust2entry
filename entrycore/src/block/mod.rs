@@ -8,7 +8,7 @@ pub mod registry;
 
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::Error::UnmappedBlock;
-use crate::Result;
+use crate::{Result, VarKind};
 
 pub use category::Category;
 
@@ -144,6 +144,9 @@ impl Block {
 pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
     match stmt {
         Stmt::VarDecl(name, expr) | Stmt::SetVar(name, expr)=>{
+            if name == "초시계" {
+                return Err(UnmappedBlock("초시계(stopwatch) is reserved keyword".into()))
+            }
             Ok(Block::SetVar { variable: name.clone(), value: from_expr(expr)? })
         }
         Stmt::FuncDef { name, params, body } =>{
@@ -416,7 +419,8 @@ fn param_to_value(p: &ParamBlock) -> Value {
 /// 변수 드롭다운 슬롯.
 fn variable_param(name: &str) -> Value {
     let id = id_for(name);
-    json!({ "id": id, "name": name, "variableType": "variable" })
+    let kind = kind_for(name);
+    json!({ "id": id, "name": name, "variableType": kind_to_str(&kind) })
 }
 
 /// 이름 -> 해시 ID (간단한 해시).
@@ -427,7 +431,28 @@ pub fn id_for(name: &str) -> String {
     }
     format!("{:x}", h)
 }
+/// 이름 -> kind?
+pub fn kind_for(name: &str)-> crate::var::VarKind{
+    match name{
+        "초시계" | "timer" | "Timer" => VarKind::Timer,
+        "대답" | "answer" | "Answer" => VarKind::Answer,
+        "리스트" | "list" | "List" => VarKind::List,
+        _ => VarKind::Variable,
+    }
+}
 
+// VarKind -> Entry variableType 문자열
+fn kind_to_str(kind: &crate::var::VarKind) -> &'static str{
+    match kind {
+        VarKind::Variable => "variable",
+        VarKind::Timer => "timer",
+        VarKind::List => "list",
+        VarKind::Cloud => "cloud",
+        VarKind::Answer => "answer",
+        VarKind::RealTime => "realtime",
+        VarKind::Unknown => "variable",
+    }
+}
 /// Vec<Block> -> Thread.
 fn blocks_to_thread(blocks: &[Block]) -> Result<Value> {
     let arr: Result<Vec<_>> = blocks.iter().map(to_value).collect();

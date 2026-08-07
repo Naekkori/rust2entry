@@ -42,10 +42,11 @@ pub fn collect_var_map(program: &Program) -> VarMap {
     collect_vars_program(program, &mut names);
     for name in names {
         let id = crate::block::id_for(&name);
+        let kind = crate::block::kind_for(&name);
         map.insert(VarInfo {
             id,
             name: name.clone(),
-            kind: VarKind::Variable,
+            kind: kind.clone(),
             init: VarInit::Int0,
         });
     }
