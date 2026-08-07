@@ -23,7 +23,7 @@ pub fn generate(program: &Program) -> Result<Value> {
         "scenes": [{"id": "scene1", "name": "장면1"}],
         "interface": { "views": [] },
         "meta": {
-            "last_modified": "2026-01-01T00:00:00.000Z",
+            "last_modified": "2026-01-01T00:00:00.000Z", //에
             "created_at": "2026-01-01T00:00:00.000Z",
             "version": "0.1.0"
         },

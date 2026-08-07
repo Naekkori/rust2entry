@@ -1,8 +1,9 @@
 [package]
 name = "entryc"
-description = "Rust -> Entry Compiler"
+description = "Entry .ent extractor"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-entrycore = { path = "../entrycore" }
+zip = { workspace = true }
+serde_json = { workspace = true }

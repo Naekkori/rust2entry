@@ -19,17 +19,9 @@ pub enum Error {
     #[error("serialization error: {0}")]
     Serialize(#[from] serde_json::Error),
 
-    /// .ent 패키징 실패.
-    #[error("pack error: {0}")]
-    Pack(String),
-
     /// IO 실패.
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
-
-    /// zip 실패.
-    #[error("zip error: {0}")]
-    Zip(#[from] zip::result::ZipError),
 
     /// 매핑되지 않은 블록.
     #[error("unmapped block: {0}")]

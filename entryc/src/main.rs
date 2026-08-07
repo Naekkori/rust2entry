@@ -1,7 +1,5 @@
 use std::path::PathBuf;
 
-use entrycore::Result;
-
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     if let Err(e) = run(&args) {
@@ -10,83 +8,66 @@ fn main() {
     }
 }
 
-fn run(args: &[String]) -> Result<()> {
-    let opts = parse_args(args)?;
-    println!("source: {:?}", opts.source);
-    println!("sprites: {:?}", opts.sprites);
-    println!("output: {:?}", opts.output);
+fn run(args: &[String]) -> Result<(), String> {
+    let cmd = args.get(1).map(String::as_str).unwrap_or("help");
+    let rest = &args[2..];
 
-    let source = std::fs::read_to_string(&opts.source)?;
-    let bytes = entrycore::compile(&source, opts.sprites.as_deref())?;
-    std::fs::write(&opts.output, bytes)?;
-    println!("written: {:?}", opts.output);
+    match cmd {
+        "extract" => extract_cmd(rest),
+        "help" | "-h" | "--help" => {
+            print_help();
+            Ok(())
+        }
+        other => Err(format!("unknown command: {other}")),
+    }
+}
+
+/// extract <input.ent> [-o <out_dir>]
+fn extract_cmd(args: &[String]) -> Result<(), String> {
+    let opts = parse_extract_args(args)?;
+    println!("input:  {:?}", opts.input);
+    println!("output: {:?}", opts.output);
+    // TODO: zip 언팩, project.json 파싱, 오브젝트별 <name>.rs 생성
     Ok(())
 }
 
 #[derive(Debug)]
-struct Options {
-    source: PathBuf,
-    sprites: Option<PathBuf>,
-    output: PathBuf,
+struct ExtractOptions {
+    input: PathBuf,
+    output: Option<PathBuf>,
 }
 
-fn parse_args(args: &[String]) -> Result<Options> {
-    let mut source: Option<PathBuf> = None;
-    let mut sprites: Option<PathBuf> = None;
+fn parse_extract_args(args: &[String]) -> Result<ExtractOptions, String> {
+    let mut input: Option<PathBuf> = None;
     let mut output: Option<PathBuf> = None;
 
-    let mut i = 1;
+    let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
-            "-s" | "--source" => {
-                source = Some(PathBuf::from(args.get(i + 1).cloned().ok_or_else(
-                    || entrycore::Error::Parse("missing --source value".into()),
-                )?));
-                i += 2;
-            }
-            "-r" | "--sprites" => {
-                sprites = Some(PathBuf::from(args.get(i + 1).cloned().ok_or_else(
-                    || entrycore::Error::Parse("missing --sprites value".into()),
-                )?));
-                i += 2;
-            }
             "-o" | "--output" => {
-                output = Some(PathBuf::from(args.get(i + 1).cloned().ok_or_else(
-                    || entrycore::Error::Parse("missing --output value".into()),
-                )?));
+                output = Some(PathBuf::from(args.get(i + 1)
+                    .cloned()
+                    .ok_or_else(|| "missing --output value".to_string())?));
                 i += 2;
-            }
-            "-h" | "--help" => {
-                print_help();
-                std::process::exit(0);
             }
             other if !other.starts_with('-') => {
-                source = Some(PathBuf::from(other));
+                input = Some(PathBuf::from(other));
                 i += 1;
             }
-            _ => {
-                return Err(entrycore::Error::Parse(format!("unknown arg: {}", args[i])));
-            }
+            _ => return Err(format!("unknown arg: {}", args[i])),
         }
     }
 
-    Ok(Options {
-        source: source.ok_or_else(|| entrycore::Error::Parse("source required".into()))?,
-        sprites,
-        output: output.unwrap_or_else(|| PathBuf::from("output.ent")),
+    Ok(ExtractOptions {
+        input: input.ok_or_else(|| "input.ent required".to_string())?,
+        output,
     })
 }
 
 fn print_help() {
-    println!("entryc - Rust to Entry .ent compiler");
+    println!("entryc - Entry .ent extractor");
     println!();
     println!("USAGE:");
-    println!("    entryc <source.rs>            compile source, write output.ent");
-    println!("    entryc -s <src.rs> -r <sprites> -o <out.ent>");
-    println!();
-    println!("OPTIONS:");
-    println!("    -s, --source <PATH>     Rust source file");
-    println!("    -r, --sprites <DIR>     sprite folder");
-    println!("    -o, --output <PATH>     output .ent file (default: output.ent)");
-    println!("    -h, --help              show this help");
+    println!("    entryc extract <input.ent> [-o <out_dir>]");
+    println!("    entryc help");
 }
