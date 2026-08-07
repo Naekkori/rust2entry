@@ -1,6 +1,6 @@
 [package]
 name = "entryc"
-description = "Entry .ent extractor"
+description = "Rust -> Entry compiler"
 version = "0.1.0"
 edition = "2024"
 
