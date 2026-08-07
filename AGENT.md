@@ -15,8 +15,8 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 7 | `for-range` — `for i in a..b` → `repeat_basic` 펼침 | ✅ | in 1, 3 |
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
-| 10 | `entryc build` — `.rs` → `.ent` | ⬜ | - |
-| 11 | `lib::compile` — 전체 조립 | ⬜ | - |
+| 10 | `entryc build` — `.rs` → `.ent` | ✅ | 5/5 |
+| 11 | `lib::compile` — 전체 조립 | ✅ | 12/12 |
 
 ## 완료된 모듈
 
@@ -72,20 +72,22 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 - [x] 변수 kind (Timer/Answer/List) 자동 인식 + 전용 변수 거부
 - [x] `generate(program, original)` project.json 패치
 - [x] 라운드트립 테스트 (codegen/deparse, parse/decodegen)
-- [ ] `entryc build` — `.rs` → `.ent` 빌드 모드
-- [ ] `lib::compile` — 전체 조립 + 테스트
+- [x] `entryc build` — `.rs` → `.ent` 빌드 모드 (subcommand, --rs/--out/--ent-template)
+- [x] `lib::compile` — 전체 조립 + extract 라운드트립용 가짜 오브젝트 패치
+- [x] extract 출력 개선 — raw JSON 들여쓰기 + 에러 메시지 다단계 코멘트 + 미매핑 블록 집계 출력
+- [x] 매핑 추가 — `when_run`, `when_object_click`, `number` (String 숫자 허용)
 - [ ] 다른 흐름 블럭 (`if_else`, `wait_second`, `repeat_while_true`, `repeat_inf`, `wait_until_true`)
 - [ ] Timer/Answer 전용 블록 신택스 (`start_timer()` 등)
 - [ ] 이미지 차원 자동 측정 (스프라이트 PNG → width/height)
 - [ ] `entities.default` (위치/크기) 처리
-- [ ] CLI 종료 시 `.ent` 작성 E2E 테스트
+- [ ] Entry scripts 오브젝트별 분배 (extract 진짜 라운드트립)
 - [ ] 실제 EntryJS import 테스트 (실행 환경 검증)
 
 ## 디렉토리
 
 ```
-entrycore/   라이브러리 (parse/block/codegen/deparse/decodegen/var)
-entryc/      CLI (extract: .ent -> .rs 만 구현, build 미구현)
+entrycore/   라이브러리 (parse/block/codegen/deparse/decodegen/var) + lib::compile
+entryc/      CLI (extract/build subcommand, --rs/--out/--ent-template)
 target/      빌드 산출물
 entryjs-basic-blocks.md  EntryJS 블럭 카탈로그 (203개)
 ```

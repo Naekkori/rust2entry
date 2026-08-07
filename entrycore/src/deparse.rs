@@ -7,7 +7,7 @@
 use crate::Result;
 use crate::Error::UnmappedBlock;
 use crate::block::{Block, ParamBlock};
-use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
+use crate::ir::{BinOp, Expr, Stmt, UnaryOp, stmt};
 use crate::var::VarMap;
 use serde_json::Value;
 
@@ -83,8 +83,8 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
 
     let block = match type_id {
         // 시작
-        "when_run_button_click" => Block::WhenStart,
-        "when_click" => Block::WhenClick,
+        "when_run_button_click" | "when_run" => Block::WhenStart,
+        "when_click" | "when_object_click" => Block::WhenClick,
         "when_clone_start" => Block::WhenCloneStart,
         "when_message_cast" => {
             let msg = params
@@ -196,7 +196,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         "number" => {
             let n = params
                 .get(0)
-                .and_then(Value::as_f64)
+                .and_then(|v| match v {
+                    Value::Number(n) => n.as_f64(),
+                    Value::String(s) => s.parse::<f64>().ok(),
+                    _ => None,
+                })
                 .ok_or_else(|| crate::Error::Parse("number param".into()))?;
             Block::Number(n)
         }
@@ -769,4 +773,47 @@ pub fn program_from_script_value_with_vars(
 ) -> Result<crate::ir::Program> {
     let stmts = from_script(v, vars)?;
     Ok(crate::ir::Program { stmts })
+}
+
+/// scripts Value (`[[block, ...], ...]` 형태) 를 순회하며 매핑 안 되는 블록 타입을 집계.
+/// 비파괴적 — IR 변환 없이 직접 walk. 재귀로 `statements` 안의 블록도 탐색.
+///
+/// `block_from_value` 가 single source of truth — 화이트리스트 유지 불필요.
+/// 새 블록 추가 시 `block_from_value` 에 매핑만 추가하면 자동 반영.
+///
+/// ## 반환
+/// `(type_name, count)` 목록. count 내림차순 → 이름 오름차순 정렬.
+///
+/// ## 사용
+/// extract 시 오브젝트별 raw 폴백 외에, 전체 프로젝트의 미매핑 블록을 요약 출력할 때.
+pub fn collect_unmapped_blocks(scripts: &Value, vars: &VarMap) -> Vec<(String, usize)> {
+    use std::collections::HashMap;
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    walk_blocks(scripts, &mut |block: &Value| {
+        if let Some(t) = block.get("type").and_then(|x| x.as_str()) {
+            if block_from_value(block, vars).is_err() {
+                *counts.entry(t.to_string()).or_insert(0) += 1;
+            }
+        }
+    });
+    let mut v: Vec<(String, usize)> = counts.into_iter().collect();
+    v.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    v
+}
+
+/// scripts 트리를 재귀 walk. 각 block 마다 `f` 호출.
+fn walk_blocks(value: &Value, f: &mut impl FnMut(&Value)) {
+    match value {
+        Value::Array(arr) => arr.iter().for_each(|v| walk_blocks(v, f)),
+        Value::Object(_) => {
+            f(value);
+            if let Some(s) = value.get("statements").and_then(|x| x.as_array()) {
+                s.iter().for_each(|t| walk_blocks(t, f));
+            }
+            if let Some(p) = value.get("params").and_then(|x| x.as_array()) {
+                p.iter().for_each(|p| walk_blocks(p, f));
+            }
+        }
+        _ => {}
+    }
 }
