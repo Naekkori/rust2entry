@@ -8,7 +8,7 @@
 | 1 | `parse` — Rust 소스 → IR Program | ✅ | 10/10 |
 | 2 | `block` — IR → Block enum | ✅ | 4/4 |
 | 3 | `codegen` — Block → project.json | ✅ | (in 4) |
-| 4 | `project` — zip 패키징 (`.ent`) | ⬜ | - |
+| 4 | `project` — zip 패키징 (`.ent`) | ⬜ | 6/6 |
 | 5 | `lib::compile` — 전체 조립 | ⬜ | - |
 | - | `block::registry` — 확장용 매핑 | ⬜ | - |
 
@@ -33,8 +33,8 @@
 
 ### 남은 작업 (TODO)
 
-- [ ] `project::pack::add_file` — `ZipWriter`로 파일 추가
-- [ ] `project::collect_sprites` — 스프라이트 디렉토리 walkdir
+- [x] `project::pack::add_file` — `ZipWriter`로 파일 추가
+- [x] `project::collect_sprites` — 스프라이트 디렉토리 walkdir
 - [ ] `project::build` — `project.json` + 스프라이트 → `.ent` zip 바이트
 - [ ] `lib::compile` — 전체 조립 + 테스트
 - [ ] `block::registry::convert` — 확장용 매핑 (선택)
