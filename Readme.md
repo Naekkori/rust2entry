@@ -35,7 +35,7 @@
 
 - [x] `project::pack::add_file` — `ZipWriter`로 파일 추가
 - [x] `project::collect_sprites` — 스프라이트 디렉토리 walkdir
-- [ ] `project::build` — `project.json` + 스프라이트 → `.ent` zip 바이트
+- [x] `project::build` — `project.json` + 스프라이트 → `.ent` zip 바이트
 - [ ] `lib::compile` — 전체 조립 + 테스트
 - [ ] `block::registry::convert` — 확장용 매핑 (선택)
 - [ ] `for-range` IR → Entry 풀어쓰기 (현재 `UnmappedBlock`)
