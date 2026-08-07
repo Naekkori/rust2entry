@@ -178,3 +178,21 @@ fn function_call() {
         Stmt::Expr(Expr::Call(_func, args)) if args.len() == 1
     ));
 }
+
+#[test]
+fn for_range_to_ir() {
+    let src = r#"
+        fn when_start() {
+            for i in 0..3 {
+                let x = i;
+            }
+        }
+    "#;
+    let program = parse(src).expect("parse ok");
+    let Stmt::For { var, iter, body } = &program.stmts[0] else {
+        panic!("expected For");
+    };
+    assert_eq!(var, "i");
+    assert!(matches!(iter, Expr::Range(_, _)));
+    assert!(matches!(body[0], Stmt::VarDecl(_, _)));
+}

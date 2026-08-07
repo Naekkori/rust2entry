@@ -216,6 +216,10 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             Ok(ParamBlock::Sub(Box::new(Block::FuncCall { name: fref.name.clone(), args })))
         },
         Expr::Func(_) => Err(UnmappedBlock("bare func ref".into())),
+        Expr::Range(start, end)=>{
+            let _ = (start,end);
+            Err(UnmappedBlock("range expr".into()))
+        },
     }
 }
 
@@ -330,6 +334,7 @@ fn op_str(op: BinOp) -> &'static str {
         BinOp::Ge => ">=",
         BinOp::And => "&&",
         BinOp::Or => "||",
+        BinOp::Range => ".."
     }
 }
 

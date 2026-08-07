@@ -63,6 +63,15 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                     let body = convert_block(Some(e.body))?;
                     out.push(IrStmt::While { cond, body });
                 }
+                syn::Expr::ForLoop(f)=>{
+                    let var = match &*f.pat {
+                        syn::Pat::Ident(pi)=>pi.ident.to_string(),
+                        _=> return Err(UnmappedBlock("for pat".into()))
+                    };
+                    let iter = convert_expr(*f.expr)?;
+                    let body = convert_block(Some(f.body))?;
+                    out.push(IrStmt::For { var, iter, body });
+                }
                 other =>{
                     out.push(IrStmt::Expr(convert_expr(other)?));
                 }

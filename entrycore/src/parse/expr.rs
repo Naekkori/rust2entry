@@ -1,11 +1,10 @@
 //! syn::Expr -> IR Expr 변환.
 
-
 use syn::Expr;
 
 use crate::Error::UnmappedBlock;
-use crate::ir::{self, Expr as IrExpr};
 use crate::Result;
+use crate::ir::{self, Expr as IrExpr};
 
 pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
     // 엔트리는 자바스크립트 기반으로 돌아가고 있다, 사용자가 넣을수있는건
@@ -45,9 +44,13 @@ pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
                 syn::BinOp::Gt(_) => ir::BinOp::Gt,
                 _ => return Err(UnmappedBlock("binop".into())),
             };
-            Ok(IrExpr::BinOp(op, Box::new(convert_expr(*b.left)?), Box::new(convert_expr(*b.right)?)))
+            Ok(IrExpr::BinOp(
+                op,
+                Box::new(convert_expr(*b.left)?),
+                Box::new(convert_expr(*b.right)?),
+            ))
         }
-        Expr::Unary(u)=>{
+        Expr::Unary(u) => {
             let op = match u.op {
                 syn::UnOp::Not(_) => ir::UnaryOp::Not,
                 syn::UnOp::Neg(_) => ir::UnaryOp::Neg,
@@ -55,24 +58,49 @@ pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
             };
             Ok(IrExpr::UnaryOp(op, Box::new(convert_expr(*u.expr)?)))
         }
-        Expr::Call(c)=>{
-            let name = match &*c.func{
-                Expr::Path(p)=>path_to_name(&p.path)?,
-                _ => return Err(UnmappedBlock("call func".into()))
+        Expr::Call(c) => {
+            let name = match &*c.func {
+                Expr::Path(p) => path_to_name(&p.path)?,
+                _ => return Err(UnmappedBlock("call func".into())),
             };
-            let args = c.args.into_iter().map(convert_expr).collect::<Result<Vec<_>>>()?;
-            Ok(IrExpr::Call(ir::FuncRef{name, arity:args.len()}, args))
+            let args = c
+                .args
+                .into_iter()
+                .map(convert_expr)
+                .collect::<Result<Vec<_>>>()?;
+            Ok(IrExpr::Call(
+                ir::FuncRef {
+                    name,
+                    arity: args.len(),
+                },
+                args,
+            ))
         }
-        Expr::Path(p)=>{
+        Expr::Path(p) => {
             let name = path_to_name(&p.path)?;
             Ok(IrExpr::Var(name))
         }
-        Expr::Paren(p)=> convert_expr(*p.expr),
-        _=>Err(UnmappedBlock("expr".into()))
+        Expr::Paren(p) => convert_expr(*p.expr),
+        Expr::Range(r) => {
+            let start = r
+                .start
+                .as_deref()
+                .ok_or_else(|| UnmappedBlock("range start".into()))?;
+            let end = r
+                .end
+                .as_deref()
+                .ok_or_else(|| UnmappedBlock("range end".into()))?;
+
+            Ok(IrExpr::Range(
+                Box::new(convert_expr(start.clone())?),
+                Box::new(convert_expr(end.clone())?),
+            ))
+        }
+        _ => Err(UnmappedBlock("expr".into())),
     }
 }
 
-fn path_to_name(path: &syn::Path)->Result<String>{
+fn path_to_name(path: &syn::Path) -> Result<String> {
     path.segments
         .last()
         .map(|s| s.ident.to_string())
