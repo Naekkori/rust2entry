@@ -2,16 +2,16 @@
 
 use std::path::{Path, PathBuf};
 
-use rand::Rng;
+use rand::RngExt;
 
 use crate::Result;
 
 const CHARS: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
 
 fn hash_n(n: usize) -> String {
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     (0..n)
-        .map(|_| CHARS[rng.gen_range(0..CHARS.len())] as char)
+        .map(|_| CHARS[rng.random_range(0..CHARS.len())] as char)
         .collect()
 }
 

@@ -11,6 +11,10 @@ pub use error::{Error, Result};
 
 /// 입력 소스 + 스프라이트 폴더를 받아 .ent 바이트스트림 생성.
 /// 스프라이트는 None이면 패키지에 미포함.
-pub fn compile(_source: &str, _sprites: Option<&std::path::Path>) -> Result<Vec<u8>> {
-    todo!("네가 구현 - parse -> ir -> codegen -> pack")
+pub fn compile(source: &str, sprites: Option<&std::path::Path>) -> Result<Vec<u8>> {
+    let program = parse::parse(source)?;
+    let json = codegen::generate(&program)?;
+    
+    let bytes = project::build(json, sprites)?;
+    Ok(bytes)
 }
