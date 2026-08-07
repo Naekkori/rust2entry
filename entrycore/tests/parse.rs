@@ -1,5 +1,6 @@
 //! parse::parse() 통합 테스트.
 
+use entrycore::decodegen;
 use entrycore::ir::{Expr, Stmt};
 use entrycore::parse::parse;
 
@@ -195,4 +196,81 @@ fn for_range_to_ir() {
     assert_eq!(var, "i");
     assert!(matches!(iter, Expr::Range(_, _)));
     assert!(matches!(body[0], Stmt::VarDecl(_, _)));
+}
+
+/// DSL 라운드트립: parse(src) -> IR -> decodegen -> dsl -> parse(dsl) -> IR' 구조 동일.
+#[test]
+fn dsl_roundtrip_simple() {
+    let src = "fn when_start() { let x = 42; }";
+    let p1 = parse(src).expect("parse1");
+    let dsl = decodegen::emit(&p1).expect("emit");
+    let p2 = parse(&dsl).expect("parse2");
+    assert_eq!(p1.stmts.len(), p2.stmts.len());
+    // 둘 다 단일 변수 선언 (VarDecl 또는 SetVar, Entry 의미 동일)
+    let n1 = match &p1.stmts[0] {
+        Stmt::VarDecl(n, _) | Stmt::SetVar(n, _) => n.clone(),
+        other => panic!("p1[0] unexpected: {other:?}"),
+    };
+    let n2 = match &p2.stmts[0] {
+        Stmt::VarDecl(n, _) | Stmt::SetVar(n, _) => n.clone(),
+        other => panic!("p2[0] unexpected: {other:?}"),
+    };
+    assert_eq!(n1, n2, "variable name roundtrip: dsl={dsl}");
+}
+
+#[test]
+fn dsl_roundtrip_if() {
+    let src = "fn when_start() { if 1 < 2 { let x = 1; } }";
+    let p1 = parse(src).expect("parse1");
+    let dsl = decodegen::emit(&p1).expect("emit");
+    let p2 = parse(&dsl).expect("parse2");
+    assert_eq!(p1.stmts.len(), p2.stmts.len());
+    let tb1 = match &p1.stmts[0] {
+        Stmt::If { then_body, .. } => then_body.len(),
+        _ => panic!("p1[0] not If"),
+    };
+    let tb2 = match &p2.stmts[0] {
+        Stmt::If { then_body, .. } => then_body.len(),
+        _ => panic!("p2[0] not If"),
+    };
+    assert_eq!(tb1, tb2, "if then_body roundtrip: dsl={dsl}");
+}
+
+#[test]
+fn dsl_roundtrip_for() {
+    let src = "fn when_start() { for i in 0..5 { let x = 1; } }";
+    let p1 = parse(src).expect("parse1");
+    let dsl = decodegen::emit(&p1).expect("emit");
+    let p2 = parse(&dsl).expect("parse2");
+    assert_eq!(p1.stmts.len(), p2.stmts.len());
+    // p1[0] = For { var: i, iter: Range(0, 5), body: [VarDecl x] }
+    // p2[0]는 emit이 `for _ in 0..5`로 만들고 decodegen 재parse가 `Stmt::For { var: _, iter: Range(0, 5), body: [...] }`
+    // 또는 decodegen이 본문에 `set x = 1`을 emit하면 p2도 For with body=[SetVar x].
+    let (var1, body1) = match &p1.stmts[0] {
+        Stmt::For { var, body, .. } => (var.clone(), body.len()),
+        _ => panic!("p1[0] not For"),
+    };
+    let (var2, body2) = match &p2.stmts[0] {
+        Stmt::For { var, body, .. } => (var.clone(), body.len()),
+        other => panic!("p2[0] not For: {other:?}"),
+    };
+    assert_eq!(var1, var2);
+    assert_eq!(body1, body2, "for body length roundtrip: dsl={dsl}");
+}
+
+#[test]
+fn dsl_roundtrip_while() {
+    let src = "fn when_start() { while true { let x = 0; } }";
+    let p1 = parse(src).expect("parse1");
+    let dsl = decodegen::emit(&p1).expect("emit");
+    let p2 = parse(&dsl).expect("parse2");
+    let cond1 = match &p1.stmts[0] {
+        Stmt::While { cond, .. } => format!("{cond:?}"),
+        _ => panic!("p1[0] not While"),
+    };
+    let cond2 = match &p2.stmts[0] {
+        Stmt::While { cond, .. } => format!("{cond:?}"),
+        _ => panic!("p2[0] not While"),
+    };
+    assert_eq!(cond1, cond2, "while cond roundtrip: dsl={dsl}");
 }

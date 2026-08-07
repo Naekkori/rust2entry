@@ -6,4 +6,9 @@ edition = "2024"
 
 [dependencies]
 zip = { workspace = true }
+flate2 = "1"
+tar = "0.4"
+serde = { workspace = true }
 serde_json = { workspace = true }
+clap = { workspace = true }
+entrycore = { path = "../entrycore" }
