@@ -1,9 +1,17 @@
 //! parse -> codegen 통합 테스트.
 
+use entrycore::VarKind;
 use entrycore::codegen::{collect_var_map, generate};
 use entrycore::deparse::program_from_script_value_with_vars;
 use entrycore::parse::parse;
-
+use serde_json::{Value, json};
+fn empty_project() -> Value {
+    json!({
+        "speed": 60, "objects": [], "variables": [], "messages": [],
+        "functions": [], "scenes": [{"id":"scene1","name":"장면1"}],
+        "interface": {"views": []}, "meta": {}
+    })
+}
 #[test]
 fn simple_set_var() {
     let src = r#"
@@ -12,7 +20,7 @@ fn simple_set_var() {
         }
     "#;
     let program = parse(src).expect("parse");
-    let json = generate(&program).expect("generate");
+    let json = generate(&program,&empty_project()).expect("generate");
     let scripts = json.get("scripts").expect("scripts");
     let arr = scripts.as_array().expect("array");
     assert_eq!(arr.len(), 1);
@@ -31,7 +39,7 @@ fn arithmetic_block() {
         }
     "#;
     let program = parse(src).expect("parse");
-    let json = generate(&program).expect("generate");
+    let json = generate(&program,&empty_project()).expect("generate");
     let block = &json["scripts"][0];
     assert_eq!(block["type"], "set_variable");
     // value는 calc_block (sub-block)
@@ -49,7 +57,7 @@ fn if_block() {
         }
     "#;
     let program = parse(src).expect("parse");
-    let json = generate(&program).expect("generate");
+    let json = generate(&program,&empty_project()).expect("generate");
     let block = &json["scripts"][0];
     assert_eq!(block["type"], "if");
     let cond = &block["params"][0];
@@ -64,7 +72,7 @@ fn function_call_stmt() {
         }
     "#;
     let program = parse(src).expect("parse");
-    let json = generate(&program).expect("generate");
+    let json = generate(&program,&empty_project()).expect("generate");
     let block = &json["scripts"][0];
     assert_eq!(block["type"], "function_call");
 }
@@ -79,7 +87,7 @@ fn for_range_expands_to_repeat() {
         }
     "#;
     let program = parse(src).expect("parse");
-    let json = generate(&program).expect("generate");
+    let json = generate(&program,&empty_project()).expect("generate");
     let block = &json["scripts"][0];
     // for i in 0..5 -> repeat_basic(5 - 0)
     assert_eq!(block["type"], "repeat_basic");
@@ -103,7 +111,7 @@ fn for_range_expands_to_repeat() {
 fn roundtrip_simple_set() {
     let src = "fn when_start() { let x = 42; }";
     let p1 = parse(src).expect("parse1");
-    let json = generate(&p1).expect("generate");
+    let json = generate(&p1,&empty_project()).expect("generate");
     let vars = collect_var_map(&p1);
     // scripts = [set_variable_block]. deparse는 [[block,...]] 형태 기대.
     let scripts_wrapped = serde_json::json!([json["scripts"].clone()]);
@@ -126,7 +134,7 @@ fn roundtrip_simple_set() {
 fn roundtrip_if() {
     let src = "fn when_start() { if 1 < 2 { let x = 1; } }";
     let p1 = parse(src).expect("parse1");
-    let json = generate(&p1).expect("generate");
+    let json = generate(&p1,&empty_project()).expect("generate");
     let vars = collect_var_map(&p1);
     let scripts_wrapped = serde_json::json!([json["scripts"].clone()]);
     let p2 = program_from_script_value_with_vars(&scripts_wrapped, &vars)
@@ -150,7 +158,7 @@ fn roundtrip_if() {
 fn for_range_roundtrip_is_repeat() {
     let src = "fn when_start() { for i in 0..5 { let x = 1; } }";
     let p1 = parse(src).expect("parse1");
-    let json = generate(&p1).expect("generate");
+    let json = generate(&p1,&empty_project()).expect("generate");
     let vars = collect_var_map(&p1);
     let scripts_wrapped = serde_json::json!([json["scripts"].clone()]);
     let p2 = program_from_script_value_with_vars(&scripts_wrapped, &vars)
@@ -170,4 +178,15 @@ fn for_range_roundtrip_is_repeat() {
         }
         other => panic!("expected Repeat, got {other:?}"),
     }
+}
+
+//거부테스트
+#[test]
+fn timer_named_var_registers_as_timer() {
+    let src = "fn when_start() { let 초시계 = 0; }";
+    // ↑ 이건 위 거부 테스트에서 거부되므로, 등록은 collect_var_map 단독 테스트로
+    let p = parse(src).expect("parse");
+    let vars = collect_var_map(&p);
+    let info = vars.get(&entrycore::block::id_for("초시계")).expect("timer registered");
+    assert!(matches!(info.kind, VarKind::Timer));
 }

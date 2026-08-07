@@ -6,30 +6,40 @@ use crate::Result;
 use crate::block::{from_stmt, to_value};
 use crate::ir::{Expr, Program, Stmt};
 use crate::var::{VarInfo, VarInit, VarKind, VarMap};
-use serde_json::Value;
+use serde_json::{Value, json};
 
 /// IR Program -> Entry project.json.
-pub fn generate(program: &Program) -> Result<Value> {
+pub fn generate(program: &Program, original: &Value) -> Result<Value> {
     // IR stmt들을 Block으로 변환한 뒤 to_value() 호출.
     // project.json 최상위 구조는 schema::Project 참고.
     let blocks: Result<Vec<_>> = program.stmts.iter().map(from_stmt).collect();
     let scripts = blocks?.into_iter().map(|b| to_value(&b)).collect::<Result<Vec<_>>>()?;
-
-    let project = serde_json::json!({
-        "speed": 60,
-        "objects": [],
-        "variables": [],
-        "messages": [],
-        "functions": [],
-        "scenes": [{"id": "scene1", "name": "장면1"}],
-        "interface": { "views": [] },
-        "meta": {
-            "last_modified": "2026-01-01T00:00:00.000Z", //에
-            "created_at": "2026-01-01T00:00:00.000Z",
-            "version": "0.1.0"
-        },
-        "scripts": scripts,
-    });
+    let vars = collect_var_map(program);
+    let vars_arr: Vec<Value> = vars.iter().map(|v| {
+        json!({
+            "id":v.id,
+            "name": v.name,
+            "variableType": match v.kind{
+                VarKind::Variable => "variable",
+                VarKind::Answer => "answer",
+                VarKind::Timer => "timer",
+                VarKind::List => "list",
+                VarKind::Cloud => "cloud",
+                VarKind::RealTime => "realtime",
+                VarKind::Unknown => "variable",
+            },
+            "value":match v.init {
+                VarInit::Int0 => json!(0),
+                VarInit::Float0 => json!(0.0),
+                VarInit::EmptyStr => json!(""),
+                VarInit::False => json!(false),
+                VarInit::EmptyList => json!([]),
+            }
+        })
+    }).collect();
+    let mut project = original.clone();
+    project["scripts"] = json!(scripts);
+    project["variables"] = json!(vars_arr);
     Ok(project)
 }
 
@@ -47,7 +57,15 @@ pub fn collect_var_map(program: &Program) -> VarMap {
             id,
             name: name.clone(),
             kind: kind.clone(),
-            init: VarInit::Int0,
+            init: match kind {
+                VarKind::List => VarInit::EmptyList,
+                VarKind::Variable => VarInit::EmptyStr,
+                VarKind::Timer => VarInit::Float0,
+                VarKind::Answer => VarInit::EmptyStr,
+                VarKind::Cloud => VarInit::EmptyStr,
+                VarKind::RealTime => VarInit::EmptyStr,
+                VarKind::Unknown => VarInit::EmptyStr,
+            }
         });
     }
     map

@@ -144,8 +144,9 @@ impl Block {
 pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
     match stmt {
         Stmt::VarDecl(name, expr) | Stmt::SetVar(name, expr)=>{
-            if name == "초시계" {
-                return Err(UnmappedBlock("초시계(stopwatch) is reserved keyword".into()))
+            // Timer/Answer/List 변수는 Entry 전용 슬롯만 받음. 일반 let/set 불가.
+            if matches!(kind_for(name), VarKind::Timer | VarKind::Answer) {
+                return Err(UnmappedBlock(format!("{name} is reserved Entry variable (use dedicated block)")))
             }
             Ok(Block::SetVar { variable: name.clone(), value: from_expr(expr)? })
         }
@@ -225,7 +226,13 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
         Expr::Float(f) => Ok(ParamBlock::Number(*f)),
         Expr::Str(s) => Ok(ParamBlock::Text(s.clone())),
         Expr::Bool(b) => Ok(ParamBlock::Boolean(b.clone())),
-        Expr::Var(name) => Ok(ParamBlock::Variable(name.clone())),
+        Expr::Var(name) => {
+            // Timer/Answer는 전용 슬롯(get_xxx)에서만 읽음.
+            if matches!(kind_for(name), VarKind::Timer | VarKind::Answer) {
+                return Err(UnmappedBlock(format!("{name} read needs dedicated block")));
+            }
+            Ok(ParamBlock::Variable(name.clone()))
+        }
         Expr::BinOp(op, lhs, rhs) => {
             let lhs = from_expr(lhs)?;
             let rhs = from_expr(rhs)?;
