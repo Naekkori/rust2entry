@@ -1,8 +1,6 @@
 # Rust2Entry
 러스트 코드를 엔트리로 컴파일 합니다.
 
-진행 상태/완료 모듈/TODO는 [AGENT.md](./AGENT.md) 참고.
-
 ## Editor 통합 (로드맵)
 
 러스트 소스 자체는 `rust-analyzer`가 완전 지원. 본 프로젝트의 editor 통합은 **`.ent` 출력 + 매핑 진단** 두 축.
@@ -14,7 +12,7 @@
   - 매핑 안 되는 Rust 구문 인레이 진단 (e.g. `async {}` → "엔트리에 async 블록 없음")
   - 가능하면 `entryc --lsp`로 사용자 LSP 서버 모드 지원
 
-핵심: **Rust 코드가 1급 시민**, `.ent`는 부산물. 사용자는 Rust LSP만으로 Rust 기능 100% 사용 가능하고, `entryc`는 변환 파이프라인 역할만.
+핵심: **Rust 코드가 우선**, `.ent`는 부산물. 사용자는 Rust LSP만으로 Rust 기능 100% 사용 가능하고, `entryc`는 변환 파이프라인 역할만.
 
 ## 스킴구조 (EntryJS 에서 퍼옴)
 ```javascript
