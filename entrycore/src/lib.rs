@@ -936,6 +936,15 @@ fn trigger_block_for(
             let msg = params.first().cloned().unwrap_or_default();
             Block::WhenMessageRecv { msg }
         }
+        "when_key_pressed" | "when_some_key_pressed" => {
+            // param: key code (예: "q" → "81"). 없으면 기본 "81".
+            let key_code = params.first().cloned().unwrap_or_else(|| "81".to_string());
+            Block::WhenKeyPressed { key_code }
+        }
+        "when_mouse_clicked" | "mouse_clicked" => Block::WhenMouseClicked,
+        "when_mouse_released" | "mouse_click_cancled" => Block::WhenMouseReleased,
+        "when_object_released" | "when_object_click_canceled" => Block::WhenObjectReleased,
+        "when_scene_start" => Block::WhenSceneStart,
         // 알 수 없는 when_* 는 when_start 로 fallback (EntryJS 가 무시하더라도
         // 잘못된 트리거로 시작되지 않게).
         _ if name.starts_with("when_") => Block::WhenStart,

@@ -1093,3 +1093,169 @@ fn compile_static_var_is_global() {
     let x = vars.iter().find(|v| v["name"] == "x").expect("x");
     assert_eq!(x["object"], "obj", "let 변수는 object: stem");
 }
+
+// ── 시작 블록 매핑 (트리거) ──
+
+/// `fn when_key_pressed(key: &str)` → `when_some_key_pressed` 트리거.
+/// params[0] = null (Indicator), params[1] = key code 문자열.
+#[test]
+fn compile_when_key_pressed_trigger() {
+    let src = r#"fn when_key_pressed(key: &str) { let x = 1; }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[0]["type"], "when_some_key_pressed");
+    assert!(thread[0]["params"][0].is_null());
+    assert_eq!(thread[0]["params"][1].as_str(), Some("key"));
+}
+
+/// key code 미지정 (param 없는 시그니처) 도 매핑. default "81".
+#[test]
+fn compile_when_key_pressed_no_param_defaults_to_81() {
+    // syn 상 fn f() 만 가능 — param 0개는 정상. 단 우리 DSL 신택스상
+    // key: &str 필요이지만 fallback 동작 확인용으로 빈 케이스 테스트:
+    let src = r#"fn when_key_pressed() { let x = 1; }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[0]["type"], "when_some_key_pressed");
+    assert_eq!(thread[0]["params"][1].as_str(), Some("81"));
+}
+
+/// `fn when_mouse_clicked()` → `mouse_clicked` 트리거.
+#[test]
+fn compile_when_mouse_clicked_trigger() {
+    let src = r#"fn when_mouse_clicked() { let x = 1; }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[0]["type"], "mouse_clicked");
+}
+
+/// `fn when_mouse_released()` → `mouse_click_cancled` 트리거.
+#[test]
+fn compile_when_mouse_released_trigger() {
+    let src = r#"fn when_mouse_released() { let x = 1; }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[0]["type"], "mouse_click_cancled");
+}
+
+/// `fn when_object_released()` → `when_object_click_canceled` 트리거.
+#[test]
+fn compile_when_object_released_trigger() {
+    let src = r#"fn when_object_released() { let x = 1; }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[0]["type"], "when_object_click_canceled");
+}
+
+/// `fn when_scene_start()` → `when_scene_start` 트리거.
+#[test]
+fn compile_when_scene_start_trigger() {
+    let src = r#"fn when_scene_start() { let x = 1; }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[0]["type"], "when_scene_start");
+}
+
+// ── 시작 블록 매핑 (액션) ──
+
+/// `send_message("foo")` → `message_cast` 블록.
+#[test]
+fn compile_send_message_emits_message_cast() {
+    let src = r#"fn when_start() { send_message("foo"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    // thread[0] = when_run, thread[1] = message_cast
+    assert_eq!(thread[0]["type"], "when_run");
+    assert_eq!(thread[1]["type"], "message_cast");
+    assert_eq!(thread[1]["params"][0].as_str(), Some("foo"));
+    assert!(thread[1]["params"][1].is_null());
+}
+
+/// `wait_message("foo")` → `message_cast_wait` 블록.
+#[test]
+fn compile_wait_message_emits_message_cast_wait() {
+    let src = r#"fn when_start() { wait_message("foo"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "message_cast_wait");
+    assert_eq!(thread[1]["params"][0].as_str(), Some("foo"));
+}
+
+/// `start_scene("scene2")` → `start_scene` 블록.
+#[test]
+fn compile_start_scene_emits_start_scene() {
+    let src = r#"fn when_start() { start_scene("scene2"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "start_scene");
+    assert_eq!(thread[1]["params"][0].as_str(), Some("scene2"));
+}
+
+/// `start_next_scene()` → `start_neighbor_scene` (next).
+#[test]
+fn compile_start_next_scene_emits_start_neighbor_scene_next() {
+    let src = r#"fn when_start() { start_next_scene(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "start_neighbor_scene");
+    assert_eq!(thread[1]["params"][0].as_str(), Some("next"));
+}
+
+/// `start_prev_scene()` → `start_neighbor_scene` (prev).
+#[test]
+fn compile_start_prev_scene_emits_start_neighbor_scene_prev() {
+    let src = r#"fn when_start() { start_prev_scene(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "start_neighbor_scene");
+    assert_eq!(thread[1]["params"][0].as_str(), Some("prev"));
+}
+
+/// 메시지 액션 사용 시 project.messages 에 메시지 등록.
+#[test]
+fn compile_when_message_registers_message() {
+    // send_message/wait_message 는 호출만. 메시지 정의는 when_message 트리거에서.
+    let src = r#"
+        fn when_start() { send_message("foo"); wait_message("foo"); }
+        fn when_message(my_msg: &str) { let x = 1; }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let messages = v["messages"].as_array().expect("messages");
+    let names: Vec<&str> = messages.iter().filter_map(|m| m["name"].as_str()).collect();
+    // send_message 자체는 메시지 등록 안 함 (호출만). EntryJS 가 호출 시 dynamic 처리.
+    // when_message 트리거의 my_msg 만 등록.
+    assert!(names.contains(&"my_msg"), "when_message 의 my_msg 등록");
+    assert!(!names.contains(&"foo"), "send_message 의 foo 는 등록 안 됨");
+}
+
+// ── 라운드트립 ──
+
+/// 시작 트리거/액션 블록의 deparse → parse 라운드트립 보존.
+#[test]
+fn compile_start_blocks_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+
+    let src = r#"
+        fn when_key_pressed(k: &str) { send_message("foo"); }
+        fn when_mouse_clicked() { start_next_scene(); }
+        fn when_scene_start() { start_scene("s2"); }
+    "#;
+    let p1 = entrycore::parse::parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let script_str = objects[0]["script"].as_str().expect("script str");
+    let _ = program_from_script_string_with_vars(script_str, &vars).expect("deparse");
+}

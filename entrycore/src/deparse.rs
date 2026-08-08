@@ -82,7 +82,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
     let params = obj.get("params").cloned().unwrap_or(Value::Null);
 
     let block = match type_id {
-        // 시작
+        // 시작 (트리거)
         "when_run_button_click" | "when_run" => Block::WhenStart,
         "when_click" | "when_object_click" => Block::WhenClick,
         "when_clone_start" => Block::WhenCloneStart,
@@ -93,6 +93,52 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 .unwrap_or("")
                 .to_string();
             Block::WhenMessageRecv { msg }
+        }
+        "when_some_key_pressed" => {
+            let key_code = params
+                .get(1)
+                .and_then(Value::as_str)
+                .unwrap_or("81")
+                .to_string();
+            Block::WhenKeyPressed { key_code }
+        }
+        "mouse_clicked" => Block::WhenMouseClicked,
+        "mouse_click_cancled" => Block::WhenMouseReleased,
+        "when_object_click_canceled" => Block::WhenObjectReleased,
+        "when_scene_start" => Block::WhenSceneStart,
+
+        // 시작 (액션)
+        "message_cast" => {
+            let msg = params
+                .get(0)
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            Block::MessageCast { msg }
+        }
+        "message_cast_wait" => {
+            let msg = params
+                .get(0)
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            Block::MessageCastWait { msg }
+        }
+        "start_scene" => {
+            let scene = params
+                .get(0)
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            Block::StartScene { scene }
+        }
+        "start_neighbor_scene" => {
+            let direction = params
+                .get(0)
+                .and_then(Value::as_str)
+                .unwrap_or("next")
+                .to_string();
+            Block::StartNeighborScene { direction }
         }
 
         // 변수
@@ -444,6 +490,100 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::WhenKeyPressed { key_code } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef {
+                    name: "when_key_pressed".to_string(),
+                    arity: 1,
+                },
+                vec![Expr::Str(key_code.clone())],
+            )));
+            Ok(())
+        }
+        Block::WhenMouseClicked => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef {
+                    name: "when_mouse_clicked".to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::WhenMouseReleased => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef {
+                    name: "when_mouse_released".to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::WhenObjectReleased => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef {
+                    name: "when_object_released".to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::WhenSceneStart => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef {
+                    name: "when_scene_start".to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::MessageCast { msg } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef {
+                    name: "send_message".to_string(),
+                    arity: 1,
+                },
+                vec![Expr::Str(msg.clone())],
+            )));
+            Ok(())
+        }
+        Block::MessageCastWait { msg } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef {
+                    name: "wait_message".to_string(),
+                    arity: 1,
+                },
+                vec![Expr::Str(msg.clone())],
+            )));
+            Ok(())
+        }
+        Block::StartScene { scene } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef {
+                    name: "start_scene".to_string(),
+                    arity: 1,
+                },
+                vec![Expr::Str(scene.clone())],
+            )));
+            Ok(())
+        }
+        Block::StartNeighborScene { direction } => {
+            let name = match direction.as_str() {
+                "prev" => "start_prev_scene",
+                _ => "start_next_scene",
+            };
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef {
+                    name: name.to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
         Block::SetVar { variable, value } => {
             stmts.push(Stmt::SetVar(variable.clone(), expr_from_param(value, vars)?));
             Ok(())
@@ -754,6 +894,15 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         | Block::WhenClick
         | Block::WhenCloneStart
         | Block::WhenMessageRecv { .. }
+        | Block::WhenKeyPressed { .. }
+        | Block::WhenMouseClicked
+        | Block::WhenMouseReleased
+        | Block::WhenObjectReleased
+        | Block::WhenSceneStart
+        | Block::MessageCast { .. }
+        | Block::MessageCastWait { .. }
+        | Block::StartScene { .. }
+        | Block::StartNeighborScene { .. }
         | Block::FuncDef { .. }
         | Block::Return { .. } => Err(UnmappedBlock(format!(
             "block used as expr: {}",

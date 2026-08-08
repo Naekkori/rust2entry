@@ -16,7 +16,7 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
 | 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 5/5 |
-| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 57/57 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 70/70 |
 
 ### lib::compile 세부 동작 (현재)
 
@@ -29,6 +29,7 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 - **function 이름 중복**: base `functions[].name` 과 충돌 시 `_2`, `_3`, ... suffix (EntryJS 가 name 으로 호출 매칭하므로 중복 방지).
 - **빈 배열 항상 emit**: helper/messages 가 없어도 `project.functions = []`, `project.messages = []` emit (EntryJS 가 키 부재 시 안전하지만 명시적 빈 배열이 안전).
 - **when_message 트리거**: 메시지 이름 수집 → `project.messages` 에 `{id: <name>, name}` emit (id = name, EntryJS 가 name 으로 매칭).
+- **시작 액션 reserved 호출**: `send_message("foo")` / `wait_message("foo")` / `start_scene("id")` / `start_next_scene()` / `start_prev_scene()` 는 IR 에서는 일반 `Expr::Call` 으로 파싱되지만 `block::from_stmt` 에서 reserved 이름 매칭 시 별도 Block variant (`MessageCast` 등) 으로 변환. FuncCall 로 emit 되지 않고 EntryJS 의 실제 블록 type (`message_cast` 등) 으로 emit.
 - **variables**: Entry 실제 .ent 형식 — `{id, name, variableType, value, visible, isCloud, isRealTime, cloudDate, object, x, y}`. `object` 필드는 변수가 등장한 rs stem; **Timer/Answer/Cloud/RealTime/List 는 항상 전역 (null)**.
 - **가짜 object** (base 와 매칭 안 되는 rs): `make_fake_object` 가 base 의 첫 sprite 메타 복사하되 pictures/sounds/selectedPictureId 는 비움, id 는 `obj_<djb2(stem)>` stable hash, `objectType` 보존, `scene` 은 `CompileOptions.default_scene` > base 첫 sprite > `"scene1"`, `rotateMethod:"free"`, `lock:false` 기본값 추가.
 - **object.script**: 실제 .ent 형식과 동일하게 **JSON 문자열**로 emit (raw 배열 X).
@@ -44,7 +45,8 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
   - `Stmt::VarDecl`, `SetVar`, `FuncDef`, `If`, `While`, `Repeat`, `For`, `Return`, `Break`, `Continue`
   - `Expr::Lit` (Int/Float/Str/Bool), `Binary` (12개), `Unary`, `Path`, `Call`, `Paren`, `Range`
 - `block` — `ir` → `Block` enum + `ParamBlock`
-  - 타이밍: `WhenStart`/`WhenClick`/`WhenCloneStart`/`WhenMessageRecv`
+  - 시작 (트리거): `WhenStart`/`WhenClick`/`WhenCloneStart`/`WhenMessageRecv`/`WhenKeyPressed`/`WhenMouseClicked`/`WhenMouseReleased`/`WhenObjectReleased`/`WhenSceneStart`
+  - 시작 (액션): `MessageCast`/`MessageCastWait`/`StartScene`/`StartNeighborScene`
   - 변수: `SetVar`/`ChangeVar`/`GetVar`/`ShowVar`/`HideVar`
   - 흐름: `If`/`IfElse`/`While`/`Repeat`/`Forever`/`Break`/`Continue`/`StopAll`
   - 산술: `CalcBinOp`/`Compare`/`BoolOp`/`UnaryOp`
@@ -127,17 +129,20 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ✅ = 매핑됨. `deparse.rs::block_from_value` 의 매치 arm 기준.
 
-### 시작 (3/26)
+### 시작 (12/26)
 - ✅ `when_run_button_click` / `when_run` → `WhenStart` (→ `fn when_start()`)
 - ✅ `when_object_click` / `when_click` → `WhenClick` (→ `fn when_click()`)
 - ✅ `when_clone_start` → `WhenCloneStart` (→ `fn when_clone_start()`)
 - ✅ `when_message_cast` → `WhenMessageRecv` (→ `fn when_message_<msg>()`)
-- ⬜ `when_some_key_pressed` — □ 키를 눌렀을 때
-- ⬜ `mouse_clicked` / `mouse_click_cancled` — 마우스 클릭/해제
-- ⬜ `when_object_click_canceled` — 오브젝트 클릭 해제
-- ⬜ `message_cast` / `message_cast_wait` — 신호 보내기/보내고 기다리기
-- ⬜ `when_scene_start` — 장면이 시작되었을 때
-- ⬜ `start_scene` / `start_neighbor_scene` — 장면 시작하기
+- ✅ `when_some_key_pressed` → `WhenKeyPressed` (→ `fn when_key_pressed(key: &str)`)
+- ✅ `mouse_clicked` → `WhenMouseClicked` (→ `fn when_mouse_clicked()`)
+- ✅ `mouse_click_cancled` → `WhenMouseReleased` (→ `fn when_mouse_released()`)
+- ✅ `when_object_click_canceled` → `WhenObjectReleased` (→ `fn when_object_released()`)
+- ✅ `when_scene_start` → `WhenSceneStart` (→ `fn when_scene_start()`)
+- ✅ `message_cast` → `MessageCast` (→ `send_message("foo");`)
+- ✅ `message_cast_wait` → `MessageCastWait` (→ `wait_message("foo");`)
+- ✅ `start_scene` → `StartScene` (→ `start_scene("scene2");`)
+- ✅ `start_neighbor_scene` → `StartNeighborScene` (→ `start_next_scene();` / `start_prev_scene();`)
 - ⬜ 내부용 (이름 없음): `check_object_property`, `check_block_execution`, `switch_scope`, `is_answer_submited`, `check_lecture_goal`, `check_variable_by_name`, `show_prompt`, `check_goal_success`, `positive_number`, `negative_number`, `wildcard_string`, `wildcard_boolean`, `register_score`
 
 ### 흐름 (8/15)
@@ -306,7 +311,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**22/203** 매핑됨 (약 10.8%)
+**31/203** 매핑됨 (약 15.3%)
 
 ## 남은 작업 (TODO)
 
@@ -345,6 +350,8 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 빈 `functions` / `messages` 배열 항상 emit
   - [ ] 트리거 없는 thread 시 `when_run` 자동 prepend (현재 `parse` 가 Item::Fn 만 허용해 dead code, 방어용으로만 유지)
 - [ ] **다음 우선순위 (블록 추가)**
+  - [x] 시작 (트리거): `when_key_pressed`, `when_mouse_clicked`, `when_mouse_released`, `when_object_released`, `when_scene_start`
+  - [x] 시작 (액션): `send_message`/`wait_message`, `start_scene`/`start_next_scene`/`start_prev_scene`
   - [ ] 흐름: `wait_second`, `wait_until_true` (쉬움, 즉시 가치)
   - [ ] 흐름: `repeat_while_true` 별칭 추가 (현재 `repeat_while` 만 매핑)
   - [ ] 연산: `calc_rand` (난수) / `get_project_timer_value` (타이머 값)
@@ -367,6 +374,7 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
+- 시작 블록 매핑 작업 중 (커밋 미완)
 - `a045d4c feat(generator): extract 출력에 생성기 헤더 prepend`
 - `3df669c feat(build): 함수 param type 신택스 (StringParam / BoolParam)`
 - `3e473e7 fix(build): function_call args 슬롯 보존 (param arity 맞춤)`
@@ -374,7 +382,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 6 + codegen 9 + compile 57 + parse 26 = 98 통과)
+cargo test                  # 전체 (entryc 6 + codegen 9 + compile 70 + parse 26 = 111 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -395,6 +403,6 @@ entrycore/   라이브러리 (parse/block/codegen/deparse/decodegen/var) + lib::
              - ir::ParamKind: String (StringParam) / Bool (BoolParam)
 entryc/      CLI (extract/build subcommand, --rs/--out/--ent-template, --scene, --replace-vars)
 target/      빌드 산출물
-entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 + 매핑 현황 (203개, 22개 완료)
+entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 + 매핑 현황 (203개, 31개 완료)
 AGENT.md     이 문서
 ```

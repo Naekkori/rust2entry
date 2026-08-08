@@ -17,11 +17,32 @@ use serde_json::{json, Value};
 /// 모든 Entry 블록의 통합 표현.
 #[derive(Debug, Clone)]
 pub enum Block {
-    // ── 시작 ──
+    // ── 시작 (트리거) ──
     WhenStart,
     WhenClick,
     WhenCloneStart,
     WhenMessageRecv { msg: String },
+    /// `when_some_key_pressed` — 키 코드 (Keyboard dropdown, "q" → "81")
+    WhenKeyPressed { key_code: String },
+    /// `mouse_clicked`
+    WhenMouseClicked,
+    /// `mouse_click_cancled`
+    WhenMouseReleased,
+    /// `when_object_click_canceled`
+    WhenObjectReleased,
+    /// `when_scene_start`
+    WhenSceneStart,
+
+    // ── 시작 (액션) ──
+    /// `message_cast` — 메시지 이름 (EntryJS 는 DropdownDynamic 으로 받음).
+    /// args 0 = 메시지 이름, args 1 = null (Indicator 자리).
+    MessageCast { msg: String },
+    /// `message_cast_wait` — 보낸 후 수신자 실행 완료까지 대기.
+    MessageCastWait { msg: String },
+    /// `start_scene` — 씬 id.
+    StartScene { scene: String },
+    /// `start_neighbor_scene` — next 또는 prev.
+    StartNeighborScene { direction: String },
 
     // ── 변수 (출력: set_variable, change_variable, get_variable) ──
     SetVar { variable: String, value: ParamBlock },
@@ -76,8 +97,35 @@ pub enum ParamBlock {
     Boolean(bool),
     /// 변수 참조 (드롭다운 자리).
     Variable(String),
-    /// 중첩 블록 (계산식 등).
-    Sub(Box<Block>),
+/// 중첩 블록 (계산식 등).
+Sub(Box<Block>),
+}
+
+/// Entry 시작 액션 reserved name → Block 변환.
+/// 매칭 시 Some(Block) 반환, 매칭 안 되면 None.
+fn reserved_start_call_to_block(
+    fref: &crate::ir::FuncRef,
+    args: &[crate::ir::Expr],
+) -> Result<Option<Block>> {
+    use crate::ir::Expr;
+    let first_str = || -> String {
+        match args.first() {
+            Some(Expr::Str(s)) => s.clone(),
+            _ => String::new(),
+        }
+    };
+    Ok(Some(match fref.name.as_str() {
+        "send_message" => Block::MessageCast { msg: first_str() },
+        "wait_message" => Block::MessageCastWait { msg: first_str() },
+        "start_scene" => Block::StartScene { scene: first_str() },
+        "start_next_scene" => Block::StartNeighborScene {
+            direction: "next".to_string(),
+        },
+        "start_prev_scene" => Block::StartNeighborScene {
+            direction: "prev".to_string(),
+        },
+        _ => return Ok(None),
+    }))
 }
 
 impl Block {
@@ -88,6 +136,15 @@ impl Block {
             Block::WhenClick => "when_click",
             Block::WhenCloneStart => "when_clone_start",
             Block::WhenMessageRecv { .. } => "when_message_cast",
+            Block::WhenKeyPressed { .. } => "when_some_key_pressed",
+            Block::WhenMouseClicked => "mouse_clicked",
+            Block::WhenMouseReleased => "mouse_click_cancled",
+            Block::WhenObjectReleased => "when_object_click_canceled",
+            Block::WhenSceneStart => "when_scene_start",
+            Block::MessageCast { .. } => "message_cast",
+            Block::MessageCastWait { .. } => "message_cast_wait",
+            Block::StartScene { .. } => "start_scene",
+            Block::StartNeighborScene { .. } => "start_neighbor_scene",
             Block::SetVar { .. } => "set_variable",
             Block::ChangeVar { .. } => "change_variable",
             Block::GetVar { .. } => "get_variable",
@@ -130,6 +187,15 @@ impl Block {
             Block::If { .. } | Block::IfElse { .. } => Category::Flow,
             Block::While { .. } | Block::Repeat { .. } | Block::Forever { .. } => Category::Flow,
             Block::Break | Block::Continue | Block::StopAll => Category::Flow,
+            Block::WhenKeyPressed { .. }
+            | Block::WhenMouseClicked
+            | Block::WhenMouseReleased
+            | Block::WhenObjectReleased
+            | Block::WhenSceneStart => Category::Start,
+            Block::MessageCast { .. }
+            | Block::MessageCastWait { .. }
+            | Block::StartScene { .. }
+            | Block::StartNeighborScene { .. } => Category::Start,
             Block::CalcBinOp { .. } | Block::Compare { .. } | Block::BoolOp { .. } | Block::UnaryOp { .. } => {
                 Category::Calc
             }
@@ -160,6 +226,11 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
         Stmt::Expr(expr)=>{
             match expr {
                 Expr::Call(fref, args)=>{
+                    // Entry 시작 액션 — reserved name 으로 매칭되는 호출은
+                    // 별도 Block 으로 변환 (EntryJS 가 정의한 function 이 아님).
+                    if let Some(block) = reserved_start_call_to_block(fref, args)? {
+                        return Ok(block);
+                    }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall { name: fref.name.clone(), args })
                 }
@@ -391,6 +462,31 @@ fn build_params_and_statements(
         ),
         Block::WhenStart | Block::WhenClick | Block::WhenCloneStart => (vec![], None),
         Block::WhenMessageRecv { msg } => (vec![Value::String(msg.clone())], None),
+        // when_some_key_pressed: [Indicator, Keyboard dropdown (key code)]
+        // 우리 DSL: `when_key_pressed(key: &str)` — key code (예: "q"→"81").
+        // EntryJS 기본 key 코드 = "81" ('q'). param 이 없으면 기본값.
+        Block::WhenKeyPressed { key_code } => {
+            (vec![Value::Null, Value::String(key_code.clone())], None)
+        }
+        Block::WhenMouseClicked
+        | Block::WhenMouseReleased
+        | Block::WhenObjectReleased
+        | Block::WhenSceneStart => (vec![], None),
+        // message_cast / message_cast_wait / start_scene:
+        // [DropdownDynamic 메시지/씬, Indicator]. 우리 DSL 은 String literal 전달.
+        Block::MessageCast { msg } | Block::MessageCastWait { msg } => (
+            vec![Value::String(msg.clone()), Value::Null],
+            None,
+        ),
+        Block::StartScene { scene } => (
+            vec![Value::String(scene.clone()), Value::Null],
+            None,
+        ),
+        // start_neighbor_scene: [Dropdown next/prev, Indicator]
+        Block::StartNeighborScene { direction } => (
+            vec![Value::String(direction.clone()), Value::Null],
+            None,
+        ),
     })
 }
 
