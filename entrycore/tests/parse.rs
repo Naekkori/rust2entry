@@ -1,8 +1,20 @@
 //! parse::parse() 통합 테스트.
 
+use entrycore::codegen::generate;
 use entrycore::decodegen;
 use entrycore::ir::{Expr, Stmt};
 use entrycore::parse::parse;
+use serde_json::{Value, json};
+
+/// codegen 테스트용 빈 project.json 베이스.
+fn empty_project() -> Value {
+    json!({
+        "name": "test",
+        "speed": 60, "objects": [], "variables": [], "messages": [],
+        "functions": [], "scenes": [{"id":"scene1","name":"장면1"}],
+        "interface": {"views": []}, "meta": {}
+    })
+}
 
 #[test]
 fn when_start_int_literal() {
@@ -146,6 +158,95 @@ fn string_literal() {
         &program.stmts[0],
         Stmt::VarDecl(_, Expr::Str(s)) if s == "hello"
     ));
+}
+#[test]
+fn when_start_if_else_full() {
+    let src = r#"
+        fn when_start() {
+            if 1 < 2 {
+                let a = 1;
+            } else {
+                let b = 2;
+            }
+        }
+    "#;
+    let program = parse(src).expect("parse");
+    assert_eq!(program.stmts.len(), 1);
+    match &program.stmts[0] {
+        Stmt::If { then_body, else_body, .. } => {
+            assert_eq!(then_body.len(), 1);
+            assert_eq!(else_body.len(), 1);
+            // then: VarDecl a = 1
+            assert!(matches!(&then_body[0], Stmt::VarDecl(n, _) if n == "a"));
+            // else: VarDecl b = 2
+            assert!(matches!(&else_body[0], Stmt::VarDecl(n, _) if n == "b"));
+        }
+        _ => panic!("expected If with else"),
+    }
+}
+
+#[test]
+fn when_start_elif_chain() {
+    let src = r#"
+        fn when_start() {
+            if 1 < 2 {
+                let a = 1;
+            } else if 3 < 4 {
+                let b = 2;
+            } else {
+                let c = 3;
+            }
+        }
+    "#;
+    let program = parse(src).expect("parse");
+    // else if 는 Stmt::If {} 가 else_body[0] 에 들어감 (재귀)
+    match &program.stmts[0] {
+        Stmt::If { else_body, .. } => {
+            assert_eq!(else_body.len(), 1);
+            match &else_body[0] {
+                Stmt::If { then_body, else_body: inner_else, .. } => {
+                    assert_eq!(then_body.len(), 1);
+                    assert_eq!(inner_else.len(), 1);
+                }
+                _ => panic!("elif not nested If"),
+            }
+        }
+        _ => panic!("expected If"),
+    }
+}
+
+#[test]
+fn if_else_block() {
+    let src = r#"
+        fn when_start() {
+            if 1 < 2 {
+                let x = 1;
+            } else {
+                let y = 2;
+            }
+        }
+    "#;
+    let program = parse(src).expect("parse");
+    let json = generate(&program, &empty_project()).expect("generate");
+    let block = &json["scripts"][0];
+    assert_eq!(block["type"], "if_else");
+    // params[0] = 조건 (boolean_basic)
+    assert_eq!(block["params"][0]["type"], "boolean_basic");
+    // statements[0] = then, statements[1] = else
+    let stmts = block["statements"].as_array().expect("statements");
+    assert_eq!(stmts.len(), 2);
+    assert_eq!(stmts[0][0]["type"], "set_variable"); // then: let x = 1
+    assert_eq!(stmts[1][0]["type"], "set_variable"); // else: let y = 2
+}
+
+#[test]
+fn if_without_else_stays_if() {
+    let src = "fn when_start() { if 1 < 2 { let x = 1; } }";
+    let program = parse(src).expect("parse");
+    let json = generate(&program, &empty_project()).expect("generate");
+    let block = &json["scripts"][0];
+    // else 없으면 if (if_else 아님)
+    assert_eq!(block["type"], "if");
 }
 
 #[test]
