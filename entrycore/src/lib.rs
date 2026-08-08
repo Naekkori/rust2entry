@@ -37,11 +37,16 @@ use crate::ir::{Program, Stmt};
 /// `UnmappedBlock` 에러를 내지 않고 (Vec, 두 번째 반환) 에 메시지를 누적한다.
 /// 빌드 시 eprintln 으로 경고 출력용. 그 외 에러(parse/semantic/codegen)는
 /// 그대로 propagate.
-/// build 옵션. 현재는 가짜 object 의 scene 만 노출.
+/// build 옵션.
 #[derive(Debug, Clone, Default)]
 pub struct CompileOptions {
     /// 가짜 object 에 적용할 scene id. None 이면 base 의 첫 sprite scene 복사.
     pub default_scene: Option<String>,
+    /// true 면 base 의 variables 를 통째 교체 (scaffold 변수도 제거).
+    /// false (기본) 면 id 기준 union — 새 빌드가 정의한 변수는 추가/덮음,
+    /// base 의 변수는 보존. 사용자가 template 의 변수를 일부러 보존하지
+    /// 않을 때 true 로 설정.
+    pub replace_variables: bool,
 }
 
 pub fn compile(rs_sources: &[(&str, &str)], base: &Value) -> Result<(Value, Vec<String>)> {
@@ -126,17 +131,21 @@ pub fn compile_with_options(
                 "isCloud": is_cloud,
                 "isRealTime": is_realtime,
                 "cloudDate": false,
-                // 변수가 등장한 object 표시 (전역 변수는 null).
-                // EntryJS 가 자동 관리하는 timer / answer 와 cloud / realtime /
-                // list 는 항상 전역 (어느 object 에도 묶이지 않음).
-                "object": if matches!(
-                    v.kind,
-                    crate::var::VarKind::Timer
-                        | crate::var::VarKind::Answer
-                        | crate::var::VarKind::Cloud
-                        | crate::var::VarKind::RealTime
-                        | crate::var::VarKind::List
-                ) {
+                // 변수의 object 표시:
+                // - Global scope (`static`): 항상 null (모든 object 공유).
+                // - System kind (Timer/Answer/Cloud/RealTime/List): 항상 null
+                //   (EntryJS 가 자동 관리 — 어느 object 에도 묶이지 않음).
+                // - 그 외 Local scope 일반 변수: 등장한 object 의 stem.
+                "object": if matches!(v.scope, crate::var::VarScope::Global)
+                    || matches!(
+                        v.kind,
+                        crate::var::VarKind::Timer
+                            | crate::var::VarKind::Answer
+                            | crate::var::VarKind::Cloud
+                            | crate::var::VarKind::RealTime
+                            | crate::var::VarKind::List
+                    )
+                {
                     Value::Null
                 } else {
                     var_object
@@ -149,25 +158,45 @@ pub fn compile_with_options(
             })
         })
         .collect();
-    // base variables 와 id 기준 union
-    let base_vars = project
-        .get("variables")
-        .and_then(|v| v.as_array())
-        .cloned()
-        .unwrap_or_default();
-    let mut merged_vars: Vec<Value> = base_vars;
-    for v in &vars_arr {
-        let new_id = v.get("id").and_then(|x| x.as_str());
-        if let Some(new_id) = new_id {
-            if let Some(existing) = merged_vars.iter_mut().find(|e| {
-                e.get("id").and_then(|x| x.as_str()) == Some(new_id)
-            }) {
-                *existing = v.clone();
-                continue;
+    // base variables 처리.
+    // - 기본 (replace_variables=false): id 기준 union. 새 빌드의 변수는
+    //   추가/덮고, base 의 변수는 보존. template 의 변수가 scaffold 역할.
+    // - replace_variables=true: base 무시, 새 빌드 변수만 사용. template 의
+    //   잔존 변수를 정리하고 싶을 때 사용.
+    // 추가로 malformed (id/name/variableType 없는) base 변수는 EntryJS 가
+    // silent hash 부여해 노이즈가 되므로 union 모드에서도 제외.
+    let merged_vars: Vec<Value> = if options.replace_variables {
+        vars_arr.clone()
+    } else {
+        let base_vars = project
+            .get("variables")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let base_vars_filtered: Vec<Value> = base_vars
+            .into_iter()
+            .filter(|v| {
+                // well-formed = id + name + variableType 모두 있어야.
+                v.get("id").and_then(|x| x.as_str()).is_some()
+                    && v.get("name").and_then(|x| x.as_str()).is_some()
+                    && v.get("variableType").and_then(|x| x.as_str()).is_some()
+            })
+            .collect();
+        let mut merged = base_vars_filtered;
+        for v in &vars_arr {
+            let new_id = v.get("id").and_then(|x| x.as_str());
+            if let Some(new_id) = new_id {
+                if let Some(existing) = merged.iter_mut().find(|e| {
+                    e.get("id").and_then(|x| x.as_str()) == Some(new_id)
+                }) {
+                    *existing = v.clone();
+                    continue;
+                }
             }
+            merged.push(v.clone());
         }
-        merged_vars.push(v.clone());
-    }
+        merged
+    };
     project["variables"] = json!(merged_vars);
 
     // 3. project.scripts 를 base 값으로 복원 (object.script 가 진짜 위치)
@@ -260,7 +289,12 @@ pub fn compile_with_options(
         }
     }
 
-    // 6. project.functions 에 helper 함수들 emit
+    // 6. project.functions 에 helper 함수들 emit.
+    //    EntryJS `Entry.Func` 는 `func.content` 로 `Entry.Code` 를 받는다.
+    //    Entry.Code 는 스레드 배열 (`[[block,...],...]`) 이므로
+    //    helper 의 `function_create` 헤드 블록을 thread 첫 블록으로 둔다.
+    //    헤드 자체의 `statements[0]` 에 helper body 가 들어가므로
+    //    `content` 는 `[[head_block]]` 형식이다.
     if !all_helpers.is_empty() {
         let base_funcs = project
             .get("functions")
@@ -268,24 +302,78 @@ pub fn compile_with_options(
             .cloned()
             .unwrap_or_default();
         let mut merged_funcs: Vec<Value> = base_funcs;
+        // helper 함수 이름 -> 할당된 id. function_call 블록을
+        // `func_<id>` 동적 블록으로 재작성할 때 사용.
+        let mut fn_name_to_id: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        // 같은 이름의 base function 이 이미 있으면 두 번째 항목부터
+        // 이름에 suffix 를 붙여 EntryJS 가 어느 것을 호출할지 모호한 상태를 방지.
+        let mut existing_names: std::collections::HashSet<String> = merged_funcs
+            .iter()
+            .filter_map(|f| f.get("name").and_then(|x| x.as_str()).map(String::from))
+            .collect();
         for h in &all_helpers {
+            let mut emit_name = h.name.clone();
+            if existing_names.contains(&emit_name) {
+                let mut counter = 2;
+                loop {
+                    let candidate = format!("{emit_name}_{counter}");
+                    if !existing_names.contains(&candidate) {
+                        eprintln!(
+                            "warning: function name '{}' duplicates base; renaming to '{}'",
+                            h.name, candidate
+                        );
+                        emit_name = candidate;
+                        break;
+                    }
+                    counter += 1;
+                }
+            }
+            existing_names.insert(emit_name.clone());
             // id 충돌 회피
-            let id = fresh_function_id(&merged_funcs, &h.name);
+            let id = fresh_function_id(&merged_funcs, &emit_name);
             let params: Vec<Value> = h
                 .params
                 .iter()
                 .map(|p| json!({ "name": p }))
                 .collect();
+            // function_create 헤드: thread 첫 블록.
+            //   {type:"function_create", params:[name, [param_names]], statements:[[...body]]}
+            // 이 한 블록이 `content[0]` (= 1 thread) 가 된다.
+            let param_names: Vec<Value> = h
+                .params
+                .iter()
+                .map(|p| Value::String(p.clone()))
+                .collect();
+            let head_block = json!({
+                "type": "function_create",
+                "params": [emit_name.clone(), Value::Array(param_names)],
+                "statements": [Value::Array(h.body.clone())],
+            });
+            fn_name_to_id.insert(h.name.clone(), id.clone());
             merged_funcs.push(json!({
                 "id": id,
-                "name": h.name,
-                "content": [{
-                    "blocks": h.body
-                }],
+                "name": emit_name,
+                "content": [head_block],
                 "param": params,
             }));
         }
         project["functions"] = json!(merged_funcs);
+
+        // 6.1 function_call 호출 블록을 `func_<id>` 동적 블록으로 재작성.
+        //     EntryJS 의 실제 호출 블록은 `Func.registerFunction` 에서
+        //     `func_<id>` 타입으로 동적 등록되며, schema 는 `function_general`
+        //     (basic skeleton, Indicator 1개) 를 사용한다. EntryJS 가
+        //     호출 시 params 를 동적 확장하므로 args 슬롯은 비워둔다.
+        if !fn_name_to_id.is_empty() {
+            rewrite_function_calls(&mut project, &fn_name_to_id);
+        }
+    } else {
+        // helper 가 없어도 project.functions 는 빈 배열로 emit — EntryJS 가
+        // 키 부재 시 default 처리는 하지만 명시적 빈 배열이 더 안전.
+        if project.get("functions").is_none() {
+            project["functions"] = json!([]);
+        }
     }
 
     // 7. project.messages 에 when_message 트리거의 메시지 이름 emit
@@ -309,6 +397,11 @@ pub fn compile_with_options(
             }));
         }
         project["messages"] = json!(merged_msgs);
+    } else {
+        // messages 가 없으면 빈 배열 emit (EntryJS 안전성).
+        if project.get("messages").is_none() {
+            project["messages"] = json!([]);
+        }
     }
 
     Ok((project, unmapped))
@@ -433,6 +526,12 @@ fn make_fake_object(
     // id: stem 기반 stable hash + collision 시 suffix
     let id = stable_object_id(base, taken_ids, name);
 
+    // `text`: IRawObject 필수 필드. textBox objectType 에서 글상자 내용,
+    // 그 외 objectType 에서는 EntryJS 가 `name` 으로 fallback 하지만 명시적 emit.
+    let text = base_object
+        .and_then(|o| o.get("text").and_then(|x| x.as_str()).map(String::from))
+        .unwrap_or_else(|| name.to_string());
+
     json!({
         "id": id,
         "name": name,
@@ -442,12 +541,14 @@ fn make_fake_object(
         "selectedPictureId": Value::Null,
         "sprite": sprite_meta,
         "entity": entity,
-        // Entry 실제 .ent 형식 (sample 기준) 에 등장하는 부수 필드:
+        // Entry 실제 .ent 형식 (IRawObject 기준) 에 등장하는 부수 필드:
         // - rotateMethod: 회전 방식 ("free" / "vertical" / ...)
         // - lock: 편집 잠금
+        // - text: 글상자 내용 (textBox) 또는 표시 이름
         // 비어있으면 EntryJS 가 default 적용하나 명시해두는 편이 안전.
         "rotateMethod": "free",
         "lock": false,
+        "text": text,
     })
 }
 
@@ -483,6 +584,88 @@ fn threads_to_value(threads: &[Vec<Value>]) -> Value {
     let arr = Value::Array(threads.iter().map(|t| Value::Array(t.clone())).collect());
     // `to_string` 이 항상 유효한 JSON 을 내므로 별도 직렬화 실패 가능성 없음.
     Value::String(arr.to_string())
+}
+
+/// project 전체의 `function_call` 블록을 EntryJS 의 `func_<id>` 동적 호출
+/// 블록으로 재작성. EntryJS 는 `Func.registerFunction` 에서 사용자 정의 함수를
+/// `func_<id>` 타입으로 동적 등록하므로, 호출도 같은 타입이어야 한다.
+///
+/// object.script 가 JSON 문자열로 저장되어 있어 1) 파싱 → 트리 walk →
+/// 재작성 → 다시 JSON 문자열로 직렬화 한다. 헬퍼 미정의 호출은 변경하지 않고
+/// 그대로 둔다 (EntryJS 가 미정의 함수 호출 시 경고 처리).
+fn rewrite_function_calls(project: &mut Value, fn_name_to_id: &std::collections::HashMap<String, String>) {
+    let objects = match project.get_mut("objects").and_then(|v| v.as_array_mut()) {
+        Some(a) => a,
+        None => return,
+    };
+    for o in objects.iter_mut() {
+        let script = match o.get_mut("script") {
+            Some(s) => s,
+            None => continue,
+        };
+        // 원본이 문자열이었는지 기억.
+        let was_string = script.is_string();
+        // 문자열이면 파싱, 이미 Value 면 그대로. 파싱 실패 시 원본 유지하고 skip.
+        let mut parsed: Value = if script.is_string() {
+            match script.as_str().and_then(|s| serde_json::from_str::<Value>(s).ok()) {
+                Some(v) => v,
+                None => continue,
+            }
+        } else {
+            script.clone()
+        };
+        rewrite_calls_in_value(&mut parsed, fn_name_to_id);
+        // 원래가 문자열이면 다시 문자열로, 아니면 그대로.
+        if was_string {
+            *script = Value::String(parsed.to_string());
+        } else {
+            *script = parsed;
+        }
+    }
+}
+
+/// Value 트리 안의 `function_call` 블록을 재귀적으로 찾아 `func_<id>` 로 교체.
+fn rewrite_calls_in_value(v: &mut Value, fn_name_to_id: &std::collections::HashMap<String, String>) {
+    match v {
+        Value::Array(arr) => arr.iter_mut().for_each(|x| rewrite_calls_in_value(x, fn_name_to_id)),
+        Value::Object(obj) => {
+            let is_call = obj.get("type").and_then(|x| x.as_str()) == Some("function_call");
+            if is_call {
+                let name = obj
+                    .get("params")
+                    .and_then(|p| p.as_array())
+                    .and_then(|a| a.first())
+                    .and_then(|x| x.as_str())
+                    .map(String::from);
+                if let Some(name) = name {
+                    if let Some(id) = fn_name_to_id.get(&name) {
+                        obj["type"] = Value::String(format!("func_{id}"));
+                        // EntryJS dynamic func 블록 (`function_general`) 은
+                        // Indicator 1개 슬롯만 가지므로 params 도 그에 맞게
+                        // 비워둔다. args 슬롯은 호출 시 EntryJS 가 동적 확장.
+                        obj["params"] = Value::Array(vec![Value::Null]);
+                    } else {
+                        // 미정의 함수 호출은 unmapped 로 누적.
+                        // (현재 unmapped 는 build_threads 단계에서만 채우므로
+                        // 여기선 stderr 경고만. 미정의 호출이 빌드 결과에
+                        // 남아있어도 EntryJS 가 무해하게 무시.)
+                        eprintln!("warning: function_call to undefined function: {name}");
+                    }
+                }
+            }
+            if let Some(stmts) = obj.get_mut("statements").and_then(|x| x.as_array_mut()) {
+                for s in stmts.iter_mut() {
+                    rewrite_calls_in_value(s, fn_name_to_id);
+                }
+            }
+            if let Some(params) = obj.get_mut("params").and_then(|x| x.as_array_mut()) {
+                for p in params.iter_mut() {
+                    rewrite_calls_in_value(p, fn_name_to_id);
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 /// build_threads 결과.
@@ -597,6 +780,14 @@ fn build_threads(
     }
     if !init_stmts.is_empty() {
         let mut init_thread: Vec<Value> = Vec::with_capacity(init_stmts.len());
+        // 트리거가 하나도 없고 init stmt 가 있으면 EntryJS 가 thread 를 무시하므로
+        // 자동 when_start 헤드를 prepend 한다. 현재 parse 가 Item::Fn 만 허용하고
+        // `when_*` 외 비-helper top-level stmt 는 일반 Rust 문법상 불가능하지만,
+        // 방어용으로 둔다.
+        if triggers.is_empty() {
+            let head = crate::block::to_value(&crate::block::Block::WhenStart)?;
+            init_thread.push(head);
+        }
         for s in &init_stmts {
             let b = match crate::block::from_stmt(s) {
                 Ok(b) => b,

@@ -120,11 +120,11 @@ fn roundtrip_simple_set() {
     assert_eq!(p1.stmts.len(), p2.stmts.len());
     // Entry `set_variable`은 VarDecl/SetVar 모두 표현 가능. 변수명만 보존 확인.
     let n1 = match &p1.stmts[0] {
-        entrycore::ir::Stmt::VarDecl(n, _) | entrycore::ir::Stmt::SetVar(n, _) => n,
+        entrycore::ir::Stmt::VarDecl(n, _, _, _) | entrycore::ir::Stmt::SetVar(n, _) => n,
         other => panic!("p1[0] not var stmt: {other:?}"),
     };
     let n2 = match &p2.stmts[0] {
-        entrycore::ir::Stmt::VarDecl(n, _) | entrycore::ir::Stmt::SetVar(n, _) => n,
+        entrycore::ir::Stmt::VarDecl(n, _, _, _) | entrycore::ir::Stmt::SetVar(n, _) => n,
         other => panic!("p2[0] not var stmt: {other:?}"),
     };
     assert_eq!(n1, n2, "variable name roundtrip");

@@ -6,13 +6,40 @@ use crate::Error::UnmappedBlock;
 use crate::Result;
 use crate::ir::{Expr, Stmt as IrStmt};
 use crate::parse::{convert_block, convert_expr};
+use crate::var::VarKind;
+
+/// `let name: T = ...` 의 타입 어노테이션을 VarKind 로 매핑.
+fn type_to_kind(ty: &syn::Type) -> Result<Option<VarKind>> {
+    let last = match ty {
+        syn::Type::Path(tp) => match tp.path.segments.last() {
+            Some(s) => &s.ident,
+            None => return Ok(None),
+        },
+        _ => return Ok(None),
+    };
+    Ok(Some(match last.to_string().as_str() {
+        "CloudVar" | "cloud" => VarKind::Cloud,
+        "RealtimeVar" | "RealTimeVar" | "realtime" | "realTime" => VarKind::RealTime,
+        other => return Err(UnmappedBlock(format!("unknown var type: {other}"))),
+    }))
+}
 
 pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
     match s {
         SynStmt::Local(local) => {
-            // 변수명 추출
-            let name = match &local.pat {
-                syn::Pat::Ident(pi) => pi.ident.to_string(),
+            // 변수명 + 타입 추출. `let x: T = ...` 형태면 Pat::Type, 아니면 Pat::Ident.
+            let (name, kind) = match &local.pat {
+                syn::Pat::Ident(pi) => (pi.ident.to_string(), None),
+                syn::Pat::Type(pt) => {
+                    let ident = match pt.pat.as_ref() {
+                        syn::Pat::Ident(pi) => pi.ident.to_string(),
+                        _ => {
+                            return Err(UnmappedBlock("destructuring pattern".into()));
+                        }
+                    };
+                    let k = type_to_kind(&pt.ty)?;
+                    (ident, k)
+                }
                 _ => return Err(UnmappedBlock("destructuring pattern".into())),
             };
             // 초기값
@@ -20,7 +47,14 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                 Some(i) => convert_expr(*i.expr)?,
                 None => Expr::Int(0),
             };
-            out.push(IrStmt::VarDecl(name, init));
+            // 함수 내 `let` → Local scope (EntryJS variables[].object = rs stem).
+            // top-level 전역 변수는 `static` 키워드로 별도 처리 (parse/mod.rs).
+            out.push(IrStmt::VarDecl(
+                name,
+                init,
+                kind,
+                crate::ir::VarScope::Local,
+            ));
         }
         SynStmt::Expr(expr, _semi) => {
             match expr {

@@ -16,14 +16,17 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
 | 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 5/5 |
-| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 36/36 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 50/50 |
 
 ### lib::compile 세부 동작 (현재)
 
 - **rs 파싱**: `parse::parse` (트리거 body 평탄화, variables 집계) + `parse::parse_with_triggers` (트리거 분리, `TriggerDef`) 이중 호출.
 - **object 매칭**: rs stem ↔ `objects[].name` 대소문자 무시. 매칭된 object 의 `script` 를 thread 배열로 패치.
 - **trigger 스레드**: 각 `TriggerDef` 별로 `[when_run (또는 when_click/when_clone_start/when_message_cast), ...body_blocks]`. 여러 트리거 → thread 여러 개.
-- **helper FuncDef**: object script 가 아니라 `project.functions` 로 emit (`{id: fn_<hash>, name, content:[{blocks}], param:[{name}]}`).
+- **helper FuncDef**: object script 가 아니라 `project.functions` 로 emit (`{id: fn_<hash>, name, content:[function_create_head], param:[{name}]}`). EntryJS `Entry.Code` 호환을 위해 `content` 는 스레드 배열 (`[[block,...],...]`) 이며 thread[0] 은 `function_create` 헤드 블록. 헤드의 `statements[0]` 에 body.
+- **function_call 재작성**: 빌드 시 helper 의 `name -> id` 맵을 만들고 object.script 의 모든 `function_call` 블록을 `func_<id>` 동적 호출 블록으로 재작성. EntryJS `Func.registerFunction` 가 사용자 정의 함수를 `func_<id>` 타입으로 동적 등록하므로 호출도 같은 타입이어야. 미정의 호출은 stderr 경고 + 원본 유지.
+- **function 이름 중복**: base `functions[].name` 과 충돌 시 `_2`, `_3`, ... suffix (EntryJS 가 name 으로 호출 매칭하므로 중복 방지).
+- **빈 배열 항상 emit**: helper/messages 가 없어도 `project.functions = []`, `project.messages = []` emit (EntryJS 가 키 부재 시 안전하지만 명시적 빈 배열이 안전).
 - **when_message 트리거**: 메시지 이름 수집 → `project.messages` 에 `{id: <name>, name}` emit (id = name, EntryJS 가 name 으로 매칭).
 - **variables**: Entry 실제 .ent 형식 — `{id, name, variableType, value, visible, isCloud, isRealTime, cloudDate, object, x, y}`. `object` 필드는 변수가 등장한 rs stem; **Timer/Answer/Cloud/RealTime/List 는 항상 전역 (null)**.
 - **가짜 object** (base 와 매칭 안 되는 rs): `make_fake_object` 가 base 의 첫 sprite 메타 복사하되 pictures/sounds/selectedPictureId 는 비움, id 는 `obj_<djb2(stem)>` stable hash, `objectType` 보존, `scene` 은 `CompileOptions.default_scene` > base 첫 sprite > `"scene1"`, `rotateMethod:"free"`, `lock:false` 기본값 추가.
@@ -69,12 +72,31 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | `리스트` / `list` / `List` | `List` | `"list"` |
 | 그 외 | `Variable` | `"variable"` |
 
+타입 어노테이션 신택스 (`let x: T = ...`):
+
+| 타입 | 인식 kind | Entry `variableType` |
+|---|---|---|
+| `CloudVar` | `Cloud` | `"cloud"` (`isCloud: true`) |
+| `RealtimeVar` / `RealTimeVar` | `RealTime` | `"realtime"` (`isRealTime: true`) |
+
+타입 어노테이션이 우선 (이름 기반 자동보다). 알 수 없는 타입은 `UnmappedBlock` 에러.
+
+변수 scope 신택스:
+
+| 키워드 | scope | EntryJS `variables[*].object` |
+|---|---|---|
+| `let x = ...` (함수 내) | `Local` | `object: <rs stem>` (해당 object 에 묶임) |
+| `static x: T = ...` (top-level) | `Global` | `object: null` (모든 object 공유) |
+
+Rust 의미 차용 (`let` = 블록 scope, `static` = 프로그램 전역). `const` 는 미지원 (UnmappedBlock).
+
 제약 (A방안, strict):
 
 - `let 초시계 = ...` / `초시계 = ...` → `Error::UnmappedBlock` (Entry 전용 블록만 받음)
 - `Expr::Var("초시계")` → 거부 (전용 `get_project_timer_value` 블록 필요)
 - `대답`도 동일
 - `리스트`는 일반 변수처럼 사용 가능 (Entry가 리스트 슬롯에서 처리)
+- Cloud/RealTime 변수는 `let x: CloudVar = ""` / `let x: RealtimeVar = ""` 형태로 선언. 일반 변수처럼 read/write 가능.
 
 ## 라운드트립 검증
 
@@ -288,9 +310,16 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
   - [x] message id = name (EntryJS name 매칭)
   - [x] object 부수 필드 (`rotateMethod`, `lock`)
   - [x] unmapped dedup
-- [ ] **보류 (EntryJS 확인 필요)**
-  - [ ] base 빈 변수 노이즈 처리 — `--ent-template` 빌드에서 base 의 빈 변수 항목이 누적되는지, 새 빌드가 통째 교체 시 사용자 변수 보존 여부 (현재: id 기준 union 으로 base 보존)
-  - [ ] object 필수 필드 추가 — entryjs 가 어떤 필드를 default 없이 요구하는지 확인 (`rotateMethod`, `lock` 외)
+- [x] **보류 (EntryJS 확인 필요)** — 확인 완료:
+  - [x] base 변수 처리: 기본은 id 기준 union (template 변수 보존). malformed (id/name/variableType 없음) base 변수는 EntryJS silent hash 노이즈 방지를 위해 union 모드에서도 필터링. `--replace-vars` 플래그 / `CompileOptions.replace_variables = true` 로 base 통째 교체 가능.
+  - [x] object 필수 필드: `IRawObject` (`src/class/pixi/atlas/model/IRawObject.ts`) 기준 필수 = `id`, `name`, `script`, `objectType`, `rotateMethod`, `scene`, `sprite.pictures`, `sprite.sounds`, `text`, `lock`, `entity`. 부족분 `text` 추가 (textBox base 면 복사, 그 외 name fallback).
+- [x] **잠재 위험 추가 정합화 (2차)**:
+  - [x] `functions[].content` EntryJS Entry.Code 형식 (스레드 배열) — `[{blocks:[...]}]` → `[[function_create_head]]`
+  - [x] `function_call` → `func_<id>` 동적 블록 재작성 (EntryJS 가 호출 시 동적 등록)
+  - [x] `deparse` 에 `func_<id>` 매핑 (라운드트립)
+  - [x] function 이름 중복 시 suffix (`_2`, `_3`, ...)
+  - [x] 빈 `functions` / `messages` 배열 항상 emit
+  - [ ] 트리거 없는 thread 시 `when_run` 자동 prepend (현재 `parse` 가 Item::Fn 만 허용해 dead code, 방어용으로만 유지)
 - [ ] **다음 우선순위 (블록 추가)**
   - [ ] 흐름: `wait_second`, `wait_until_true` (쉬움, 즉시 가치)
   - [ ] 흐름: `repeat_while_true` 별칭 추가 (현재 `repeat_while` 만 매핑)
@@ -299,6 +328,7 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
   - [ ] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
 - [ ] 중기
   - [ ] Timer/Answer 전용 블록 신택스 (`start_timer()` 등)
+  - [x] Cloud/RealTime 변수 신택스 (`let x: CloudVar = ""` / `: RealtimeVar = ""`)
   - [ ] Entry scripts 오브젝트별 분배 (extract 진짜 라운드트립)
   - [ ] 나머지 매핑 (이동/회전/소리/리스트/함수 매개변수)
 - [ ] 후기

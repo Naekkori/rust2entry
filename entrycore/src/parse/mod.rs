@@ -82,7 +82,39 @@ fn convert_item(
             }
             Ok(())
         }
-        Item::Static(_) | Item::Const(_) => Err(UnmappedBlock("static/const".into())),
+        Item::Static(s) => {
+            // top-level `static NAME: TYPE = EXPR;` → 전역 변수.
+            // Rust 신택스 그대로 사용. EntryJS variables[].object = null.
+            let name = s.ident.to_string();
+            if name.is_empty() {
+                return Err(UnmappedBlock("static name".into()));
+            }
+            // syn 3.x 에서 `static` 의 초기값은 `Box<Expr>` (필수).
+            let init = crate::parse::convert_expr(*s.expr)?;
+            let kind = if let syn::Type::Path(tp) = &*s.ty {
+                match tp.path.segments.last() {
+                    Some(seg) => match seg.ident.to_string().as_str() {
+                        "CloudVar" | "cloud" => Some(crate::var::VarKind::Cloud),
+                        "RealtimeVar" | "RealTimeVar" | "realtime" | "realTime" => {
+                            Some(crate::var::VarKind::RealTime)
+                        }
+                        // 그 외 타입 (i32, &str 등) → 일반 변수
+                        _ => None,
+                    },
+                    None => None,
+                }
+            } else {
+                None
+            };
+            out.push(IrStmt::VarDecl(
+                name,
+                init,
+                kind,
+                crate::ir::VarScope::Global,
+            ));
+            Ok(())
+        }
+        Item::Const(_) => Err(UnmappedBlock("const".into())),
         _ => Err(UnmappedBlock("item".into())),
     }
 }

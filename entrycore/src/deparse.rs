@@ -254,6 +254,15 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             };
             Block::FuncCall { name, args }
         }
+        // EntryJS 의 동적 함수 호출 블록. type = `func_<id>` 형식이며
+        // id 는 project.functions[].id 와 매칭된다. args 슬롯은
+        // EntryJS 가 동적 확장하므로 params[0] 만 (Indicator) 있다.
+        // name 으로 id 를 그대로 두고 FuncCall 변환 (라운드트립 시
+        // id 가 보존되어 build 가 다시 같은 func_<id> 블록을 생성).
+        t if t.starts_with("func_") => {
+            let name = t.to_string();
+            Block::FuncCall { name, args: Vec::new() }
+        }
         "function_create" => {
             let name = params
                 .get(0)

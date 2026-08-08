@@ -70,10 +70,20 @@ fn emit_stmt(
 ) -> Result<()> {
     let indent = indent_of(level);
     match stmt {
-        Stmt::VarDecl(name, expr) => {
+        Stmt::VarDecl(name, expr, kind, scope) => {
             out.push_str(&indent);
-            out.push_str("let ");
+            // Global scope 는 top-level `static` 으로 emit.
+            // Local scope 는 그대로 `let` 으로 emit.
+            match scope {
+                crate::ir::VarScope::Global => out.push_str("static "),
+                crate::ir::VarScope::Local => out.push_str("let "),
+            }
             out.push_str(name);
+            if let Some(k) = kind {
+                out.push_str(": ");
+                out.push_str(kind_to_dsl_type(*k));
+                out.push(' ');
+            }
             out.push_str(" = ");
             emit_expr(expr, out)?;
             out.push_str(";\n");
@@ -306,5 +316,15 @@ fn un_op_str(op: UnaryOp) -> &'static str {
     match op {
         UnaryOp::Neg => "-",
         UnaryOp::Not => "!",
+    }
+}
+
+/// VarKind -> DSL 타입 어노테이션 이름. None 이면 어노테이션 생략.
+fn kind_to_dsl_type(k: crate::var::VarKind) -> &'static str {
+    use crate::var::VarKind;
+    match k {
+        VarKind::Cloud => "CloudVar",
+        VarKind::RealTime => "RealtimeVar",
+        _ => "", // Timer/Answer/List 는 전용 블록 사용 — 일반 let 으로는 나오지 않음
     }
 }

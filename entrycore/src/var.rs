@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+pub use crate::ir::VarScope;
+
 /// 변수 한 개의 정보.
 #[derive(Debug, Clone)]
 pub struct VarInfo {
@@ -13,6 +15,8 @@ pub struct VarInfo {
     pub kind: VarKind,
     /// 초기값 (있다면).
     pub init: VarInit,
+    /// 변수 scope (Local/Global). EntryJS `variables[*].object` 필드 결정.
+    pub scope: VarScope,
 }
 
 /// 변수 종류.
@@ -120,7 +124,13 @@ pub fn var_map_from_value(v: &serde_json::Value) -> VarMap {
             (VarKind::List, _) => VarInit::EmptyList,
             _ => VarInit::Int0,
         };
-        map.insert(VarInfo { id, name, kind, init });
+        map.insert(VarInfo {
+            id,
+            name,
+            kind,
+            init,
+            scope: VarScope::default(),
+        });
     }
     map
 }

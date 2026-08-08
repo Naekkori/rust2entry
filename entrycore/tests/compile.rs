@@ -356,11 +356,11 @@ fn compile_if_else_roundtrip() {
                     assert_eq!(then_body.len(), 1);
                     assert_eq!(else_body.len(), 1);
                     let then_var = match &then_body[0] {
-                        Stmt::VarDecl(n, _) | Stmt::SetVar(n, _) => n,
+                        Stmt::VarDecl(n, _, _, _) | Stmt::SetVar(n, _) => n,
                         other => panic!("unexpected then stmt: {other:?}"),
                     };
                     let else_var = match &else_body[0] {
-                        Stmt::VarDecl(n, _) | Stmt::SetVar(n, _) => n,
+                        Stmt::VarDecl(n, _, _, _) | Stmt::SetVar(n, _) => n,
                         other => panic!("unexpected else stmt: {other:?}"),
                     };
                     assert_eq!(then_var, "x");
@@ -506,12 +506,18 @@ fn compile_helpers_go_to_project_functions() {
     let funcs = v["functions"].as_array().expect("functions");
     let helper = funcs.iter().find(|f| f["name"] == "helper").expect("helper fn");
     assert!(helper["id"].as_str().unwrap().starts_with("fn_"));
+    // EntryJS Entry.Code 포맷: content = [[thread1_block, ...], ...].
+    // helper 의 thread[0] 은 function_create 헤드 블록이며, 그 헤드의
+    // statements[0] 에 body 가 들어간다.
     let content = helper["content"].as_array().expect("content threads");
     assert_eq!(content.len(), 1, "helper 는 1개 thread");
-    let blocks = content[0]["blocks"].as_array().expect("blocks");
-    assert_eq!(blocks.len(), 1);
-    assert_eq!(blocks[0]["type"], "set_variable");
-    assert_eq!(blocks[0]["params"][0]["name"], "y");
+    let head = content[0].as_object().expect("head block obj");
+    assert_eq!(head["type"], "function_create");
+    assert_eq!(head["params"][0].as_str(), Some("helper"));
+    let head_body = head["statements"][0].as_array().expect("head body");
+    assert_eq!(head_body.len(), 1);
+    assert_eq!(head_body[0]["type"], "set_variable");
+    assert_eq!(head_body[0]["params"][0]["name"], "y");
 }
 
 /// CompileOptions.default_scene 으로 가짜 object 의 scene 지정.
@@ -521,6 +527,7 @@ fn compile_default_scene_from_options() {
     let src = "fn when_start() { let x = 1; }";
     let options = entrycore::CompileOptions {
         default_scene: Some("scene2".to_string()),
+        ..Default::default()
     };
     let v = compile_with_options(&[("obj", src)], &empty_project(), &options)
         .expect("compile")
@@ -703,4 +710,257 @@ fn compile_fake_object_has_rotate_method_and_lock() {
     let objects = v["objects"].as_array().unwrap();
     assert_eq!(objects[0]["rotateMethod"], "free");
     assert_eq!(objects[0]["lock"], false);
+}
+
+/// 가짜 object 가 `text` 필드 포함 (IRawObject 필수). textBox objectType
+/// 에서 글상자 내용, 그 외는 name 으로 fallback.
+#[test]
+fn compile_fake_object_has_text_field() {
+    let src = "fn when_start() { let x = 1; }";
+    let v = compile(&[("my_obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    // sprite 면 text = name (fallback).
+    assert_eq!(objects[0]["text"], "my_obj");
+}
+
+/// textBox objectType base 면 가짜 object 의 text 도 base 에서 복사.
+#[test]
+fn compile_fake_object_inherits_text_from_base_textbox() {
+    let mut base = empty_project();
+    base["objects"] = json!([{
+        "id": "txt1",
+        "name": "label",
+        "objectType": "textBox",
+        "text": "Hello world",
+        "scene": "scene1",
+        "script": "[]",
+        "sprite": { "name": "label", "pictures": [], "sounds": [] },
+        "entity": { "x": 0, "y": 0, "visible": true }
+    }]);
+    let v = compile(&[("new_box", "fn when_start() { let x = 1; }")], &base)
+        .expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let fake = objects.iter().find(|o| o["name"] == "new_box").expect("new_box");
+    assert_eq!(fake["text"], "Hello world", "textBox base 의 text 복사");
+}
+
+/// function_call 블록은 빌드 시 EntryJS 의 동적 `func_<id>` 호출 블록으로
+/// 재작성되어야. helpers 가 project.functions 에 emit 된 후 같은 id 로
+/// object.script 의 호출부도 치환된다.
+#[test]
+fn compile_function_call_rewritten_to_func_id_block() {
+    let src = r#"
+        fn when_start() { greet(); }
+        fn greet() { let y = 1; }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    // project.functions 에 greet 항목, id 는 fn_<djb2("greet")>
+    let funcs = v["functions"].as_array().expect("functions");
+    let greet = funcs.iter().find(|f| f["name"] == "greet").expect("greet fn");
+    let fn_id = greet["id"].as_str().expect("fn id");
+    assert!(fn_id.starts_with("fn_"), "fn_id format: {fn_id}");
+    // object.script 안 호출 블록도 func_<id> 로 치환.
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let call = thread
+        .iter()
+        .find(|b| {
+            let t = b["type"].as_str().unwrap_or("");
+            t == "function_call" || t.starts_with("func_")
+        })
+        .expect("call block");
+    assert_eq!(
+        call["type"],
+        format!("func_{fn_id}"),
+        "function_call -> func_<id> rewrite"
+    );
+    // EntryJS function_general 동적 블록은 params Indicator 1개만.
+    assert_eq!(call["params"].as_array().unwrap().len(), 1);
+}
+
+/// 미정의 함수 호출은 경고만 stderr 로, 블록은 그대로 유지.
+#[test]
+fn compile_function_call_to_undefined_keeps_block() {
+    let src = r#"
+        fn when_start() { mystery(); }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let call = thread
+        .iter()
+        .find(|b| b["type"] == "function_call")
+        .expect("function_call block (undefined)");
+    // 미정의라 재작성 안 됨.
+    assert_eq!(call["type"], "function_call");
+}
+
+/// helper 만 있고 트리거 없을 때 object.script 는 비고 project.functions 에만 emit.
+#[test]
+fn compile_helper_only_source_emits_no_trigger_thread() {
+    let src = "fn helper_only() { let x = 1; }";
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let threads = obj_threads(&objects[0]);
+    // helper 는 project.functions 로 가고 object.script 는 트리거가 없으면
+    // thread 자체를 emit 하지 않음 (EntryJS 가 trigger 없는 thread 무시).
+    assert!(threads.is_empty(), "트리거 없는 소스는 thread 미생성");
+    let funcs = v["functions"].as_array().expect("functions");
+    assert!(funcs.iter().any(|f| f["name"] == "helper_only"));
+}
+
+/// base 에 같은 이름의 function 이 있으면 새 빌드의 function 은 이름에 suffix.
+#[test]
+fn compile_function_name_dedup_against_base() {
+    let mut base = empty_project();
+    base["functions"] = json!([{
+        "id": "fn_existing",
+        "name": "greet",
+        "content": "[]",
+        "param": []
+    }]);
+    let src = r#"
+        fn when_start() { greet(); }
+        fn greet() { let y = 1; }
+    "#;
+    let v = compile(&[("obj", src)], &base).expect("compile").0;
+    let funcs = v["functions"].as_array().expect("functions");
+    // base "greet" + 새 "greet_2"
+    let names: Vec<&str> = funcs.iter()
+        .filter_map(|f| f["name"].as_str())
+        .collect();
+    assert!(names.contains(&"greet"), "base greet 유지");
+    assert!(names.contains(&"greet_2"), "중복 이름은 suffix: {names:?}");
+}
+
+/// helper 가 없어도 project.functions 는 빈 배열로 emit.
+#[test]
+fn compile_always_emits_empty_functions_array() {
+    let v = compile(&[("obj", "fn when_start() { let x = 1; }")], &empty_project())
+        .expect("compile").0;
+    assert!(v["functions"].is_array(), "functions 는 항상 배열");
+    assert_eq!(v["functions"].as_array().unwrap().len(), 0);
+}
+
+/// when_message 트리거가 없으면 messages 도 빈 배열로 emit.
+#[test]
+fn compile_emits_empty_messages_when_no_when_message() {
+    let v = compile(&[("obj", "fn when_start() { let x = 1; }")], &empty_project())
+        .expect("compile").0;
+    assert!(v["messages"].is_array(), "messages 는 항상 배열");
+    assert_eq!(v["messages"].as_array().unwrap().len(), 0);
+}
+
+/// base 의 변수는 id 기준 union 으로 보존 (교체 아님).
+/// 같은 id 의 새 변수는 덮음, 다른 id 의 새 변수는 추가.
+#[test]
+fn compile_variables_union_preserves_base() {
+    let mut base = empty_project();
+    base["variables"] = json!([
+        {"id":"v1","name":"base_var","variableType":"variable","value":"","object":null,"x":0,"y":0,"visible":true,"isCloud":false,"isRealTime":false,"cloudDate":false},
+        {"id":"v2","name":"user_var","variableType":"variable","value":"","object":null,"x":0,"y":0,"visible":true,"isCloud":false,"isRealTime":false,"cloudDate":false},
+    ]);
+    // 새 빌드에서 base_var 를 읽기만 해도 변수로 집계됨.
+    let src = r#"
+        fn when_start() {
+            let a = base_var;
+            let b = new_var;
+        }
+    "#;
+    let v = compile(&[("obj", src)], &base).expect("compile").0;
+    let vars = v["variables"].as_array().unwrap();
+    let names: Vec<&str> = vars.iter().filter_map(|v| v["name"].as_str()).collect();
+    assert!(names.contains(&"base_var"), "base_var 보존");
+    assert!(names.contains(&"user_var"), "user_var 보존");
+    assert!(names.contains(&"new_var"), "new_var 추가");
+}
+
+/// replace_variables=true 면 base variables 무시, 새 빌드만 사용.
+#[test]
+fn compile_variables_replace_drops_base() {
+    let mut base = empty_project();
+    base["variables"] = json!([
+        {"id":"v1","name":"base_var","variableType":"variable","value":"","object":null,"x":0,"y":0,"visible":true,"isCloud":false,"isRealTime":false,"cloudDate":false},
+    ]);
+    let options = entrycore::CompileOptions {
+        replace_variables: true,
+        ..Default::default()
+    };
+    let src = "fn when_start() { let new_var = 1; }";
+    let v = entrycore::compile_with_options(&[("obj", src)], &base, &options)
+        .expect("compile").0;
+    let vars = v["variables"].as_array().unwrap();
+    let names: Vec<&str> = vars.iter().filter_map(|v| v["name"].as_str()).collect();
+    assert!(!names.contains(&"base_var"), "replace 면 base 변수 제거");
+    assert!(names.contains(&"new_var"), "새 변수만 유지");
+}
+
+/// base 의 malformed 변수 (id/name/variableType 없음) 는 union 모드에서도
+/// 제외 — EntryJS 가 silent hash 로 노이즈 생성하는 것 방지.
+#[test]
+fn compile_variables_filter_malformed_base() {
+    let mut base = empty_project();
+    base["variables"] = json!([
+        {"id":"v1","name":"good","variableType":"variable","value":""},
+        {"id":"v2"},
+        {},
+        {"name":"no_id","variableType":"variable","value":""},
+    ]);
+    let src = "fn when_start() { let x = 1; }";
+    let v = compile(&[("obj", src)], &base).expect("compile").0;
+    let vars = v["variables"].as_array().unwrap();
+    // good 만 살아남고 malformed 3개는 제외.
+    let good_count = vars.iter().filter(|v| v["name"] == "good").count();
+    assert_eq!(good_count, 1);
+    // 나머지 malformed 가 새 빌드의 x 와 섞여서 들어가지 않았는지.
+    let malformed_count = vars.iter().filter(|v| {
+        v.get("name").is_none() || v.get("variableType").is_none() || v.get("id").is_none()
+    }).count();
+    assert_eq!(malformed_count, 0, "malformed base 변수는 필터링");
+}
+
+/// `let x: CloudVar = ...` → variableType:"cloud", isCloud:true.
+#[test]
+fn compile_typed_cloud_var_emits_cloud_metadata() {
+    let src = r#"
+        fn when_start() {
+            let cloud_v: CloudVar = "";
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = v["variables"].as_array().unwrap();
+    let cloud = vars.iter().find(|v| v["name"] == "cloud_v").expect("cloud_v");
+    assert_eq!(cloud["variableType"], "cloud");
+    assert_eq!(cloud["isCloud"], true);
+}
+
+/// `let x: RealtimeVar = ...` → variableType:"realtime", isRealTime:true.
+#[test]
+fn compile_typed_realtime_var_emits_realtime_metadata() {
+    let src = r#"
+        fn when_start() {
+            let rt_v: RealtimeVar = "";
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = v["variables"].as_array().unwrap();
+    let rt = vars.iter().find(|v| v["name"] == "rt_v").expect("rt_v");
+    assert_eq!(rt["variableType"], "realtime");
+    assert_eq!(rt["isRealTime"], true);
+}
+
+/// top-level `static` → variables[].object = null (전역).
+#[test]
+fn compile_static_var_is_global() {
+    let src = r#"
+        static GLOBAL_VAR: i32 = 0;
+        fn when_start() { let x = 1; }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = v["variables"].as_array().unwrap();
+    let g = vars.iter().find(|v| v["name"] == "GLOBAL_VAR").expect("GLOBAL_VAR");
+    assert!(g["object"].is_null(), "static 변수는 object: null");
+    // 함수 내 let x 는 object = "obj" (로컬).
+    let x = vars.iter().find(|v| v["name"] == "x").expect("x");
+    assert_eq!(x["object"], "obj", "let 변수는 object: stem");
 }

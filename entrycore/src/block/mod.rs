@@ -143,7 +143,7 @@ impl Block {
 /// IR stmt -> Block 변환.
 pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
     match stmt {
-        Stmt::VarDecl(name, expr) | Stmt::SetVar(name, expr)=>{
+        Stmt::VarDecl(name, expr, _, _) | Stmt::SetVar(name, expr)=>{
             // Timer/Answer/List 변수는 Entry 전용 슬롯만 받음. 일반 let/set 불가.
             if matches!(kind_for(name), VarKind::Timer | VarKind::Answer) {
                 return Err(UnmappedBlock(format!("{name} is reserved Entry variable (use dedicated block)")))

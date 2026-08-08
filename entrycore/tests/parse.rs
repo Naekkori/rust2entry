@@ -29,7 +29,7 @@ fn when_start_int_literal() {
     assert_eq!(program.stmts.len(), 1);
     assert!(matches!(
         &program.stmts[0],
-        Stmt::VarDecl(name, Expr::Int(42)) if name == "x"
+        Stmt::VarDecl(name, Expr::Int(42), _, _) if name == "x"
     ));
 }
 
@@ -43,7 +43,7 @@ fn when_start_arith() {
 
     let program = parse(src).expect("parse ok");
 
-    let Stmt::VarDecl(_, expr) = &program.stmts[0] else {
+    let Stmt::VarDecl(_, expr, _, _) = &program.stmts[0] else {
         panic!("expected VarDecl");
     };
     assert!(matches!(
@@ -107,7 +107,7 @@ fn func_def_collected() {
     let program = parse(src).expect("parse ok");
 
     assert_eq!(program.stmts.len(), 2);
-    assert!(matches!(&program.stmts[0], Stmt::VarDecl(_, _)));
+    assert!(matches!(&program.stmts[0], Stmt::VarDecl(_, _, _, _)));
     assert!(matches!(
         &program.stmts[1],
         Stmt::FuncDef { name, params, .. } if name == "greet" && params == &["name".to_string()]
@@ -125,7 +125,7 @@ fn when_click_also_top_level() {
     let program = parse(src).expect("parse ok");
 
     assert_eq!(program.stmts.len(), 1);
-    assert!(matches!(&program.stmts[0], Stmt::VarDecl(_, _)));
+    assert!(matches!(&program.stmts[0], Stmt::VarDecl(_, _, _, _)));
 }
 
 #[test]
@@ -156,7 +156,7 @@ fn string_literal() {
 
     assert!(matches!(
         &program.stmts[0],
-        Stmt::VarDecl(_, Expr::Str(s)) if s == "hello"
+        Stmt::VarDecl(_, Expr::Str(s), _, _) if s == "hello"
     ));
 }
 #[test]
@@ -177,9 +177,9 @@ fn when_start_if_else_full() {
             assert_eq!(then_body.len(), 1);
             assert_eq!(else_body.len(), 1);
             // then: VarDecl a = 1
-            assert!(matches!(&then_body[0], Stmt::VarDecl(n, _) if n == "a"));
+            assert!(matches!(&then_body[0], Stmt::VarDecl(n, _, _, _) if n == "a"));
             // else: VarDecl b = 2
-            assert!(matches!(&else_body[0], Stmt::VarDecl(n, _) if n == "b"));
+            assert!(matches!(&else_body[0], Stmt::VarDecl(n, _, _, _) if n == "b"));
         }
         _ => panic!("expected If with else"),
     }
@@ -261,7 +261,7 @@ fn negative_number() {
 
     assert!(matches!(
         &program.stmts[0],
-        Stmt::VarDecl(_, Expr::UnaryOp(entrycore::ir::UnaryOp::Neg, _))
+        Stmt::VarDecl(_, Expr::UnaryOp(entrycore::ir::UnaryOp::Neg, _), _, _)
     ));
 }
 
@@ -296,7 +296,7 @@ fn for_range_to_ir() {
     };
     assert_eq!(var, "i");
     assert!(matches!(iter, Expr::Range(_, _)));
-    assert!(matches!(body[0], Stmt::VarDecl(_, _)));
+    assert!(matches!(body[0], Stmt::VarDecl(_, _, _, _)));
 }
 
 /// DSL 라운드트립: parse(src) -> IR -> decodegen -> dsl -> parse(dsl) -> IR' 구조 동일.
@@ -309,11 +309,11 @@ fn dsl_roundtrip_simple() {
     assert_eq!(p1.stmts.len(), p2.stmts.len());
     // 둘 다 단일 변수 선언 (VarDecl 또는 SetVar, Entry 의미 동일)
     let n1 = match &p1.stmts[0] {
-        Stmt::VarDecl(n, _) | Stmt::SetVar(n, _) => n.clone(),
+        Stmt::VarDecl(n, _, _, _) | Stmt::SetVar(n, _) => n.clone(),
         other => panic!("p1[0] unexpected: {other:?}"),
     };
     let n2 = match &p2.stmts[0] {
-        Stmt::VarDecl(n, _) | Stmt::SetVar(n, _) => n.clone(),
+        Stmt::VarDecl(n, _, _, _) | Stmt::SetVar(n, _) => n.clone(),
         other => panic!("p2[0] unexpected: {other:?}"),
     };
     assert_eq!(n1, n2, "variable name roundtrip: dsl={dsl}");
@@ -374,4 +374,123 @@ fn dsl_roundtrip_while() {
         _ => panic!("p2[0] not While"),
     };
     assert_eq!(cond1, cond2, "while cond roundtrip: dsl={dsl}");
+}
+
+/// `let x: CloudVar = ...` 신택스로 변수 kind 명시.
+#[test]
+fn var_decl_with_cloud_type() {
+    let src = r#"
+        fn when_start() {
+            let cloud_v: CloudVar = "";
+        }
+    "#;
+    let program = parse(src).expect("parse");
+    match &program.stmts[0] {
+        Stmt::VarDecl(name, _, Some(kind), _) => {
+            assert_eq!(name, "cloud_v");
+            assert!(matches!(kind, entrycore::var::VarKind::Cloud));
+        }
+        other => panic!("expected VarDecl with kind, got {other:?}"),
+    }
+}
+
+#[test]
+fn var_decl_with_realtime_type() {
+    let src = r#"
+        fn when_start() {
+            let rt_v: RealtimeVar = "";
+        }
+    "#;
+    let program = parse(src).expect("parse");
+    match &program.stmts[0] {
+        Stmt::VarDecl(name, _, Some(kind), _) => {
+            assert_eq!(name, "rt_v");
+            assert!(matches!(kind, entrycore::var::VarKind::RealTime));
+        }
+        other => panic!("expected VarDecl with kind, got {other:?}"),
+    }
+}
+
+/// 타입 없으면 명시적 kind = None (이름 기반 자동).
+#[test]
+fn var_decl_without_type_has_no_kind() {
+    let src = r#"
+        fn when_start() {
+            let x = 1;
+        }
+    "#;
+    let program = parse(src).expect("parse");
+    match &program.stmts[0] {
+        Stmt::VarDecl(name, _, None, _) => assert_eq!(name, "x"),
+        other => panic!("expected VarDecl with None kind, got {other:?}"),
+    }
+}
+
+/// 알 수 없는 타입 어노테이션은 에러.
+#[test]
+fn var_decl_with_unknown_type_errors() {
+    let src = r#"
+        fn when_start() {
+            let x: NotAType = "";
+        }
+    "#;
+    assert!(parse(src).is_err());
+}
+
+/// top-level `static x = ...` → VarDecl with Global scope.
+#[test]
+fn static_decl_is_global_scope() {
+    let src = r#"
+        static GLOBAL_VAR: i32 = 0;
+        fn when_start() { let x = 1; }
+    "#;
+    let program = parse(src).expect("parse");
+    match &program.stmts[0] {
+        Stmt::VarDecl(name, _, _, scope) => {
+            assert_eq!(name, "GLOBAL_VAR");
+            assert!(matches!(scope, entrycore::ir::VarScope::Global));
+        }
+        other => panic!("expected global VarDecl, got {other:?}"),
+    }
+}
+
+/// 함수 내 `let` → Local scope (기본).
+#[test]
+fn let_decl_inside_fn_is_local_scope() {
+    use entrycore::parse::parse_with_triggers;
+    let src = r#"
+        fn when_start() { let x = 1; }
+    "#;
+    let (program, triggers) = parse_with_triggers(src).expect("parse");
+    // parse 모드는 트리거 body 를 평탄화하지만, parse_with_triggers 모드는
+    // 분리해서 triggers 로 보낸다. triggers[0].body[0] = VarDecl.
+    let trigger = &triggers[0];
+    assert_eq!(trigger.name, "when_start");
+    match &trigger.body[0] {
+        Stmt::VarDecl(n, _, _, scope) => {
+            assert_eq!(n, "x");
+            assert!(matches!(scope, entrycore::ir::VarScope::Local));
+        }
+        other => panic!("expected VarDecl Local, got {other:?}"),
+    }
+    // parse_with_triggers 는 트리거 외 항목만 program.stmts 에 들어감 — 비어 있어야.
+    assert!(program.stmts.is_empty(), "트리거 외 stmt 없음");
+}
+
+/// top-level `static x: CloudVar = ""` → Global + Cloud kind.
+#[test]
+fn static_decl_with_cloud_type() {
+    let src = r#"
+        static CLOUD_VAR: CloudVar = "";
+        fn when_start() { let x = 1; }
+    "#;
+    let program = parse(src).expect("parse");
+    match &program.stmts[0] {
+        Stmt::VarDecl(name, _, Some(kind), scope) => {
+            assert_eq!(name, "CLOUD_VAR");
+            assert!(matches!(kind, entrycore::var::VarKind::Cloud));
+            assert!(matches!(scope, entrycore::ir::VarScope::Global));
+        }
+        other => panic!("expected global cloud VarDecl, got {other:?}"),
+    }
 }

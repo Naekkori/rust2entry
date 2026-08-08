@@ -6,7 +6,7 @@ pub mod expr;
 pub mod stmt;
 
 pub use expr::{BinOp, Expr, FuncRef, UnaryOp};
-pub use stmt::Stmt;
+pub use stmt::{Stmt, VarScope};
 
 /// Rust 소스 전체 표현.
 #[derive(Debug, Clone, Default)]

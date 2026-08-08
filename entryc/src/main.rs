@@ -41,6 +41,9 @@ enum Cmd {
         /// 가짜 object 의 scene id (선택). 미지정시 base 의 첫 sprite scene 복사.
         #[arg(long, value_name = "ID")]
         scene: Option<String>,
+        /// base 의 variables 를 통째 교체 (기본: union by id)
+        #[arg(long)]
+        replace_variables: bool,
     },
 }
 fn main() {
@@ -82,8 +85,8 @@ fn run() -> Result<(), String> {
     let cli = Cli::parse();
     match cli.cmd {
         Cmd::Extract { ent, out } => run_extract(ent, out),
-        Cmd::Build { rs, ent_template, out, scene } => {
-            run_build(&rs, ent_template.as_deref(), &out, scene.as_deref())
+        Cmd::Build { rs, ent_template, out, scene, replace_variables } => {
+            run_build(&rs, ent_template.as_deref(), &out, scene.as_deref(), replace_variables)
         }
     }
 }
@@ -386,6 +389,7 @@ fn run_build(
     template: Option<&Path>,
     out: &Path,
     scene: Option<&str>,
+    replace_variables: bool,
 ) -> Result<(), String> {
     if rs_files.is_empty() {
         return Err("no --rs inputs".to_string());
@@ -415,6 +419,7 @@ fn run_build(
 
     let options = entrycore::CompileOptions {
         default_scene: scene.map(String::from),
+        replace_variables,
     };
 
     // lib::compile 으로 일괄 처리 (parse 합치기 + codegen + base 패치)
