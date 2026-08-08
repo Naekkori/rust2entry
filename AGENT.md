@@ -154,7 +154,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `stop_repeat` / `stop_object` → `Break`
 - ✅ `continue_repeat` / `_continue` → `Continue`
 - ✅ `stop_object` (전체 정지 의미) / `stop_run_all` → `StopAll`
-- ⬜ `wait_second` — □ 초 기다리기
+- ✅ `wait_second` — □ 초 기다리기 (→ `wait_second(secs)`)
 - ⬜ `wait_until_true` — □ 이(가) 될 때까지 기다리기
 - ⬜ `restart_project` — 처음부터 다시 실행하기
 - ⬜ `when_clone_start` → 이미 `WhenCloneStart` 로 매핑됨
@@ -311,7 +311,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**31/203** 매핑됨 (약 15.3%)
+**32/203** 매핑됨 (약 15.8%)
 
 ## 남은 작업 (TODO)
 
@@ -352,7 +352,8 @@ fn greet(a: StringParam, b: BoolParam) {
 - [ ] **다음 우선순위 (블록 추가)**
   - [x] 시작 (트리거): `when_key_pressed`, `when_mouse_clicked`, `when_mouse_released`, `when_object_released`, `when_scene_start`
   - [x] 시작 (액션): `send_message`/`wait_message`, `start_scene`/`start_next_scene`/`start_prev_scene`
-  - [ ] 흐름: `wait_second`, `wait_until_true` (쉬움, 즉시 가치)
+  - [x] 흐름: `wait_second`, `wait_until_true` (쉬움, 즉시 가치)
+    - `wait_second` 완료. `wait_until_true` 남음.
   - [ ] 흐름: `repeat_while_true` 별칭 추가 (현재 `repeat_while` 만 매핑)
   - [ ] 연산: `calc_rand` (난수) / `get_project_timer_value` (타이머 값)
   - [ ] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값)
@@ -382,7 +383,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 6 + codegen 9 + compile 70 + parse 26 = 111 통과)
+cargo test                  # 전체 (entryc 5 + codegen 9 + compile 74 + parse 26 = 114 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -391,7 +392,7 @@ cargo build                 # 빌드만
 **샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 이 컴퓨터엔 없을 수 있음 — GitHub entryjs 코드 직접 참고)
 
 **다음 할 일 추천 순서**:
-1. 블록 매핑 시작 (TODO 의 "다음 우선순위" 섹션) — `wait_second` 같은 쉬운 것부터
+1. 흐름 — `wait_until_true` (다음 쉬운 항목)
 
 ## 디렉토리
 

@@ -4,7 +4,7 @@
 //! 이 모듈은 Entry project.json의 블록 Value를 `Block`으로 바꾸고
 //! 다시 IR `Stmt`/`Expr`로 변환한다.
 
-use crate::Result;
+use crate::{Result, ir};
 use crate::Error::UnmappedBlock;
 use crate::block::{Block, ParamBlock};
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
@@ -198,6 +198,10 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         "repeat_forever" => {
             let body = statements_thread(obj, 0, vars)?;
             Block::Forever { body }
+        }
+        "wait_second" =>{
+            let time = param_at(&params, 0, vars)?;
+            Block::WaitSeconds { time }
         }
         "stop_object" => Block::Break,
         "_continue" => Block::Continue,
@@ -783,6 +787,17 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             stmts.push(Stmt::Return(v));
             Ok(())
         }
+        Block::WaitSeconds { time } => {
+            let arg = expr_from_param(time, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef{
+                    name: "wait_second".to_string(),
+                    arity: 1,
+                },
+                vec![arg]
+            )));
+            Ok(())
+        },
     }
 }
 
@@ -908,6 +923,12 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             "block used as expr: {}",
             b.type_id()
         ))),
+        Block::WaitSeconds { .. } => Err(UnmappedBlock(
+            format!(
+                "block used as expr: {}",
+                b.type_id()
+            )
+        )),
     }
 }
 

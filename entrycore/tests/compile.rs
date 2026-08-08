@@ -206,6 +206,77 @@ fn compile_adds_fake_object_when_empty() {
     assert_eq!(thread.len(), 2, "when_run + body");
 }
 
+/// `wait_second(2)` → `wait_second` 블록, params[0] = number 슬롯.
+#[test]
+fn compile_wait_second_int() {
+    let src = r#"fn when_start() { wait_second(2); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "wait_second");
+    assert_eq!(thread[1]["params"][0]["type"], "number");
+    assert_eq!(thread[1]["params"][0]["params"][0].as_f64(), Some(2.0));
+}
+
+/// `wait_second(2.5)` → 실수 보존.
+#[test]
+fn compile_wait_second_float() {
+    let src = r#"fn when_start() { wait_second(2.5); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "wait_second");
+    assert_eq!(thread[1]["params"][0]["params"][0].as_f64(), Some(2.5));
+}
+
+/// `wait_second(x)` → 변수 슬롯.
+#[test]
+fn compile_wait_second_var() {
+    let src = r#"
+        fn when_start() {
+            let x = 3;
+            wait_second(x);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    // set x, wait_second(x)
+    let wait = thread.iter().find(|b| b["type"] == "wait_second").expect("wait_second");
+    assert_eq!(wait["params"][0]["name"], "x");
+}
+
+/// wait_second 라운드트립: compile → deparse → IR 에 wait_second 호출 보존.
+#[test]
+fn compile_wait_second_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { wait_second(1.5); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "wait_second");
+                    assert_eq!(args.len(), 1);
+                }
+                other => panic!("expected Call(wait_second), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// base 에 objects 가 이미 있으면 추가하지 않고, rs stem == name 인 object 의
 /// script 필드만 패치한다.
 #[test]

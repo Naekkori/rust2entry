@@ -61,6 +61,7 @@ pub enum Block {
     Break,
     Continue,
     StopAll,
+    WaitSeconds { time: ParamBlock },
 
     // ── 산술 / 비교 / 논리 ──
     CalcBinOp { op: BinOp, lhs: ParamBlock, rhs: ParamBlock },
@@ -170,6 +171,7 @@ impl Block {
             Block::FuncCall { .. } => "function_call",
             Block::FuncDef { .. } => "function_create",
             Block::Return { .. } => "function_return",
+            Block::WaitSeconds { .. } => "wait_second",
         }
     }
 
@@ -202,6 +204,7 @@ impl Block {
             Block::Number(_) | Block::Text(_) | Block::Boolean(_) => Category::Calc,
             Block::StringConcat { .. } | Block::StringIncludes { .. } => Category::String,
             Block::FuncCall { .. } | Block::FuncDef { .. } | Block::Return { .. } => Category::Define,
+            Block::WaitSeconds { .. } => Category::Flow,
         }
     }
 }
@@ -230,6 +233,10 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     // 별도 Block 으로 변환 (EntryJS 가 정의한 function 이 아님).
                     if let Some(block) = reserved_start_call_to_block(fref, args)? {
                         return Ok(block);
+                    }
+                    if fref.name == "wait_second" {
+                        let arg = args.first().ok_or_else(|| UnmappedBlock("wait_second needs arg".into()))?;
+                        return Ok(Block::WaitSeconds { time: from_expr(arg)? });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall { name: fref.name.clone(), args })
@@ -486,6 +493,10 @@ fn build_params_and_statements(
         Block::StartNeighborScene { direction } => (
             vec![Value::String(direction.clone()), Value::Null],
             None,
+        ),
+        Block::WaitSeconds { time } => (
+            vec![param_to_value(time)],
+            None
         ),
     })
 }
