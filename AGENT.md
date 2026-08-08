@@ -16,15 +16,16 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
 | 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 5/5 |
-| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 50/50 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 57/57 |
 
 ### lib::compile 세부 동작 (현재)
 
 - **rs 파싱**: `parse::parse` (트리거 body 평탄화, variables 집계) + `parse::parse_with_triggers` (트리거 분리, `TriggerDef`) 이중 호출.
 - **object 매칭**: rs stem ↔ `objects[].name` 대소문자 무시. 매칭된 object 의 `script` 를 thread 배열로 패치.
 - **trigger 스레드**: 각 `TriggerDef` 별로 `[when_run (또는 when_click/when_clone_start/when_message_cast), ...body_blocks]`. 여러 트리거 → thread 여러 개.
-- **helper FuncDef**: object script 가 아니라 `project.functions` 로 emit (`{id: fn_<hash>, name, content:[function_create_head], param:[{name}]}`). EntryJS `Entry.Code` 호환을 위해 `content` 는 스레드 배열 (`[[block,...],...]`) 이며 thread[0] 은 `function_create` 헤드 블록. 헤드의 `statements[0]` 에 body.
-- **function_call 재작성**: 빌드 시 helper 의 `name -> id` 맵을 만들고 object.script 의 모든 `function_call` 블록을 `func_<id>` 동적 호출 블록으로 재작성. EntryJS `Func.registerFunction` 가 사용자 정의 함수를 `func_<id>` 타입으로 동적 등록하므로 호출도 같은 타입이어야. 미정의 호출은 stderr 경고 + 원본 유지.
+- **helper FuncDef**: object script 가 아니라 `project.functions` 로 emit. 각 항목 = `{id: fn_<hash>, name, content:[function_create_head], param:[{name}]}`. EntryJS `Entry.Code` 호환을 위해 `content` 는 스레드 배열 (`[[block,...],...]`) 이며 thread[0] 은 `function_create` 헤드 블록. 헤드의 `statements[0]` 에 body.
+- **function param type 신택스**: 함수 정의 시 `fn f(a: &str, b: BoolParam)` 형태로 param 타입 지정. `StringParam` (default) 또는 `BoolParam`. function_create head 의 `params[0]` 에 `function_field_label` + 각 param 마다 `function_field_string` / `function_field_boolean` chain 으로 emit (EntryJS 가 chain 을 읽어 동적 `func_<id>` 호출 블록 schema 생성).
+- **function_call 재작성**: 빌드 시 helper 의 `name -> id` 맵과 `(id, param_names)` 를 만들고 object.script 의 모든 `function_call` 블록을 `func_<id>` 동적 호출 블록으로 재작성. 호출부 params 슬롯은 정의된 param 개수에 맞춰 emit (부족분 null, 초과분 무시). EntryJS `Func.registerFunction` 가 사용자 정의 함수를 `func_<id>` 타입으로 동적 등록. 미정의 호출은 stderr 경고 + 원본 유지.
 - **function 이름 중복**: base `functions[].name` 과 충돌 시 `_2`, `_3`, ... suffix (EntryJS 가 name 으로 호출 매칭하므로 중복 방지).
 - **빈 배열 항상 emit**: helper/messages 가 없어도 `project.functions = []`, `project.messages = []` emit (EntryJS 가 키 부재 시 안전하지만 명시적 빈 배열이 안전).
 - **when_message 트리거**: 메시지 이름 수집 → `project.messages` 에 `{id: <name>, name}` emit (id = name, EntryJS 가 name 으로 매칭).
@@ -89,6 +90,25 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | `static x: T = ...` (top-level) | `Global` | `object: null` (모든 object 공유) |
 
 Rust 의미 차용 (`let` = 블록 scope, `static` = 프로그램 전역). `const` 는 미지원 (UnmappedBlock).
+
+## 함수 param type (EntryJS 호환)
+
+함수 정의 시 param 에 type 어노테이션 신택스:
+
+| 타입 | EntryJS chain | 기본값 |
+|---|---|---|
+| `StringParam` | `function_field_string` | default (미지정 시 자동) |
+| `BoolParam` | `function_field_boolean` | 명시 필요 |
+| `&str` / `&String` / `String` / `i32` / 기타 | `function_field_string` (default) | 자동 |
+
+신택스:
+```rust
+fn greet(a: StringParam, b: BoolParam) {
+    // ...
+}
+```
+
+호출부 (`greet("hi", true)`) 의 args 는 EntryJS `function_param_*` chain 과 자동 매칭. args 슬롯 개수 = 정의된 param 개수. 부족분 null, 초과분 무시.
 
 제약 (A방안, strict):
 
@@ -253,17 +273,18 @@ Rust 의미 차용 (`let` = 블록 scope, `static` = 프로그램 전역). `cons
 - ⬜ `is_included_in_list` — 포함 여부
 - ⬜ `show_list` / `hide_list` — 리스트 보이기/숨기기
 
-### 함수 (3/14)
-- ✅ `function_call` → `FuncCall`
+### 함수 (8/14)
+- ✅ `function_call` → `FuncCall` (빌드 시 `func_<id>` 동적 호출 블록으로 재작성)
 - ✅ `function_create` → `FuncDef`
 - ✅ `function_return` → `Return`
-- ⬜ `function_general` — 함수 □ (호출)
+- ✅ `func_<id>` (동적 함수 호출) → `FuncCall` (deparse 라운드트립)
+- ✅ `function_field_label` — 함수 이름 + param chain 시작점
+- ✅ `function_field_string` — StringParam param chain
+- ✅ `function_field_boolean` — BoolParam param chain
+- ⬜ `function_general` — 함수 □ (호출) (EntryJS 동적 func 블록, func_<id> 로 처리됨)
 - ⬜ `function_value` — 함수 (값)
-- ⬜ `function_field_label` — □□
-- ⬜ `function_field_string` — □□ (문자)
-- ⬜ `function_field_boolean` — □□ (판단)
-- ⬜ `function_param_string` — 문자/숫자값 매개변수
-- ⬜ `function_param_boolean` — 판단값 매개변수
+- ⬜ `function_param_string` — 값 슬롯 (chain 의 placeholder 로 emit)
+- ⬜ `function_param_boolean` — 값 슬롯
 - ⬜ `function_create_value` — 결괏값 반환 함수 정의
 - ⬜ `set_func_variable` / `get_func_variable` — 함수 변수
 
@@ -285,7 +306,7 @@ Rust 의미 차용 (`let` = 블록 scope, `static` = 프로그램 전역). `cons
 
 ### 합계
 
-**17/203** 매핑됨 (약 8.4%)
+**22/203** 매핑됨 (약 10.8%)
 
 ## 남은 작업 (TODO)
 
@@ -296,6 +317,7 @@ Rust 의미 차용 (`let` = 블록 scope, `static` = 프로그램 전역). `cons
 - [x] `entryc build` — `.rs` → `.ent` 빌드 모드 (subcommand, --rs/--out/--ent-template, --scene)
 - [x] `lib::compile` — 전체 조립 + extract 라운드트립용 가짜 오브젝트 패치
 - [x] extract 출력 개선 — raw JSON 들여쓰기 + 에러 메시지 다단계 코멘트 + 미매핑 블록 집계 출력
+- [x] extract 생성기 헤더 — `// Generated by entryc X.Y.Z / at YYYY-MM-DD` 모든 경로 (empty/decodegen 성공/실패/deparse 실패/raw 배열) 에 일관 적용. `SOURCE_DATE_EPOCH` 환경 변수로 결정론적 날짜.
 - [x] 매핑 추가 — `when_run`, `when_object_click`, `number` (String 숫자 허용)
 - [x] `if_else` 블록 — parse/codegen/roundtrip 테스트
 - [x] **잠재 위험 정합화** (대형 작업):
@@ -316,7 +338,9 @@ Rust 의미 차용 (`let` = 블록 scope, `static` = 프로그램 전역). `cons
 - [x] **잠재 위험 추가 정합화 (2차)**:
   - [x] `functions[].content` EntryJS Entry.Code 형식 (스레드 배열) — `[{blocks:[...]}]` → `[[function_create_head]]`
   - [x] `function_call` → `func_<id>` 동적 블록 재작성 (EntryJS 가 호출 시 동적 등록)
+  - [x] 호출부 params 슬롯 보존: 정의된 param 개수에 맞춰 emit (부족분 null, 초과분 무시)
   - [x] `deparse` 에 `func_<id>` 매핑 (라운드트립)
+  - [x] function param type 신택스 (`StringParam` / `BoolParam`) → `function_field_string` / `function_field_boolean` chain emit
   - [x] function 이름 중복 시 suffix (`_2`, `_3`, ...)
   - [x] 빈 `functions` / `messages` 배열 항상 emit
   - [ ] 트리거 없는 thread 시 `when_run` 자동 prepend (현재 `parse` 가 Item::Fn 만 허용해 dead code, 방어용으로만 유지)
@@ -338,39 +362,39 @@ Rust 의미 차용 (`let` = 블록 scope, `static` = 프로그램 전역). `cons
 
 ## 다른 컴퓨터에서 이어서 시작할 때
 
-**현재 작업 디렉토리**: `D:\source\rust2entry` (Windows / PowerShell 5.1)
+**현재 작업 디렉토리**: `D:\kkori\rust2entry` (Windows / PowerShell 5.1)
 
-**현재 working tree 상태** (커밋 직전, 변경 4개 파일 + ~319/-69 라인):
-- `entryc/src/main.rs` — `--scene` 플래그, `run_build` 시그니처 확장, `compile_with_options` 호출, unmapped eprintln
-- `entrycore/src/codegen/mod.rs` — `generate` deprecate doc + `#[allow(dead_code)]`, `collect_vars_*` `pub(crate)` 노출
-- `entrycore/src/lib.rs` — `parse_with_triggers` 통합, `CompileOptions`, 트리거별 thread 분리, helpers → `project.functions`, messages emit, 변수 Entry 형식 + object 필드, stable id, object.script String emit, `push_unmapped` dedup
-- `entrycore/tests/compile.rs` — parse_script_string 헬퍼, 모든 테스트 object.script String 으로 갱신, 새 테스트 12개 추가 (variables Entry 형식, rotateMethod/lock, stable id, unmapped dedup, helpers → functions, messages 등록, scene CLI, objectType text 등)
+**현재 working tree 상태**: clean (모든 변경 커밋됨)
 
-**마지막 커밋**: `7124265 refactor(build): object.script 스키마 정합화 + unmapped 경고` (이전 commit `dbb8aa6` 가 첫 잠재 위험인 스프라이트 위치 초기화 수정)
+**마지막 커밋들**:
+- `a045d4c feat(generator): extract 출력에 생성기 헤더 prepend`
+- `3df669c feat(build): 함수 param type 신택스 (StringParam / BoolParam)`
+- `3e473e7 fix(build): function_call args 슬롯 보존 (param arity 맞춤)`
+- `ad4ab92 feat(build): 잠재 위험 정합화 3차 + Cloud/RealTime 변수 + let/static scope`
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entrycore 66 + entryc 5 + parse 19 + codegen 9 = 99 통과)
+cargo test                  # 전체 (entryc 6 + codegen 9 + compile 57 + parse 26 = 98 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
 ```
 
-**샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 프로젝트 메타/spawn/messages 검증에 사용)
+**샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 이 컴퓨터엔 없을 수 있음 — GitHub entryjs 코드 직접 참고)
 
 **다음 할 일 추천 순서**:
-1. 변경 4개 파일 커밋 + 푸시 (GPG 서명 키 없어서 서명 없이 — 등록 시 `--amend --reset-author` 또는 git config 확인)
-2. EntryJS GitHub 코드 참고해서 (3) base 빈 변수 노이즈 / (A) object 필수 필드 결정
-3. 그 다음 블록 매핑 작업 시작 (TODO 의 "다음 우선순위" 섹션) — `wait_second` 같은 쉬운 것부터
+1. 블록 매핑 시작 (TODO 의 "다음 우선순위" 섹션) — `wait_second` 같은 쉬운 것부터
 
 ## 디렉토리
 
 ```
 entrycore/   라이브러리 (parse/block/codegen/deparse/decodegen/var) + lib::compile_with_options
              - parse::parse_with_triggers: TriggerDef 분리 (build 전용)
-             - CompileOptions: default_scene (CLI --scene 에서 전달)
-entryc/      CLI (extract/build subcommand, --rs/--out/--ent-template, --scene)
+             - CompileOptions: default_scene, replace_variables
+             - ir::VarScope: Local (let) / Global (static)
+             - ir::ParamKind: String (StringParam) / Bool (BoolParam)
+entryc/      CLI (extract/build subcommand, --rs/--out/--ent-template, --scene, --replace-vars)
 target/      빌드 산출물
-entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 + 매핑 현황 (203개, 17개 완료)
+entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 + 매핑 현황 (203개, 22개 완료)
 AGENT.md     이 문서
 ```
