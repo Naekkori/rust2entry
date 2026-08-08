@@ -302,9 +302,10 @@ pub fn compile_with_options(
             .cloned()
             .unwrap_or_default();
         let mut merged_funcs: Vec<Value> = base_funcs;
-        // helper 함수 이름 -> 할당된 id. function_call 블록을
-        // `func_<id>` 동적 블록으로 재작성할 때 사용.
-        let mut fn_name_to_id: std::collections::HashMap<String, String> =
+        // helper 함수 이름 -> (id, param_names). function_call 블록을
+        // `func_<id>` 동적 블록으로 재작성할 때 사용. 호출부 params 슬롯을
+        // 정의된 param 개수에 맞춰 emit 하기 위해 param_names 도 같이 보관.
+        let mut fn_name_to_defs: std::collections::HashMap<String, (String, Vec<String>)> =
             std::collections::HashMap::new();
         // 같은 이름의 base function 이 이미 있으면 두 번째 항목부터
         // 이름에 suffix 를 붙여 EntryJS 가 어느 것을 호출할지 모호한 상태를 방지.
@@ -350,7 +351,7 @@ pub fn compile_with_options(
                 "params": [emit_name.clone(), Value::Array(param_names)],
                 "statements": [Value::Array(h.body.clone())],
             });
-            fn_name_to_id.insert(h.name.clone(), id.clone());
+            fn_name_to_defs.insert(h.name.clone(), (id.clone(), h.params.clone()));
             merged_funcs.push(json!({
                 "id": id,
                 "name": emit_name,
@@ -363,10 +364,10 @@ pub fn compile_with_options(
         // 6.1 function_call 호출 블록을 `func_<id>` 동적 블록으로 재작성.
         //     EntryJS 의 실제 호출 블록은 `Func.registerFunction` 에서
         //     `func_<id>` 타입으로 동적 등록되며, schema 는 `function_general`
-        //     (basic skeleton, Indicator 1개) 를 사용한다. EntryJS 가
-        //     호출 시 params 를 동적 확장하므로 args 슬롯은 비워둔다.
-        if !fn_name_to_id.is_empty() {
-            rewrite_function_calls(&mut project, &fn_name_to_id);
+        //     (basic skeleton) 에 param 개수만큼 params 슬롯 추가된다.
+        //     args 가 정의된 param 개수와 다르면 부족분 null, 초과분 무시.
+        if !fn_name_to_defs.is_empty() {
+            rewrite_function_calls(&mut project, &fn_name_to_defs);
         }
     } else {
         // helper 가 없어도 project.functions 는 빈 배열로 emit — EntryJS 가
@@ -593,7 +594,10 @@ fn threads_to_value(threads: &[Vec<Value>]) -> Value {
 /// object.script 가 JSON 문자열로 저장되어 있어 1) 파싱 → 트리 walk →
 /// 재작성 → 다시 JSON 문자열로 직렬화 한다. 헬퍼 미정의 호출은 변경하지 않고
 /// 그대로 둔다 (EntryJS 가 미정의 함수 호출 시 경고 처리).
-fn rewrite_function_calls(project: &mut Value, fn_name_to_id: &std::collections::HashMap<String, String>) {
+fn rewrite_function_calls(
+    project: &mut Value,
+    fn_name_to_defs: &std::collections::HashMap<String, (String, Vec<String>)>,
+) {
     let objects = match project.get_mut("objects").and_then(|v| v.as_array_mut()) {
         Some(a) => a,
         None => return,
@@ -614,7 +618,7 @@ fn rewrite_function_calls(project: &mut Value, fn_name_to_id: &std::collections:
         } else {
             script.clone()
         };
-        rewrite_calls_in_value(&mut parsed, fn_name_to_id);
+        rewrite_calls_in_value(&mut parsed, fn_name_to_defs);
         // 원래가 문자열이면 다시 문자열로, 아니면 그대로.
         if was_string {
             *script = Value::String(parsed.to_string());
@@ -625,42 +629,59 @@ fn rewrite_function_calls(project: &mut Value, fn_name_to_id: &std::collections:
 }
 
 /// Value 트리 안의 `function_call` 블록을 재귀적으로 찾아 `func_<id>` 로 교체.
-fn rewrite_calls_in_value(v: &mut Value, fn_name_to_id: &std::collections::HashMap<String, String>) {
+/// 정의된 param 개수만큼 params 슬롯 emit — 부족분 null.
+fn rewrite_calls_in_value(
+    v: &mut Value,
+    fn_name_to_defs: &std::collections::HashMap<String, (String, Vec<String>)>,
+) {
     match v {
-        Value::Array(arr) => arr.iter_mut().for_each(|x| rewrite_calls_in_value(x, fn_name_to_id)),
+        Value::Array(arr) => arr
+            .iter_mut()
+            .for_each(|x| rewrite_calls_in_value(x, fn_name_to_defs)),
         Value::Object(obj) => {
             let is_call = obj.get("type").and_then(|x| x.as_str()) == Some("function_call");
             if is_call {
+                // 호출 이름 + 원본 args 추출.
                 let name = obj
                     .get("params")
                     .and_then(|p| p.as_array())
                     .and_then(|a| a.first())
                     .and_then(|x| x.as_str())
                     .map(String::from);
+                let raw_args = obj
+                    .get("params")
+                    .and_then(|p| p.as_array())
+                    .and_then(|a| a.get(2))
+                    .and_then(|x| x.as_array())
+                    .cloned()
+                    .unwrap_or_default();
                 if let Some(name) = name {
-                    if let Some(id) = fn_name_to_id.get(&name) {
+                    if let Some((id, param_names)) = fn_name_to_defs.get(&name) {
                         obj["type"] = Value::String(format!("func_{id}"));
-                        // EntryJS dynamic func 블록 (`function_general`) 은
-                        // Indicator 1개 슬롯만 가지므로 params 도 그에 맞게
-                        // 비워둔다. args 슬롯은 호출 시 EntryJS 가 동적 확장.
-                        obj["params"] = Value::Array(vec![Value::Null]);
+                        // param 개수만큼 params 슬롯 emit.
+                        // 부족분 null, args 초과분 무시.
+                        // args 는 사용자 식 그대로 전달 (EntryJS 가 평가 시
+                        // type 강제 — function_param_string/boolean 매핑은
+                        // 동적 schema 가 처리).
+                        let mut new_params: Vec<Value> = Vec::with_capacity(param_names.len());
+                        for i in 0..param_names.len() {
+                            new_params.push(raw_args.get(i).cloned().unwrap_or(Value::Null));
+                        }
+                        obj["params"] = Value::Array(new_params);
                     } else {
-                        // 미정의 함수 호출은 unmapped 로 누적.
-                        // (현재 unmapped 는 build_threads 단계에서만 채우므로
-                        // 여기선 stderr 경고만. 미정의 호출이 빌드 결과에
-                        // 남아있어도 EntryJS 가 무해하게 무시.)
+                        // 미정의 함수 호출은 stderr 경고.
                         eprintln!("warning: function_call to undefined function: {name}");
                     }
                 }
             }
             if let Some(stmts) = obj.get_mut("statements").and_then(|x| x.as_array_mut()) {
                 for s in stmts.iter_mut() {
-                    rewrite_calls_in_value(s, fn_name_to_id);
+                    rewrite_calls_in_value(s, fn_name_to_defs);
                 }
             }
             if let Some(params) = obj.get_mut("params").and_then(|x| x.as_array_mut()) {
                 for p in params.iter_mut() {
-                    rewrite_calls_in_value(p, fn_name_to_id);
+                    rewrite_calls_in_value(p, fn_name_to_defs);
                 }
             }
         }

@@ -774,8 +774,66 @@ fn compile_function_call_rewritten_to_func_id_block() {
         format!("func_{fn_id}"),
         "function_call -> func_<id> rewrite"
     );
-    // EntryJS function_general 동적 블록은 params Indicator 1개만.
-    assert_eq!(call["params"].as_array().unwrap().len(), 1);
+    // greet() 은 param 0개 -> 호출부 params = [].
+    assert_eq!(call["params"].as_array().unwrap().len(), 0);
+}
+
+/// 함수에 param 이 있으면 호출부 params 도 param 개수에 맞춰 emit.
+#[test]
+fn compile_function_call_params_match_arity() {
+    let src = r#"
+        fn when_start() { greet("hi", 42); }
+        fn greet(a: &str, b: i32) { let y = 1; }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let call = thread
+        .iter()
+        .find(|b| b["type"].as_str().unwrap_or("").starts_with("func_"))
+        .expect("call block");
+    // greet 의 param 2개 -> 호출부 params 2개.
+    assert_eq!(call["params"].as_array().unwrap().len(), 2);
+}
+
+/// args 부족분은 null 로 채움.
+#[test]
+fn compile_function_call_short_args_padded_with_null() {
+    let src = r#"
+        fn when_start() { greet("only_one"); }
+        fn greet(a: &str, b: i32) { let y = 1; }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let call = thread
+        .iter()
+        .find(|b| b["type"].as_str().unwrap_or("").starts_with("func_"))
+        .expect("call block");
+    let params = call["params"].as_array().unwrap();
+    assert_eq!(params.len(), 2);
+    // 첫 번째는 text param.
+    assert!(params[0].get("type").and_then(|x| x.as_str()) == Some("text"));
+    // 두 번째는 부족분 → null.
+    assert!(params[1].is_null(), "두 번째 param null");
+}
+
+/// args 초과분은 무시.
+#[test]
+fn compile_function_call_extra_args_dropped() {
+    let src = r#"
+        fn when_start() { greet("a", 1, 99); }
+        fn greet(a: &str, b: i32) { let y = 1; }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let call = thread
+        .iter()
+        .find(|b| b["type"].as_str().unwrap_or("").starts_with("func_"))
+        .expect("call block");
+    // greet 의 param 2개 -> 호출부 params 도 2개 (초과분 1개 무시).
+    assert_eq!(call["params"].as_array().unwrap().len(), 2);
 }
 
 /// 미정의 함수 호출은 경고만 stderr 로, 블록은 그대로 유지.
