@@ -203,6 +203,10 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let time = param_at(&params, 0, vars)?;
             Block::WaitSeconds { time }
         }
+        "wait_until_true"=>{
+            let cond = param_at(&params, 0, vars)?;
+            Block::WaitUntilTrue { cond }
+        }
         "stop_object" => Block::Break,
         "_continue" => Block::Continue,
         "stop_run_all" => Block::StopAll,
@@ -798,6 +802,17 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         },
+        Block::WaitUntilTrue { cond } => {
+            let arg = expr_from_param(cond, vars)?;
+                stmts.push(Stmt::Expr(Expr::Call(
+                    ir::FuncRef{
+                    name: "wait_until_true".to_string(),
+                    arity: 1,
+                },
+                vec![arg]    
+            )));
+            Ok(())
+        },
     }
 }
 
@@ -929,6 +944,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 b.type_id()
             )
         )),
+        Block::WaitUntilTrue { .. } => Err(
+            UnmappedBlock(
+                format!(
+                    "block used as expr: {}",
+                    b.type_id()
+                )
+            )
+        ),
     }
 }
 

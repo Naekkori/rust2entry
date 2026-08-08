@@ -62,6 +62,7 @@ pub enum Block {
     Continue,
     StopAll,
     WaitSeconds { time: ParamBlock },
+    WaitUntilTrue { cond: ParamBlock },
 
     // ── 산술 / 비교 / 논리 ──
     CalcBinOp { op: BinOp, lhs: ParamBlock, rhs: ParamBlock },
@@ -172,6 +173,7 @@ impl Block {
             Block::FuncDef { .. } => "function_create",
             Block::Return { .. } => "function_return",
             Block::WaitSeconds { .. } => "wait_second",
+            Block::WaitUntilTrue { .. } => "wait_until_true",
         }
     }
 
@@ -205,6 +207,7 @@ impl Block {
             Block::StringConcat { .. } | Block::StringIncludes { .. } => Category::String,
             Block::FuncCall { .. } | Block::FuncDef { .. } | Block::Return { .. } => Category::Define,
             Block::WaitSeconds { .. } => Category::Flow,
+            Block::WaitUntilTrue { .. } => Category::Flow,
         }
     }
 }
@@ -237,6 +240,10 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "wait_second" {
                         let arg = args.first().ok_or_else(|| UnmappedBlock("wait_second needs arg".into()))?;
                         return Ok(Block::WaitSeconds { time: from_expr(arg)? });
+                    }
+                    if fref.name == "wait_until_true" {
+                        let arg = args.first().ok_or_else(|| UnmappedBlock("wait_until_true needs arg".into()))?;
+                        return Ok(Block::WaitUntilTrue { cond: from_expr(arg)? })
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall { name: fref.name.clone(), args })
@@ -496,6 +503,10 @@ fn build_params_and_statements(
         ),
         Block::WaitSeconds { time } => (
             vec![param_to_value(time)],
+            None
+        ),
+        Block::WaitUntilTrue { cond } => (
+            vec![param_to_value(cond)],
             None
         ),
     })

@@ -277,6 +277,82 @@ fn compile_wait_second_roundtrip() {
     }
 }
 
+// ── wait_until_true ──
+
+/// `wait_until_true(x > 5)` → `wait_until_true` 블록, params[0] = boolean_basic.
+#[test]
+fn compile_wait_until_true_compare() {
+    let src = r#"
+        fn when_start() {
+            let x = 3;
+            wait_until_true(x > 5);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let wait = thread.iter().find(|b| b["type"] == "wait_until_true").expect("wait_until_true");
+    assert_eq!(wait["params"][0]["type"], "boolean_basic");
+}
+
+/// `wait_until_true(flag)` → 변수 슬롯.
+#[test]
+fn compile_wait_until_true_var() {
+    let src = r#"
+        fn when_start() {
+            wait_until_true(flag);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let wait = thread.iter().find(|b| b["type"] == "wait_until_true").expect("wait_until_true");
+    // flag 는 미정의 변수 — codegen 은 drop-down 만 emit.
+    assert!(wait["params"][0].get("id").is_some() || wait["params"][0].get("name").is_some());
+}
+
+/// 산술 포함 조건.
+#[test]
+fn compile_wait_until_true_arith_cond() {
+    let src = r#"fn when_start() { wait_until_true(1 + 2 < 5); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let wait = thread.iter().find(|b| b["type"] == "wait_until_true").expect("wait_until_true");
+    assert_eq!(wait["params"][0]["type"], "boolean_basic");
+}
+
+/// 라운드트립.
+#[test]
+fn compile_wait_until_true_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { wait_until_true(x > 5); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "wait_until_true");
+                    assert_eq!(args.len(), 1);
+                }
+                other => panic!("expected Call(wait_until_true), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// base 에 objects 가 이미 있으면 추가하지 않고, rs stem == name 인 object 의
 /// script 필드만 패치한다.
 #[test]
