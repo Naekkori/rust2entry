@@ -103,21 +103,27 @@ fn build_unpacks_to_valid_project_json() {
     // name 필드 존재 (default_empty_project 가 설정)
     assert_eq!(v.get("name").and_then(|x| x.as_str()), Some("rust2entry"));
 
-    // scripts 3개: set x, set y(calc), if z
-    let scripts = v.get("scripts").and_then(|x| x.as_array()).expect("scripts array");
-    assert_eq!(scripts.len(), 3, "expected 3 scripts, got {}", scripts.len());
+    // object.script 의 thread 배열에 [when_run, set x, set y(calc), if z] = 4개 블록
+    let objects = v.get("objects").and_then(|x| x.as_array()).expect("objects array");
+    assert_eq!(objects.len(), 1);
+    let threads = objects[0]["script"].as_array().expect("object script threads");
+    assert_eq!(threads.len(), 1, "thread 1개");
+    let thread = threads[0].as_array().expect("first thread");
+    assert_eq!(thread.len(), 4, "expected 4 blocks (when_run + 3), got {}", thread.len());
 
-    // 0번: set_variable x
-    assert_eq!(scripts[0].get("type").and_then(|x| x.as_str()), Some("set_variable"));
-    // 1번: set_variable y (값은 calc_basic)
-    assert_eq!(scripts[1].get("type").and_then(|x| x.as_str()), Some("set_variable"));
-    let y_val = &scripts[1]["params"][1];
+    // 0번: when_run 트리거
+    assert_eq!(thread[0].get("type").and_then(|x| x.as_str()), Some("when_run"));
+    // 1번: set_variable x
+    assert_eq!(thread[1].get("type").and_then(|x| x.as_str()), Some("set_variable"));
+    // 2번: set_variable y (값은 calc_basic)
+    assert_eq!(thread[2].get("type").and_then(|x| x.as_str()), Some("set_variable"));
+    let y_val = &thread[2]["params"][1];
     assert_eq!(y_val.get("type").and_then(|x| x.as_str()), Some("calc_basic"));
-    // 2번: if (조건 boolean_basic, statements 안에 set z)
-    assert_eq!(scripts[2].get("type").and_then(|x| x.as_str()), Some("if"));
-    let cond = &scripts[2]["params"][0];
+    // 3번: if (조건 boolean_basic, statements 안에 set z)
+    assert_eq!(thread[3].get("type").and_then(|x| x.as_str()), Some("if"));
+    let cond = &thread[3]["params"][0];
     assert_eq!(cond.get("type").and_then(|x| x.as_str()), Some("boolean_basic"));
-    let stmts = scripts[2]["statements"][0].as_array().expect("if body");
+    let stmts = thread[3]["statements"][0].as_array().expect("if body");
     assert_eq!(stmts.len(), 1);
     assert_eq!(stmts[0].get("type").and_then(|x| x.as_str()), Some("set_variable"));
 
@@ -206,13 +212,24 @@ fn build_with_template_preserves_project_metadata() {
     let scenes = v.get("scenes").and_then(|x| x.as_array()).expect("scenes");
     assert_eq!(scenes.len(), 2, "template scenes lost");
 
-    // 새 scripts/variables 패치됨
-    let scripts = v.get("scripts").and_then(|x| x.as_array()).expect("scripts");
-    assert_eq!(scripts.len(), 1);
-    assert_eq!(scripts[0].get("type").and_then(|x| x.as_str()), Some("set_variable"));
+    // 새 object.script 와 variables 패치됨 (variables 는 base 와 머지)
+    // base 의 tmpl_main + 새 main -> objects 2개
+    let objects = v.get("objects").and_then(|x| x.as_array()).expect("objects");
+    assert_eq!(objects.len(), 2);
+    let main_obj = objects.iter().find(|o| o["name"] == "main").expect("main object");
+    let threads = main_obj["script"].as_array().expect("main script threads");
+    let thread = threads[0].as_array().expect("main first thread");
+    // thread 0 = [when_run, set_variable b]
+    assert_eq!(thread.len(), 2);
+    assert_eq!(thread[0].get("type").and_then(|x| x.as_str()), Some("when_run"));
+    assert_eq!(thread[1].get("type").and_then(|x| x.as_str()), Some("set_variable"));
     let vars = v.get("variables").and_then(|x| x.as_array()).expect("variables");
-    assert_eq!(vars.len(), 1);
-    assert_eq!(vars[0].get("name").and_then(|x| x.as_str()), Some("b"));
+    let names: Vec<&str> = vars
+        .iter()
+        .filter_map(|x| x.get("name").and_then(|n| n.as_str()))
+        .collect();
+    assert!(names.contains(&"a"), "base variable a 보존");
+    assert!(names.contains(&"b"), "새 variable b 추가");
 }
 
 #[test]

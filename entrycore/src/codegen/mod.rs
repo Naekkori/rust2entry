@@ -39,7 +39,28 @@ pub fn generate(program: &Program, original: &Value) -> Result<Value> {
     }).collect();
     let mut project = original.clone();
     project["scripts"] = json!(scripts);
-    project["variables"] = json!(vars_arr);
+    // variables 는 base 의 기존 항목을 보존하고, 같은 id 의 새 항목은 덮어쓰고,
+    // 없는 id 는 추가한다 (union by id). 이렇게 하지 않으면 --ent-template 으로
+    // 빌드할 때 base 의 변수가 사라지는 회귀가 발생한다.
+    let base_vars = project
+        .get("variables")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut merged_vars: Vec<Value> = base_vars;
+    for v in &vars_arr {
+        let new_id = v.get("id").and_then(|x| x.as_str());
+        if let Some(new_id) = new_id {
+            if let Some(existing) = merged_vars.iter_mut().find(|e| {
+                e.get("id").and_then(|x| x.as_str()) == Some(new_id)
+            }) {
+                *existing = v.clone();
+                continue;
+            }
+        }
+        merged_vars.push(v.clone());
+    }
+    project["variables"] = json!(merged_vars);
     Ok(project)
 }
 

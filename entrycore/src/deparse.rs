@@ -7,7 +7,7 @@
 use crate::Result;
 use crate::Error::UnmappedBlock;
 use crate::block::{Block, ParamBlock};
-use crate::ir::{BinOp, Expr, Stmt, UnaryOp, stmt};
+use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
 use serde_json::Value;
 

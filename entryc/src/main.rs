@@ -404,8 +404,18 @@ fn run_build(rs_files: &[PathBuf], template: Option<&Path>, out: &Path) -> Resul
         .collect();
 
     // lib::compile 으로 일괄 처리 (parse 합치기 + codegen + base 패치)
-    let final_project = entrycore::compile(&sources_ref, &base)
-        .map_err(|e| format!("compile: {e}"))?;
+    let (final_project, unmapped) = entrycore::compile(&sources_ref, &base)
+        .map_err(|e| {
+            // 어느 rs 에서 실패했는지 알 수 있도록 파일명 prefix 추가.
+            // parse 단계 에러는 보통 stem 정보가 없으므로 e 만 그대로 출력.
+            format!("compile: {e}")
+        })?;
+
+    // unmapped 블록 경고 (extract 와 동일하게 stderr 로)
+    if !unmapped.is_empty() {
+        eprintln!("unmapped: {}", unmapped.join(", "));
+        eprintln!("hint: 미매핑 블록은 .rs 에 raw JSON 코멘트로 보존됨");
+    }
 
     // .ent 패키징
     pack_ent(template, &final_project, out)?;
