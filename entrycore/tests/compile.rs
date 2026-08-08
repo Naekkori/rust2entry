@@ -14,24 +14,46 @@ fn empty_project() -> Value {
     })
 }
 
-/// 트리거 thread 의 0 번 인덱스가 항상 when_run (when_start) 인지 확인.
-fn assert_thread_starts_with_when_run(thread: &[Value]) {
-    assert_eq!(thread[0]["type"], "when_run", "thread[0] 은 when_run 트리거");
+/// build 가 object.script 에 저장한 JSON 문자열을 thread 배열 Value 로 파싱.
+/// (실제 .ent 형식이 String 이라 테스트에서 매번 역직렬화 필요)
+fn parse_script_string(script: &Value) -> Value {
+    let s = script.as_str().expect("script 는 JSON 문자열");
+    serde_json::from_str(s).expect("script JSON 파싱")
+}
+
+fn obj_threads(obj: &Value) -> Vec<Value> {
+    parse_script_string(&obj["script"])
+        .as_array()
+        .expect("threads array")
+        .clone()
+}
+
+fn first_thread(obj: &Value) -> Vec<Value> {
+    obj_threads(obj)
+        .into_iter()
+        .next()
+        .expect("first thread")
+        .as_array()
+        .expect("first thread array")
+        .clone()
 }
 
 /// base 에 object 가 없을 때 rs stem 이름으로 가짜 sprite 가 추가되고,
-/// 그 object 의 `script` 필드(thread 배열)에 `[[when_run, body...]]` 가 들어가는지 확인.
+/// 그 object 의 `script` 필드(JSON 문자열, thread 배열)에 `[[when_run, body...]]` 가 들어가는지 확인.
 #[test]
 fn compile_single_source() {
     let src = "fn when_start() { let x = 42; }";
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let objects = v["objects"].as_array().expect("objects array");
     assert_eq!(objects.len(), 1);
-    let threads = objects[0]["script"].as_array().expect("object script threads");
-    assert_eq!(threads.len(), 1, "when_start 1개");
-    let thread = threads[0].as_array().expect("first thread");
+    // object.script 는 JSON 문자열 (실제 .ent 형식)
+    assert!(
+        objects[0]["script"].as_str().is_some(),
+        "script 는 JSON 문자열"
+    );
+    let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2, "when_run + body 1개");
-    assert_thread_starts_with_when_run(thread);
+    assert_eq!(thread[0]["type"], "when_run");
     assert_eq!(thread[1]["type"], "set_variable");
     assert_eq!(thread[1]["params"][0]["name"], "x");
 }
@@ -46,10 +68,10 @@ fn compile_multi_source_merges_scripts() {
     assert_eq!(objects.len(), 2);
     let a_obj = objects.iter().find(|o| o["name"] == "a").expect("a");
     let b_obj = objects.iter().find(|o| o["name"] == "b").expect("b");
-    let a_thread = a_obj["script"][0].as_array().expect("a thread");
-    let b_thread = b_obj["script"][0].as_array().expect("b thread");
-    assert_thread_starts_with_when_run(a_thread);
-    assert_thread_starts_with_when_run(b_thread);
+    let a_thread = first_thread(a_obj);
+    let b_thread = first_thread(b_obj);
+    assert_eq!(a_thread[0]["type"], "when_run");
+    assert_eq!(b_thread[0]["type"], "when_run");
     assert_eq!(a_thread[1]["params"][0]["name"], "x");
     assert_eq!(b_thread[1]["params"][0]["name"], "y");
 }
@@ -69,7 +91,7 @@ fn compile_preserves_base_metadata() {
     assert_eq!(v["scenes"].as_array().unwrap().len(), 2);
     assert_eq!(v["speed"], 30);
     let objects = v["objects"].as_array().unwrap();
-    let thread = objects[0]["script"][0].as_array().expect("first thread");
+    let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2);
 }
 
@@ -122,11 +144,9 @@ fn compile_if_block_structure() {
     let src = "fn when_start() { if 1 < 2 { let x = 1; } }";
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let objects = v["objects"].as_array().unwrap();
-    let threads = objects[0]["script"].as_array().expect("object script threads");
-    assert_eq!(threads.len(), 1);
-    let thread = threads[0].as_array().expect("first thread");
+    let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2, "when_run + if");
-    assert_thread_starts_with_when_run(thread);
+    assert_eq!(thread[0]["type"], "when_run");
     assert_eq!(thread[1]["type"], "if");
     assert_eq!(thread[1]["params"][0]["type"], "boolean_basic");
 }
@@ -137,18 +157,17 @@ fn compile_for_range_expands_to_repeat() {
     let src = "fn when_start() { for i in 0..5 { let x = 1; } }";
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let objects = v["objects"].as_array().unwrap();
-    let threads = objects[0]["script"].as_array().expect("object script threads");
-    let thread = threads[0].as_array().expect("first thread");
+    let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2, "when_run + repeat");
     assert_eq!(thread[1]["type"], "repeat_basic");
 }
 
-/// compile -> object.script (thread 배열) -> deparse 라운드트립.
+/// compile -> object.script (JSON 문자열) -> deparse 라운드트립.
 /// thread 0 = [when_run, if] -> deparse 가 when_run 을 FuncDef 로 감싸고 본문 If 를 body 에.
 #[test]
 fn compile_roundtrip_via_deparse() {
     use entrycore::codegen::collect_var_map;
-    use entrycore::deparse::program_from_script_value_with_vars;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::Stmt;
 
     let src = "fn when_start() { if 1 < 2 { let x = 1; } }";
@@ -156,9 +175,8 @@ fn compile_roundtrip_via_deparse() {
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let vars = collect_var_map(&p1);
     let objects = v["objects"].as_array().unwrap();
-    let obj_script = objects[0]["script"].clone();
-    let p2 = program_from_script_value_with_vars(&obj_script, &vars).expect("deparse");
-    // stmts[0] = FuncDef(when_start, body=[If...])
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
     match &p2.stmts[0] {
         Stmt::FuncDef { name, body, .. } => {
             assert_eq!(name, "when_start");
@@ -182,12 +200,9 @@ fn compile_adds_fake_object_when_empty() {
     assert_eq!(objects[0]["entity"]["visible"], true);
     assert_eq!(objects[0]["sprite"]["name"], "my_obj");
     assert!(objects[0]["sprite"]["pictures"].as_array().unwrap().is_empty());
-    // base 가 비어있어도 가짜 object 의 id 는 fake_N 형식
     let fake_id = objects[0]["id"].as_str().expect("fake id str");
-    assert!(fake_id.starts_with("fake_"), "가짜 id 는 fake_ prefix: {fake_id}");
-    let threads = objects[0]["script"].as_array().expect("object script threads");
-    assert_eq!(threads.len(), 1);
-    let thread = threads[0].as_array().expect("first thread");
+    assert!(fake_id.starts_with("obj_"), "가짜 id 는 obj_ prefix: {fake_id}");
+    let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2, "when_run + body");
 }
 
@@ -211,10 +226,8 @@ fn compile_does_not_overwrite_existing_objects() {
     let objects = v["objects"].as_array().expect("objects");
     assert_eq!(objects.len(), 1, "기존 objects 보존, 추가 안 함");
     assert_eq!(objects[0]["name"], "existing_obj");
-    let threads = objects[0]["script"].as_array().expect("object script threads");
-    assert_eq!(threads.len(), 1);
-    let thread = threads[0].as_array().expect("first thread");
-    assert_thread_starts_with_when_run(thread);
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[0]["type"], "when_run");
     assert_eq!(thread[1]["type"], "set_variable");
 }
 
@@ -249,8 +262,8 @@ fn compile_matches_existing_object_by_name() {
     assert_eq!(objects.len(), 2, "기존 objects 2개 보존");
     let alpha_obj = objects.iter().find(|o| o["name"] == "alpha").unwrap();
     let beta_obj = objects.iter().find(|o| o["name"] == "beta").unwrap();
-    let alpha_thread = alpha_obj["script"][0].as_array().expect("alpha thread");
-    let beta_thread = beta_obj["script"][0].as_array().expect("beta thread");
+    let alpha_thread = first_thread(alpha_obj);
+    let beta_thread = first_thread(beta_obj);
     assert_eq!(alpha_thread[1]["params"][0]["name"], "x");
     assert_eq!(beta_thread[1]["params"][0]["name"], "y");
 }
@@ -273,7 +286,7 @@ fn compile_matches_object_name_case_insensitive() {
     let v = compile(&[("alpha", "fn when_start() { let x = 1; }")], &base).expect("compile").0;
     let objects = v["objects"].as_array().unwrap();
     assert_eq!(objects.len(), 1);
-    let thread = objects[0]["script"][0].as_array().expect("first thread");
+    let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2);
 }
 
@@ -291,11 +304,9 @@ fn compile_if_else_block() {
     "#;
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let objects = v["objects"].as_array().unwrap();
-    let threads = objects[0]["script"].as_array().expect("object script threads");
-    assert_eq!(threads.len(), 1);
-    let thread = threads[0].as_array().expect("first thread");
+    let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2);
-    assert_thread_starts_with_when_run(thread);
+    assert_eq!(thread[0]["type"], "when_run");
     let block = &thread[1];
     assert_eq!(block["type"], "if_else");
     assert_eq!(block["params"][0]["type"], "boolean_basic");
@@ -315,19 +326,18 @@ fn compile_if_without_else_stays_if() {
     let src = "fn when_start() { if 1 < 2 { let x = 1; } }";
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let objects = v["objects"].as_array().unwrap();
-    let threads = objects[0]["script"].as_array().expect("threads");
-    let thread = threads[0].as_array().expect("first thread");
+    let thread = first_thread(&objects[0]);
     let block = &thread[1];
     assert_eq!(block["type"], "if");
     let stmts = block["statements"].as_array().expect("statements");
     assert_eq!(stmts.len(), 1, "if 는 then 1개 thread");
 }
 
-/// if-else compile -> object.script (thread 배열) -> deparse 라운드트립.
+/// if-else compile -> object.script (JSON 문자열) -> deparse 라운드트립.
 #[test]
 fn compile_if_else_roundtrip() {
     use entrycore::codegen::collect_var_map;
-    use entrycore::deparse::program_from_script_value_with_vars;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::Stmt;
     use entrycore::parse::parse;
 
@@ -336,9 +346,8 @@ fn compile_if_else_roundtrip() {
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let vars = collect_var_map(&p1);
     let objects = v["objects"].as_array().unwrap();
-    let obj_script = objects[0]["script"].clone();
-    let p2 = program_from_script_value_with_vars(&obj_script, &vars).expect("deparse");
-    // stmts[0] = FuncDef(when_start, body=[If{then,else}])
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
     match &p2.stmts[0] {
         Stmt::FuncDef { name, body, .. } => {
             assert_eq!(name, "when_start");
@@ -365,7 +374,7 @@ fn compile_if_else_roundtrip() {
 }
 
 /// base 에 기존 스프라이트가 있을 때 매칭 안 된 rs 가 가짜 object 로 추가될 때
-/// entity/sprite 메타가 base 에서 복사되어 위치 등이 0 으로 초기화되지 않는다.
+/// entity 메타가 base 에서 복사되어 위치 등이 0 으로 초기화되지 않는다.
 #[test]
 fn compile_preserves_existing_sprite_metadata_on_fake_object() {
     let mut base = empty_project();
@@ -401,14 +410,13 @@ fn compile_preserves_existing_sprite_metadata_on_fake_object() {
     assert_eq!(fake["entity"]["regY"], 10.0);
     assert_eq!(fake["entity"]["scaleX"], 2.0);
     let pics = fake["sprite"]["pictures"].as_array().unwrap();
-    assert_eq!(pics.len(), 1);
-    assert_eq!(pics[0]["id"], "pic1");
-    assert_eq!(fake["selectedPictureId"], "pic1");
-    // 가짜 object 의 id 는 base 의 id("src1") 와 충돌하면 안 됨
+    assert!(pics.is_empty(), "가짜 object 의 pictures 는 비어야 함");
+    let sounds = fake["sprite"]["sounds"].as_array().unwrap();
+    assert!(sounds.is_empty(), "가짜 object 의 sounds 는 비어야 함");
+    assert_eq!(fake["selectedPictureId"], Value::Null);
     let fake_id = fake["id"].as_str().expect("fake id str");
-    assert_ne!(fake_id, "src1", "가짜 object id 가 base 와 충돌");
-    assert!(fake_id.starts_with("fake_"), "가짜 id 는 fake_ prefix: {fake_id}");
-    // base 의 id 도 그대로 보존
+    assert_ne!(fake_id, "src1");
+    assert!(fake_id.starts_with("obj_"));
     let src = objects.iter().find(|o| o["name"] == "source_sprite").expect("base obj");
     assert_eq!(src["id"], "src1");
 }
@@ -441,17 +449,17 @@ fn compile_fake_objects_have_unique_ids() {
     ids.dedup();
     assert_eq!(ids.len(), 3, "가짜 object id 중복: {ids:?}");
     for id in &ids {
-        assert!(id.starts_with("fake_"), "id 포맷: {id}");
+        assert!(id.starts_with("obj_"), "id 포맷: {id}");
     }
 }
 
-/// base 에 fake_1 이 이미 있으면 가짜 object 는 fake_2 부터 발급.
+/// 가짜 object 의 id 는 stem 기반 stable hash 이고 base 와 충돌 안 함.
 #[test]
 fn compile_fake_id_skips_existing_ids_in_base() {
     let mut base = empty_project();
     base["objects"] = json!([
         {
-            "id": "fake_1",
+            "id": "obj_doesnotmatter",
             "name": "base_a",
             "objectType": "sprite",
             "scene": "scene1",
@@ -463,7 +471,85 @@ fn compile_fake_id_skips_existing_ids_in_base() {
     let v = compile(&[("new_one", "fn when_start() { let x = 1; }")], &base).expect("compile").0;
     let objects = v["objects"].as_array().unwrap();
     let fake = objects.iter().find(|o| o["name"] == "new_one").expect("new_one");
-    assert_eq!(fake["id"], "fake_2", "fake_1 과 충돌 회피");
+    let fake_id = fake["id"].as_str().expect("id");
+    assert_eq!(fake_id, format!("obj_{}", entrycore::block::id_for("new_one")));
+    assert_ne!(fake_id, "obj_doesnotmatter");
+}
+
+/// stable id: 같은 stem 으로 두 번 빌드하면 같은 id 가 나온다.
+#[test]
+fn compile_stable_id_is_deterministic() {
+    let src = "fn when_start() { let x = 1; }";
+    let v1 = compile(&[("foo", src)], &empty_project()).expect("compile").0;
+    let v2 = compile(&[("foo", src)], &empty_project()).expect("compile").0;
+    let id1 = v1["objects"][0]["id"].as_str().unwrap();
+    let id2 = v2["objects"][0]["id"].as_str().unwrap();
+    assert_eq!(id1, id2, "stable id: {id1} == {id2}");
+}
+
+/// helper 함수 (트리거 아닌 FuncDef) 는 object script 가 아니라 project.functions 로 emit.
+#[test]
+fn compile_helpers_go_to_project_functions() {
+    let src = r#"
+        fn when_start() { let x = 1; }
+        fn helper() { let y = 2; }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let first_thread = first_thread(&objects[0]);
+    // when_run + let x 만 있고 helper 본문(set y)은 없어야
+    assert_eq!(first_thread.len(), 2);
+    assert_eq!(first_thread[0]["type"], "when_run");
+    assert_eq!(first_thread[1]["type"], "set_variable");
+    assert_eq!(first_thread[1]["params"][0]["name"], "x");
+    // project.functions 에 helper 항목
+    let funcs = v["functions"].as_array().expect("functions");
+    let helper = funcs.iter().find(|f| f["name"] == "helper").expect("helper fn");
+    assert!(helper["id"].as_str().unwrap().starts_with("fn_"));
+    let content = helper["content"].as_array().expect("content threads");
+    assert_eq!(content.len(), 1, "helper 는 1개 thread");
+    let blocks = content[0]["blocks"].as_array().expect("blocks");
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(blocks[0]["type"], "set_variable");
+    assert_eq!(blocks[0]["params"][0]["name"], "y");
+}
+
+/// CompileOptions.default_scene 으로 가짜 object 의 scene 지정.
+#[test]
+fn compile_default_scene_from_options() {
+    use entrycore::compile_with_options;
+    let src = "fn when_start() { let x = 1; }";
+    let options = entrycore::CompileOptions {
+        default_scene: Some("scene2".to_string()),
+    };
+    let v = compile_with_options(&[("obj", src)], &empty_project(), &options)
+        .expect("compile")
+        .0;
+    let objects = v["objects"].as_array().unwrap();
+    assert_eq!(objects[0]["scene"], "scene2");
+}
+
+/// base 의 첫 object 가 text 면 가짜 object 도 text objectType 보존.
+#[test]
+fn compile_fake_object_preserves_non_sprite_object_type() {
+    let mut base = empty_project();
+    base["objects"] = json!([
+        {
+            "id": "txt1",
+            "name": "label_obj",
+            "objectType": "text",
+            "scene": "scene1",
+            "script": "[]",
+            "sprite": { "name": "label_obj", "pictures": [], "sounds": [] },
+            "entity": { "x": 0, "y": 0, "visible": true }
+        }
+    ]);
+    let v = compile(&[("new_obj", "fn when_start() { let x = 1; }")], &base)
+        .expect("compile")
+        .0;
+    let objects = v["objects"].as_array().unwrap();
+    let fake = objects.iter().find(|o| o["name"] == "new_obj").expect("new_obj");
+    assert_eq!(fake["objectType"], "text", "base 가 text 면 가짜도 text");
 }
 
 /// when_click 트리거는 when_click 블록으로 직렬화.
@@ -472,8 +558,7 @@ fn compile_when_click_trigger() {
     let src = "fn when_click() { let x = 1; }";
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let objects = v["objects"].as_array().unwrap();
-    let threads = objects[0]["script"].as_array().expect("threads");
-    let thread = threads[0].as_array().expect("first thread");
+    let thread = first_thread(&objects[0]);
     assert_eq!(thread[0]["type"], "when_click");
     assert_eq!(thread[1]["type"], "set_variable");
 }
@@ -484,8 +569,7 @@ fn compile_when_clone_start_trigger() {
     let src = "fn when_clone_start() { let x = 1; }";
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let objects = v["objects"].as_array().unwrap();
-    let threads = objects[0]["script"].as_array().expect("threads");
-    let thread = threads[0].as_array().expect("first thread");
+    let thread = first_thread(&objects[0]);
     assert_eq!(thread[0]["type"], "when_clone_start");
 }
 
@@ -495,10 +579,23 @@ fn compile_when_message_trigger_uses_param_as_msg() {
     let src = "fn when_message(m: &str) { let x = 1; }";
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let objects = v["objects"].as_array().unwrap();
-    let threads = objects[0]["script"].as_array().expect("threads");
-    let thread = threads[0].as_array().expect("first thread");
+    let thread = first_thread(&objects[0]);
     assert_eq!(thread[0]["type"], "when_message_cast");
     assert_eq!(thread[0]["params"][0].as_str(), Some("m"));
+}
+
+/// when_message 트리거 발견 시 project.messages 에 메시지 항목도 추가.
+/// EntryJS 가 message 이름으로 매칭하므로 id 도 name 과 동일.
+#[test]
+fn compile_when_message_registers_message_in_project() {
+    let src = "fn when_message(my_msg: &str) { let x = 1; }";
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let messages = v["messages"].as_array().expect("messages array");
+    let msg = messages
+        .iter()
+        .find(|m| m["name"] == "my_msg")
+        .expect("my_msg in messages");
+    assert_eq!(msg["id"].as_str(), Some("my_msg"));
 }
 
 /// 트리거가 둘 (when_start + when_click) 이면 object.script 에 thread 2개.
@@ -510,7 +607,7 @@ fn compile_multiple_triggers_produce_multiple_threads() {
     "#;
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let objects = v["objects"].as_array().unwrap();
-    let threads = objects[0]["script"].as_array().expect("threads");
+    let threads = obj_threads(&objects[0]);
     assert_eq!(threads.len(), 2, "when_start + when_click");
     let t0 = threads[0].as_array().expect("t0");
     let t1 = threads[1].as_array().expect("t1");
@@ -520,38 +617,32 @@ fn compile_multiple_triggers_produce_multiple_threads() {
     assert_eq!(t1[1]["params"][0]["name"], "y");
 }
 
-/// 트리거가 없는 rs (e.g. helper 함수만) 도 정상 처리.
+/// 트리거가 없는 rs 도 정상 처리.
 #[test]
-fn compile_no_trigger_source_yields_empty_script() {
+fn compile_no_trigger_source_yields_threads() {
     let src = "fn helper() { let x = 1; }";
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let objects = v["objects"].as_array().unwrap();
-    // helper FuncDef 는 Entry 가 인식 못 하므로 object.script 가 비어있어도 무해.
-    // 현재 구현은 비트리거 stmt 를 init thread 1개로 emit 한다.
-    let threads = objects[0]["script"].as_array().expect("threads");
-    // helper 자체는 init thread 에 들어가지 않는다 (FuncDef 변환은 function_create
-    // 블록이 되지만 trigger 가 없으면 EntryJS 가 무시). 일단 0 또는 그 이상 허용.
+    // helper 본문은 project.functions 로 가고 object.script 는 비어있음.
+    let threads = obj_threads(&objects[0]);
+    // threads 비어있거나 (when_run 만) 있어도 무해.
     let _ = threads.len();
 }
 
 /// 미매핑 블록은 (project, Vec<unmapped>) 의 unmapped 에 누적되고 빌드는 성공.
 #[test]
 fn compile_collects_unmapped_blocks() {
-    // timer 변수 read 는 Entry 전용 get 블록 필요 (stmt-level VarDecl/SetVar 사용 불가)
     let src = r#"
         fn when_start() {
             let x = timer;
         }
     "#;
     let (v, unmapped) = compile(&[("obj", src)], &empty_project()).expect("compile");
-    // 빌드는 성공 (해당 stmt 는 init thread 에서 빠짐)
     let objects = v["objects"].as_array().unwrap();
-    let threads = objects[0]["script"].as_array().expect("threads");
-    let first_thread = threads[0].as_array().expect("first thread");
+    let first_thread = first_thread(&objects[0]);
     // when_run 만 들어가고 timer read stmt 는 빠짐
     assert_eq!(first_thread.len(), 1);
     assert_eq!(first_thread[0]["type"], "when_run");
-    // unmapped 메시지에 timer read 사유가 들어감
     assert!(!unmapped.is_empty(), "unmapped 가 비어있으면 안 됨");
     let joined = unmapped.join(" ");
     assert!(joined.contains("timer"), "unmapped 에 timer 사유 포함: {unmapped:?}");
@@ -563,4 +654,53 @@ fn compile_empty_unmapped_when_all_supported() {
     let src = "fn when_start() { let x = 1; }";
     let (_v, unmapped) = compile(&[("obj", src)], &empty_project()).expect("compile");
     assert!(unmapped.is_empty(), "정상 rs 는 unmapped 비어야: {unmapped:?}");
+}
+
+/// 같은 미매핑 사유가 여러 위치에서 나도 unmapped 에는 한 번만 들어감 (dedup).
+#[test]
+fn compile_unmapped_is_deduplicated() {
+    // 같은 stmt 가 if 의 두 분기에 들어 있어도 timer read 사유는 한 번만.
+    let src = r#"
+        fn when_start() {
+            if 1 < 2 { let a = timer; }
+            else { let b = timer; }
+        }
+    "#;
+    let (_v, unmapped) = compile(&[("obj", src)], &empty_project()).expect("compile");
+    let timer_msgs: Vec<&String> = unmapped
+        .iter()
+        .filter(|m| m.contains("timer"))
+        .collect();
+    assert_eq!(
+        timer_msgs.len(),
+        1,
+        "같은 timer 사유가 dedup 되어야: {unmapped:?}"
+    );
+}
+
+/// 변수 항목이 Entry 실제 .ent 형식 (sample 기준) 의 추가 필드를 포함.
+/// 일반 변수는 등장한 object 의 stem 으로 object 필드 채워짐.
+#[test]
+fn compile_variables_have_entry_format_fields() {
+    let src = "fn when_start() { let x = 1; }";
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = v["variables"].as_array().expect("variables");
+    let x = vars.iter().find(|v| v["name"] == "x").expect("x var");
+    assert_eq!(x["visible"], true);
+    assert_eq!(x["isCloud"], false);
+    assert_eq!(x["isRealTime"], false);
+    assert_eq!(x["cloudDate"], false);
+    assert_eq!(x["object"], "obj", "x 는 obj 의 변수");
+    assert_eq!(x["x"], 0);
+    assert_eq!(x["y"], 0);
+}
+
+/// 가짜 object 가 Entry 부수 필드 (rotateMethod, lock) 포함.
+#[test]
+fn compile_fake_object_has_rotate_method_and_lock() {
+    let src = "fn when_start() { let x = 1; }";
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    assert_eq!(objects[0]["rotateMethod"], "free");
+    assert_eq!(objects[0]["lock"], false);
 }

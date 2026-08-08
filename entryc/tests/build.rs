@@ -103,10 +103,13 @@ fn build_unpacks_to_valid_project_json() {
     // name 필드 존재 (default_empty_project 가 설정)
     assert_eq!(v.get("name").and_then(|x| x.as_str()), Some("rust2entry"));
 
-    // object.script 의 thread 배열에 [when_run, set x, set y(calc), if z] = 4개 블록
+    // object.script 는 JSON 문자열 (실제 .ent 형식) -> 파싱 후 thread 검증
     let objects = v.get("objects").and_then(|x| x.as_array()).expect("objects array");
     assert_eq!(objects.len(), 1);
-    let threads = objects[0]["script"].as_array().expect("object script threads");
+    let script_str = objects[0]["script"].as_str().expect("object script str");
+    let script: serde_json::Value =
+        serde_json::from_str(script_str).expect("script JSON parse");
+    let threads = script.as_array().expect("object script threads");
     assert_eq!(threads.len(), 1, "thread 1개");
     let thread = threads[0].as_array().expect("first thread");
     assert_eq!(thread.len(), 4, "expected 4 blocks (when_run + 3), got {}", thread.len());
@@ -217,7 +220,10 @@ fn build_with_template_preserves_project_metadata() {
     let objects = v.get("objects").and_then(|x| x.as_array()).expect("objects");
     assert_eq!(objects.len(), 2);
     let main_obj = objects.iter().find(|o| o["name"] == "main").expect("main object");
-    let threads = main_obj["script"].as_array().expect("main script threads");
+    let main_script_str = main_obj["script"].as_str().expect("main script str");
+    let main_script: serde_json::Value =
+        serde_json::from_str(main_script_str).expect("main script JSON parse");
+    let threads = main_script.as_array().expect("main script threads");
     let thread = threads[0].as_array().expect("main first thread");
     // thread 0 = [when_run, set_variable b]
     assert_eq!(thread.len(), 2);

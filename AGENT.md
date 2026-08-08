@@ -8,15 +8,30 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 |---|------|------|--------|
 | 1 | `parse` — Rust 소스 → IR Program | ✅ | 19/19 |
 | 2 | `block` — IR → Block enum | ✅ | (in 3) |
-| 3 | `codegen` — Block → project.json (패치) | ✅ | 9/9 |
+| 3 | `codegen` — Block → project.json (패치) | ✅ (deprecate: 새 코드에선 compile_with_options 사용) | 9/9 |
 | 4 | `deparse` — project.json → IR (역방향) | ✅ | (in 3 라운드트립) |
 | 5 | `decodegen` — IR → DSL (Rust-like) | ✅ | (in 1 라운드트립) |
 | 6 | `var` — VarInfo / VarMap | ✅ | - |
 | 7 | `for-range` — `for i in a..b` → `repeat_basic` 펼침 | ✅ | in 1, 3 |
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
-| 10 | `entryc build` — `.rs` → `.ent` | ✅ | 5/5 |
-| 11 | `lib::compile` — 전체 조립 | ✅ | 15/15 |
+| 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 5/5 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 36/36 |
+
+### lib::compile 세부 동작 (현재)
+
+- **rs 파싱**: `parse::parse` (트리거 body 평탄화, variables 집계) + `parse::parse_with_triggers` (트리거 분리, `TriggerDef`) 이중 호출.
+- **object 매칭**: rs stem ↔ `objects[].name` 대소문자 무시. 매칭된 object 의 `script` 를 thread 배열로 패치.
+- **trigger 스레드**: 각 `TriggerDef` 별로 `[when_run (또는 when_click/when_clone_start/when_message_cast), ...body_blocks]`. 여러 트리거 → thread 여러 개.
+- **helper FuncDef**: object script 가 아니라 `project.functions` 로 emit (`{id: fn_<hash>, name, content:[{blocks}], param:[{name}]}`).
+- **when_message 트리거**: 메시지 이름 수집 → `project.messages` 에 `{id: <name>, name}` emit (id = name, EntryJS 가 name 으로 매칭).
+- **variables**: Entry 실제 .ent 형식 — `{id, name, variableType, value, visible, isCloud, isRealTime, cloudDate, object, x, y}`. `object` 필드는 변수가 등장한 rs stem; **Timer/Answer/Cloud/RealTime/List 는 항상 전역 (null)**.
+- **가짜 object** (base 와 매칭 안 되는 rs): `make_fake_object` 가 base 의 첫 sprite 메타 복사하되 pictures/sounds/selectedPictureId 는 비움, id 는 `obj_<djb2(stem)>` stable hash, `objectType` 보존, `scene` 은 `CompileOptions.default_scene` > base 첫 sprite > `"scene1"`, `rotateMethod:"free"`, `lock:false` 기본값 추가.
+- **object.script**: 실제 .ent 형식과 동일하게 **JSON 문자열**로 emit (raw 배열 X).
+- **`project.scripts`**: base 값으로 복원 (codegen 의 단일 scripts 패치는 무시).
+- **variables 머지**: base + 새 빌드 id 기준 union (base 변수 보존, 같은 id 는 새 빌드가 덮음).
+- **`unmapped` 누적**: `from_stmt`/`to_value` 의 `UnmappedBlock` 을 `(Value, Vec<String>)` 의 두 번째 반환에 수집. `main::run_build` 가 eprintln 으로 경고 출력. `push_unmapped` 헬퍼로 dedup.
+- **codegen::generate** 직접 호출은 deprecated — 새 코드는 `lib::compile_with_options(&rs, &base, &options)` 사용.
 
 ## 완료된 모듈
 
@@ -254,14 +269,29 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 
 - [x] `for-range` IR → Entry 풀어쓰기 (`for i in a..b` → `repeat_basic(b-a)`)
 - [x] 변수 kind (Timer/Answer/List) 자동 인식 + 전용 변수 거부
-- [x] `generate(program, original)` project.json 패치
+- [x] `generate(program, original)` project.json 패치 (이제 deprecated, compile_with_options 사용)
 - [x] 라운드트립 테스트 (codegen/deparse, parse/decodegen)
-- [x] `entryc build` — `.rs` → `.ent` 빌드 모드 (subcommand, --rs/--out/--ent-template)
+- [x] `entryc build` — `.rs` → `.ent` 빌드 모드 (subcommand, --rs/--out/--ent-template, --scene)
 - [x] `lib::compile` — 전체 조립 + extract 라운드트립용 가짜 오브젝트 패치
 - [x] extract 출력 개선 — raw JSON 들여쓰기 + 에러 메시지 다단계 코멘트 + 미매핑 블록 집계 출력
 - [x] 매핑 추가 — `when_run`, `when_object_click`, `number` (String 숫자 허용)
 - [x] `if_else` 블록 — parse/codegen/roundtrip 테스트
-- [ ] **다음 우선순위**
+- [x] **잠재 위험 정합화** (대형 작업):
+  - [x] 스프라이트 위치 초기화 방지 (base entity 복사)
+  - [x] object.script 스키마 정합화 (JSON 문자열, trigger thread 분리, object 매칭)
+  - [x] `project.functions` / `project.messages` emit
+  - [x] `unmapped` 경고 출력 (build)
+  - [x] stable id (`obj_<hash>`)
+  - [x] scene CLI (`--scene`)
+  - [x] variables Entry 형식 (`visible`, `isCloud`, ..., `object: <rs stem>`)
+  - [x] interface 기본값 (`menuWidth`, `canvasWidth`)
+  - [x] message id = name (EntryJS name 매칭)
+  - [x] object 부수 필드 (`rotateMethod`, `lock`)
+  - [x] unmapped dedup
+- [ ] **보류 (EntryJS 확인 필요)**
+  - [ ] base 빈 변수 노이즈 처리 — `--ent-template` 빌드에서 base 의 빈 변수 항목이 누적되는지, 새 빌드가 통째 교체 시 사용자 변수 보존 여부 (현재: id 기준 union 으로 base 보존)
+  - [ ] object 필수 필드 추가 — entryjs 가 어떤 필드를 default 없이 요구하는지 확인 (`rotateMethod`, `lock` 외)
+- [ ] **다음 우선순위 (블록 추가)**
   - [ ] 흐름: `wait_second`, `wait_until_true` (쉬움, 즉시 가치)
   - [ ] 흐름: `repeat_while_true` 별칭 추가 (현재 `repeat_while` 만 매핑)
   - [ ] 연산: `calc_rand` (난수) / `get_project_timer_value` (타이머 값)
@@ -276,11 +306,41 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
   - [ ] `entities.default` (위치/크기) 처리
   - [ ] 실제 EntryJS import 테스트 (실행 환경 검증)
 
+## 다른 컴퓨터에서 이어서 시작할 때
+
+**현재 작업 디렉토리**: `D:\source\rust2entry` (Windows / PowerShell 5.1)
+
+**현재 working tree 상태** (커밋 직전, 변경 4개 파일 + ~319/-69 라인):
+- `entryc/src/main.rs` — `--scene` 플래그, `run_build` 시그니처 확장, `compile_with_options` 호출, unmapped eprintln
+- `entrycore/src/codegen/mod.rs` — `generate` deprecate doc + `#[allow(dead_code)]`, `collect_vars_*` `pub(crate)` 노출
+- `entrycore/src/lib.rs` — `parse_with_triggers` 통합, `CompileOptions`, 트리거별 thread 분리, helpers → `project.functions`, messages emit, 변수 Entry 형식 + object 필드, stable id, object.script String emit, `push_unmapped` dedup
+- `entrycore/tests/compile.rs` — parse_script_string 헬퍼, 모든 테스트 object.script String 으로 갱신, 새 테스트 12개 추가 (variables Entry 형식, rotateMethod/lock, stable id, unmapped dedup, helpers → functions, messages 등록, scene CLI, objectType text 등)
+
+**마지막 커밋**: `7124265 refactor(build): object.script 스키마 정합화 + unmapped 경고` (이전 commit `dbb8aa6` 가 첫 잠재 위험인 스프라이트 위치 초기화 수정)
+
+**빌드/테스트 명령**:
+```
+cargo test                  # 전체 (entrycore 66 + entryc 5 + parse 19 + codegen 9 = 99 통과)
+cargo test -p entrycore     # entrycore 만
+cargo test -p entryc        # entryc 만
+cargo build                 # 빌드만
+```
+
+**샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 프로젝트 메타/spawn/messages 검증에 사용)
+
+**다음 할 일 추천 순서**:
+1. 변경 4개 파일 커밋 + 푸시 (GPG 서명 키 없어서 서명 없이 — 등록 시 `--amend --reset-author` 또는 git config 확인)
+2. EntryJS GitHub 코드 참고해서 (3) base 빈 변수 노이즈 / (A) object 필수 필드 결정
+3. 그 다음 블록 매핑 작업 시작 (TODO 의 "다음 우선순위" 섹션) — `wait_second` 같은 쉬운 것부터
+
 ## 디렉토리
 
 ```
-entrycore/   라이브러리 (parse/block/codegen/deparse/decodegen/var) + lib::compile
-entryc/      CLI (extract/build subcommand, --rs/--out/--ent-template)
+entrycore/   라이브러리 (parse/block/codegen/deparse/decodegen/var) + lib::compile_with_options
+             - parse::parse_with_triggers: TriggerDef 분리 (build 전용)
+             - CompileOptions: default_scene (CLI --scene 에서 전달)
+entryc/      CLI (extract/build subcommand, --rs/--out/--ent-template, --scene)
 target/      빌드 산출물
 entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 + 매핑 현황 (203개, 17개 완료)
+AGENT.md     이 문서
 ```

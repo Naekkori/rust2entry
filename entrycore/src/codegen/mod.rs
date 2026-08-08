@@ -9,6 +9,14 @@ use crate::var::{VarInfo, VarInit, VarKind, VarMap};
 use serde_json::{Value, json};
 
 /// IR Program -> Entry project.json.
+///
+/// ## Deprecated for new code
+/// 이 함수는 `from_stmt`/`to_value` 의 `UnmappedBlock` 에러를 catch 하지 않고
+/// 그대로 propagate 한다. 새 코드에서는 `crate::compile_with_options` 를
+/// 사용하면 unmapped 블록이 `(Value, Vec<String>)` 의 두 번째 반환에 누적되어
+/// build 시 eprintln 으로 경고할 수 있다. `generate` 는 extract 라운드트립
+/// 테스트, codegen 단위 테스트 등 low-level 용도로만 남겨둔다.
+#[allow(dead_code)]
 pub fn generate(program: &Program, original: &Value) -> Result<Value> {
     // IR stmt들을 Block으로 변환한 뒤 to_value() 호출.
     // project.json 최상위 구조는 schema::Project 참고.
@@ -92,13 +100,13 @@ pub fn collect_var_map(program: &Program) -> VarMap {
     map
 }
 
-fn collect_vars_program(p: &Program, out: &mut Vec<String>) {
+pub(crate) fn collect_vars_program(p: &Program, out: &mut Vec<String>) {
     for s in &p.stmts {
         collect_vars_stmt(s, out);
     }
 }
 
-fn collect_vars_stmt(s: &Stmt, out: &mut Vec<String>) {
+pub(crate) fn collect_vars_stmt(s: &Stmt, out: &mut Vec<String>) {
     match s {
         Stmt::VarDecl(n, e) | Stmt::SetVar(n, e) => {
             push_unique(out, n);
@@ -146,7 +154,7 @@ fn collect_vars_stmt(s: &Stmt, out: &mut Vec<String>) {
     }
 }
 
-fn collect_vars_expr(e: &Expr, out: &mut Vec<String>) {
+pub(crate) fn collect_vars_expr(e: &Expr, out: &mut Vec<String>) {
     match e {
         Expr::Var(n) => push_unique(out, n),
         Expr::BinOp(_, l, r) => {

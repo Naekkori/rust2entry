@@ -38,6 +38,9 @@ enum Cmd {
         /// 출력 .ent 경로
         #[arg(long, value_name = "FILE")]
         out: PathBuf,
+        /// 가짜 object 의 scene id (선택). 미지정시 base 의 첫 sprite scene 복사.
+        #[arg(long, value_name = "ID")]
+        scene: Option<String>,
     },
 }
 fn main() {
@@ -79,7 +82,9 @@ fn run() -> Result<(), String> {
     let cli = Cli::parse();
     match cli.cmd {
         Cmd::Extract { ent, out } => run_extract(ent, out),
-        Cmd::Build { rs, ent_template, out } => run_build(&rs, ent_template.as_deref(), &out),
+        Cmd::Build { rs, ent_template, out, scene } => {
+            run_build(&rs, ent_template.as_deref(), &out, scene.as_deref())
+        }
     }
 }
 
@@ -376,7 +381,12 @@ fn unique_temp_dir() -> PathBuf {
 }
 
 // .rs -> IR -> codegen -> project.json 패치 -> tar+gzip (.ent) 패키징
-fn run_build(rs_files: &[PathBuf], template: Option<&Path>, out: &Path) -> Result<(), String> {
+fn run_build(
+    rs_files: &[PathBuf],
+    template: Option<&Path>,
+    out: &Path,
+    scene: Option<&str>,
+) -> Result<(), String> {
     if rs_files.is_empty() {
         return Err("no --rs inputs".to_string());
     }
@@ -403,13 +413,21 @@ fn run_build(rs_files: &[PathBuf], template: Option<&Path>, out: &Path) -> Resul
         .map(|(n, s)| (n.as_str(), s.as_str()))
         .collect();
 
+    let options = entrycore::CompileOptions {
+        default_scene: scene.map(String::from),
+    };
+
     // lib::compile 으로 일괄 처리 (parse 합치기 + codegen + base 패치)
-    let (final_project, unmapped) = entrycore::compile(&sources_ref, &base)
-        .map_err(|e| {
-            // 어느 rs 에서 실패했는지 알 수 있도록 파일명 prefix 추가.
-            // parse 단계 에러는 보통 stem 정보가 없으므로 e 만 그대로 출력.
-            format!("compile: {e}")
-        })?;
+    let (final_project, unmapped) = entrycore::compile_with_options(
+        &sources_ref,
+        &base,
+        &options,
+    )
+    .map_err(|e| {
+        // 어느 rs 에서 실패했는지 알 수 있도록 stem 정보를 활용할 수 있다면
+        // 함께 출력. 현재는 syn error 메시지에 line 정보 포함.
+        format!("compile: {e}")
+    })?;
 
     // unmapped 블록 경고 (extract 와 동일하게 stderr 로)
     if !unmapped.is_empty() {
@@ -438,13 +456,23 @@ fn load_project_value(ent: &Path) -> Result<serde_json::Value, String> {
     result
 }
 
-// codegen 테스트와 동일한 빈 프로젝트 기본값
+// codegen 테스트와 동일한 빈 프로젝트 기본값.
+/// Entry 실제 .ent 형식 (sample 기준) 의 interface 필드를 명시:
+/// - menuWidth: 좌측 메뉴 폭 (Entry 기본 280)
+/// - canvasWidth: 캔버스 폭 (Entry 기본 480)
+/// - object: 현재 활성 object id (없으면 빈 문자열)
 fn default_empty_project() -> serde_json::Value {
     serde_json::json!({
         "name": "rust2entry",
         "speed": 60, "objects": [], "variables": [], "messages": [],
         "functions": [], "scenes": [{"id":"scene1","name":"장면1"}],
-        "interface": {"views": []}, "meta": {}
+        "interface": {
+            "menuWidth": 280,
+            "canvasWidth": 480,
+            "object": "",
+            "views": []
+        },
+        "meta": {}
     })
 }
 
