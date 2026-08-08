@@ -622,9 +622,15 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             for b in body {
                 from_block_owned(b, &mut bb, vars)?;
             }
+            // Block::FuncDef 는 param name 만 보유. kind (String/Bool) 는
+            // block layer 에서 손실 → 복원 불가. default String 처리.
+            let param_pairs: Vec<(String, crate::ir::ParamKind)> = params
+                .iter()
+                .map(|n| (n.clone(), crate::ir::ParamKind::String))
+                .collect();
             stmts.push(Stmt::FuncDef {
                 name: name.clone(),
-                params: params.clone(),
+                params: param_pairs,
                 body: bb,
             });
             Ok(())

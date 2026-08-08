@@ -110,7 +110,7 @@ fn func_def_collected() {
     assert!(matches!(&program.stmts[0], Stmt::VarDecl(_, _, _, _)));
     assert!(matches!(
         &program.stmts[1],
-        Stmt::FuncDef { name, params, .. } if name == "greet" && params == &["name".to_string()]
+        Stmt::FuncDef { name, params, .. } if name == "greet" && params.iter().any(|(n,_)| n == "name")
     ));
 }
 

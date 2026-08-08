@@ -152,7 +152,10 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
         }
         Stmt::FuncDef { name, params, body } =>{
             let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;
-            Ok(Block::FuncDef { name: name.clone(), params: params.clone(), body })
+            // IR param 의 (name, kind) → Block 은 name 만. kind 는 outer scope
+            // (`lib.rs`) 에서 function_create head 빌드 시 사용.
+            let param_names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+            Ok(Block::FuncDef { name: name.clone(), params: param_names, body })
         }
         Stmt::Expr(expr)=>{
             match expr {

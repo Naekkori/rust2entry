@@ -22,6 +22,7 @@ pub(crate) use stmt::convert_stmt;
 pub struct TriggerDef {
     pub name: String,
     /// when_message 함수의 params[0] 가 메시지 이름. 그 외는 빈 벡터.
+    /// trigger 함수는 param 이 없거나 단순 식별자만 가지므로 Vec<String> 유지.
     pub params: Vec<String>,
     pub body: Vec<IrStmt>,
 }
@@ -67,7 +68,8 @@ fn convert_item(
                     for s in &f.block.stmts {
                         convert_stmt(s.clone(), &mut body)?;
                     }
-                    let params = collect_params(&f.sig);
+                    let params: Vec<String> =
+                        collect_params(&f.sig).into_iter().map(|(n, _)| n).collect();
                     t.push(TriggerDef { name, params, body });
                 } else {
                     // parse 모드: 평탄화 (기존 동작 보존)

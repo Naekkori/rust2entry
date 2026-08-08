@@ -15,6 +15,15 @@ pub enum VarScope {
     Global,
 }
 
+/// 함수 param 타입. EntryJS 의 `function_param_string` / `function_param_boolean` 매핑.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ParamKind {
+    /// `StringParam` (default) — EntryJS function_param_string.
+    String,
+    /// `BoolParam` — EntryJS function_param_boolean.
+    Bool,
+}
+
 /// Entry 블록으로 변환 가능한 명령문.
 #[derive(Debug, Clone)]
 pub enum Stmt {
@@ -29,7 +38,8 @@ pub enum Stmt {
     /// 함수 정의 (이름, 인자, 본문).
     FuncDef {
         name: String,
-        params: Vec<String>,
+        /// (이름, kind) 쌍. kind 는 String(default) 또는 Bool.
+        params: Vec<(String, ParamKind)>,
         body: Vec<Stmt>,
     },
 

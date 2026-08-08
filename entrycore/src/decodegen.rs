@@ -104,12 +104,16 @@ fn emit_stmt(
             out.push_str("fn ");
             out.push_str(name);
             out.push('(');
-            for (i, p) in params.iter().enumerate() {
+            for (i, (p, kind)) in params.iter().enumerate() {
                 if i > 0 {
                     out.push_str(", ");
                 }
                 out.push_str(p);
-                out.push_str(": i32");
+                out.push_str(": ");
+                out.push_str(match kind {
+                    crate::ir::ParamKind::String => "StringParam",
+                    crate::ir::ParamKind::Bool => "BoolParam",
+                });
             }
             out.push_str(") {\n");
             for v in vars.iter() {

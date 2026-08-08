@@ -246,7 +246,7 @@ pub(crate) fn collect_vars_stmt(s: &Stmt, out: &mut Vec<String>) {
             collect_vars_expr(e, out);
         }
         Stmt::FuncDef { params, body, .. } => {
-            for p in params {
+            for (p, _) in params {
                 push_unique(out, p);
             }
             for s in body {

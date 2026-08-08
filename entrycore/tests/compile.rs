@@ -508,12 +508,15 @@ fn compile_helpers_go_to_project_functions() {
     assert!(helper["id"].as_str().unwrap().starts_with("fn_"));
     // EntryJS Entry.Code 포맷: content = [[thread1_block, ...], ...].
     // helper 의 thread[0] 은 function_create 헤드 블록이며, 그 헤드의
-    // statements[0] 에 body 가 들어간다.
+    // statements[0] 에 body 가 들어간다. 헤드의 params[0] 은
+    // function_field_label 블록 (이름 + param chain).
     let content = helper["content"].as_array().expect("content threads");
     assert_eq!(content.len(), 1, "helper 는 1개 thread");
     let head = content[0].as_object().expect("head block obj");
     assert_eq!(head["type"], "function_create");
-    assert_eq!(head["params"][0].as_str(), Some("helper"));
+    let label = head["params"][0].as_object().expect("label block");
+    assert_eq!(label["type"], "function_field_label");
+    assert_eq!(label["params"][0].as_str(), Some("helper"));
     let head_body = head["statements"][0].as_array().expect("head body");
     assert_eq!(head_body.len(), 1);
     assert_eq!(head_body[0]["type"], "set_variable");
@@ -834,6 +837,74 @@ fn compile_function_call_extra_args_dropped() {
         .expect("call block");
     // greet 의 param 2개 -> 호출부 params 도 2개 (초과분 1개 무시).
     assert_eq!(call["params"].as_array().unwrap().len(), 2);
+}
+
+/// 함수 정의 시 param type 어노테이션 (BoolParam) → function_field_boolean chain.
+#[test]
+fn compile_function_param_chain_emits_kind() {
+    let src = r#"
+        fn when_start() { greet(true); }
+        fn greet(a: BoolParam) { let y = 1; }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let funcs = v["functions"].as_array().unwrap();
+    let greet = funcs.iter().find(|f| f["name"] == "greet").expect("greet");
+    // content[0] = function_create 헤드, params[0] = function_field_label chain
+    let head = greet["content"][0].as_object().expect("head");
+    assert_eq!(head["type"], "function_create");
+    let label = head["params"][0].as_object().expect("label");
+    assert_eq!(label["type"], "function_field_label");
+    // label.params[1] = function_field_boolean (kind 따라 type 결정)
+    let field = label["params"][1].as_object().expect("field");
+    assert_eq!(field["type"], "function_field_boolean");
+}
+
+/// StringParam (default) → function_field_string chain.
+#[test]
+fn compile_function_param_default_string_emits_string_field() {
+    let src = r#"
+        fn when_start() { greet("hi"); }
+        fn greet(a: &str) { let y = 1; }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let funcs = v["functions"].as_array().unwrap();
+    let greet = funcs.iter().find(|f| f["name"] == "greet").expect("greet");
+    let head = greet["content"][0].as_object().expect("head");
+    let label = head["params"][0].as_object().expect("label");
+    let field = label["params"][1].as_object().expect("field");
+    assert_eq!(field["type"], "function_field_string");
+}
+
+/// param 없는 함수는 label 만, next = null.
+#[test]
+fn compile_function_no_params_label_next_null() {
+    let src = r#"
+        fn when_start() { greet(); }
+        fn greet() { let y = 1; }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let funcs = v["functions"].as_array().unwrap();
+    let greet = funcs.iter().find(|f| f["name"] == "greet").expect("greet");
+    let head = greet["content"][0].as_object().expect("head");
+    let label = head["params"][0].as_object().expect("label");
+    assert!(label["params"][1].is_null(), "param 0개 시 label.next = null");
+}
+
+/// BoolParam 호출 시 args 가 boolean 으로 wrap.
+#[test]
+fn compile_function_call_bool_param_arg_wrap() {
+    let src = r#"
+        fn when_start() { greet(true); }
+        fn greet(a: BoolParam) { let y = 1; }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let call = thread
+        .iter()
+        .find(|b| b["type"].as_str().unwrap_or("").starts_with("func_"))
+        .expect("call");
+    assert_eq!(call["params"][0]["type"], "boolean");
 }
 
 /// 미정의 함수 호출은 경고만 stderr 로, 블록은 그대로 유지.

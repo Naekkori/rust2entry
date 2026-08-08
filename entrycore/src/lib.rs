@@ -333,30 +333,33 @@ pub fn compile_with_options(
             existing_names.insert(emit_name.clone());
             // id 충돌 회피
             let id = fresh_function_id(&merged_funcs, &emit_name);
-            let params: Vec<Value> = h
+            let param_metas: Vec<Value> = h
                 .params
                 .iter()
-                .map(|p| json!({ "name": p }))
+                .map(|(n, _)| json!({ "name": n }))
                 .collect();
             // function_create 헤드: thread 첫 블록.
-            //   {type:"function_create", params:[name, [param_names]], statements:[[...body]]}
+            //   {type:"function_create", params:[function_field_label_chain], statements:[[...body]]}
+            // EntryJS 실제 스키마:
+            //   function_create.params[0] = function_field_label (이름)
+            //   그 output 으로 function_field_string/boolean chain (각 param 마다 1 개)
+            // function_field_string/boolean 의 params[0] = placeholder Block (Text/Boolean)
+            //                  params[1] = Output (다음 chain 연결용)
             // 이 한 블록이 `content[0]` (= 1 thread) 가 된다.
-            let param_names: Vec<Value> = h
-                .params
-                .iter()
-                .map(|p| Value::String(p.clone()))
-                .collect();
+            let param_chain = build_function_param_chain(&emit_name, &h.params);
             let head_block = json!({
                 "type": "function_create",
-                "params": [emit_name.clone(), Value::Array(param_names)],
+                "params": [param_chain],
                 "statements": [Value::Array(h.body.clone())],
             });
-            fn_name_to_defs.insert(h.name.clone(), (id.clone(), h.params.clone()));
+            // fn_name_to_defs 에 param 이름들 보관 (arity 매칭용).
+            let param_names: Vec<String> = h.params.iter().map(|(n, _)| n.clone()).collect();
+            fn_name_to_defs.insert(h.name.clone(), (id.clone(), param_names));
             merged_funcs.push(json!({
                 "id": id,
                 "name": emit_name,
                 "content": [head_block],
-                "param": params,
+                "param": param_metas,
             }));
         }
         project["functions"] = json!(merged_funcs);
@@ -587,6 +590,89 @@ fn threads_to_value(threads: &[Vec<Value>]) -> Value {
     Value::String(arr.to_string())
 }
 
+/// function_create 의 params[0] 으로 들어갈 `function_field_label` + 각
+/// param 마다 `function_field_string` / `function_field_boolean` chain 을
+/// 빌드. EntryJS 가 이 chain 을 읽어 동적 func_<id> 호출 블록의 schema 를
+/// 생성한다.
+///
+/// chain 구조 (label → string/bool → string/bool → ...):
+/// - function_field_label.params[0] = TextInput (함수 이름)
+/// - function_field_label.params[1] = Output → 다음 function_field_*
+/// - function_field_string.params[0] = Block (Text, placeholder)
+/// - function_field_string.params[1] = Output → 다음 function_field_*
+/// - function_field_boolean.params[0] = Block (Boolean, placeholder)
+/// - function_field_boolean.params[1] = Output → 다음 function_field_*  (없으면 null)
+fn build_function_param_chain(
+    name: &str,
+    params: &[(String, crate::ir::ParamKind)],
+) -> Value {
+    use crate::ir::ParamKind;
+    // 각 param 마다 function_field_* 블록 생성 (Output 다음 연결용).
+    // 마지막 블록은 next = null, 그 외는 다음 블록의 Output 으로 연결.
+    let mut field_blocks: Vec<Value> = Vec::with_capacity(params.len());
+    for (i, (_, kind)) in params.iter().enumerate() {
+        let is_last = i + 1 == params.len();
+        let block_type = match kind {
+            ParamKind::String => "function_field_string",
+            ParamKind::Bool => "function_field_boolean",
+        };
+        let placeholder = match kind {
+            ParamKind::String => json!({"type":"text","params":[""]}),
+            ParamKind::Bool => json!({"type":"boolean","params":[false]}),
+        };
+        let next = if is_last {
+            Value::Null
+        } else {
+            // 다음 function_field_* 의 params[1] (Output) 참조.
+            // Output 은 자기 다음 블록을 가리키는 더미 — EntryJS 가
+            // generateWsBlock 에서 chain 으로 연결. 여기선 일단 다음
+            // 블록의 id 를 직접 참조하기 어려우므로, params[1] 만 채우고
+            // next 연결은 호출부 책임으로 둠 (간단화).
+            // 실제로는 EntryJS 가 chain 을 따라 재구성하므로 next 블록
+            // 자체의 params[1] 에 Output 이 들어가는 형식이 필요.
+            // → field_blocks 에 일단 누적 후, 마지막에 chain 으로 wrap.
+            Value::Null // 아래 wrap 단계에서 채움
+        };
+        let field_block = json!({
+            "type": block_type,
+            "params": [placeholder, next],
+        });
+        field_blocks.push(field_block);
+    }
+
+    // chain wrap: 각 function_field_* 의 params[1] (Output) 을 다음 블록의
+    // reference 로 갱신. 뒤에서 앞으로 — 마지막 블록은 next=null 유지.
+    let n = field_blocks.len();
+    if n > 1 {
+        for i in (0..n - 1).rev() {
+            let next = field_blocks[i + 1].clone();
+            if let Value::Object(obj) = &mut field_blocks[i] {
+                if let Some(Value::Array(p)) = obj.get_mut("params") {
+                    if p.len() >= 2 {
+                        p[1] = next;
+                    }
+                }
+            }
+        }
+    }
+
+    // label head + field chain
+    // function_field_label.params[0] = TextInput, params[1] = Output → 첫 field
+    let label_head = if let Some(first_field) = field_blocks.first().cloned() {
+        json!({
+            "type": "function_field_label",
+            "params": [Value::String(name.to_string()), first_field],
+        })
+    } else {
+        json!({
+            "type": "function_field_label",
+            "params": [Value::String(name.to_string()), Value::Null],
+        })
+    };
+
+    label_head
+}
+
 /// project 전체의 `function_call` 블록을 EntryJS 의 `func_<id>` 동적 호출
 /// 블록으로 재작성. EntryJS 는 `Func.registerFunction` 에서 사용자 정의 함수를
 /// `func_<id>` 타입으로 동적 등록하므로, 호출도 같은 타입이어야 한다.
@@ -703,7 +789,8 @@ struct ThreadsAndHelpers {
 #[derive(Clone)]
 struct FunctionDef {
     name: String,
-    params: Vec<String>,
+    /// (이름, kind) 쌍. kind 는 ParamKind::String (default) 또는 Bool.
+    params: Vec<(String, crate::ir::ParamKind)>,
     /// 함수의 본문 블록들 (1개 thread = linear).
     body: Vec<Value>,
 }
