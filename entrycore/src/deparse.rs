@@ -357,6 +357,17 @@ fn value_to_param(v: &Value, vars: &VarMap) -> Result<ParamBlock> {
         return Ok(ParamBlock::Null);
     }
     if v.is_object() {
+        // variable dropdown: codegen 이 `{id, name, variableType}` 형태로 emit.
+        // `type` 키 없음 → block_from_value 호출하면 "block.type missing" 에러.
+        // 이 분기를 먼저 처리해 ParamBlock::Variable 로 변환.
+        if v.get("type").is_none()
+            && v.get("id").is_some()
+            && v.get("name").is_some()
+        {
+            let id = v["id"].as_str().unwrap_or("");
+            let name = resolve_var(id, vars);
+            return Ok(ParamBlock::Variable(name));
+        }
         if let Some(t) = v.get("type").and_then(Value::as_str) {
             match t {
                 "number" => {

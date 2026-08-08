@@ -348,6 +348,7 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] function param type 신택스 (`StringParam` / `BoolParam`) → `function_field_string` / `function_field_boolean` chain emit
   - [x] function 이름 중복 시 suffix (`_2`, `_3`, ...)
   - [x] 빈 `functions` / `messages` 배열 항상 emit
+  - [x] `deparse::value_to_param` 에 variable dropdown 분기 (`{id,name,variableType}` 형태의 슬롯을 `ParamBlock::Variable` 로 — `type` 키 없음)
   - [ ] 트리거 없는 thread 시 `when_run` 자동 prepend (현재 `parse` 가 Item::Fn 만 허용해 dead code, 방어용으로만 유지)
 - [ ] **다음 우선순위 (블록 추가)**
   - [x] 시작 (트리거): `when_key_pressed`, `when_mouse_clicked`, `when_mouse_released`, `when_object_released`, `when_scene_start`
@@ -382,7 +383,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 5 + codegen 9 + compile 78 + parse 26 = 118 통과)
+cargo test                  # 전체 (entryc 5 + codegen 9 + compile 79 + parse 26 = 119 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만

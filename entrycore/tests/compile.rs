@@ -353,6 +353,37 @@ fn compile_wait_until_true_roundtrip() {
     }
 }
 
+/// if 블록에서 조건 lhs 가 변수 dropdown (type 키 없음) 일 때 deparse 가
+/// `block.type missing` 에러 없이 ParamBlock::Variable 로 라운드트립되는지.
+#[test]
+fn compile_if_roundtrip_with_var_cond() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::Stmt;
+    use entrycore::parse::parse;
+
+    let src = r#"
+        fn when_start() {
+            let x = 1;
+            if x < 5 { let y = 2; }
+        }
+    "#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            // body[0] = let x = 1; body[1] = if x < 5 ...
+            assert!(matches!(body[1], Stmt::If { .. }), "body[1] If expected, got {:?}", body[1]);
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// base 에 objects 가 이미 있으면 추가하지 않고, rs stem == name 인 object 의
 /// script 필드만 패치한다.
 #[test]

@@ -506,7 +506,7 @@ fn build_params_and_statements(
             None
         ),
         Block::WaitUntilTrue { cond } => (
-            vec![param_to_value(cond)],
+            vec![param_to_value(cond), Value::Null],
             None
         ),
     })
