@@ -261,13 +261,13 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `change_hex_to_rgb` — HEX → R/G/B
 - ⬜ `get_boolean_value` — 값 슬롯 (boolean)
 
-### 변수 (5/19)
+### 변수 (7/19)
 - ✅ `set_variable` → `SetVar`
 - ✅ `change_variable` → `ChangeVar`
 - ✅ `get_variable` → `GetVar`
 - ✅ `show_variable` / `hide_variable` → `ShowVar`/`HideVar`
-- ⬜ `ask_and_wait` — □ 을(를) 묻고 대답 기다리기
-- ⬜ `get_canvas_input_value` — 대답 값
+- ✅ `ask_and_wait` — □ 을(를) 묻고 대답 기다리기 (→ `ask_and_wait("질문")`)
+- ✅ `get_canvas_input_value` — 대답 값 (→ `get_canvas_input_value()`)
 - ⬜ `set_visible_answer` — 대답 보이기/숨기기
 - ⬜ `value_of_index_from_list` — 리스트 N번째 값
 - ⬜ `add_value_to_list` — 항목 추가
@@ -311,7 +311,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**35/203** 매핑됨 (약 17.2%)
+**37/203** 매핑됨 (약 18.2%)
 
 ## 남은 작업 (TODO)
 
@@ -357,7 +357,7 @@ fn greet(a: StringParam, b: BoolParam) {
   - [ ] 흐름: `repeat_while_true` 별칭 추가 (현재 `repeat_while` 만 매핑)
   - [x] 연산: `calc_rand` (난수), `get_project_timer_value` (타이머 값)
     - 타이머 시작/정지/리셋 (`choose_project_timer_action`) 미완
-  - [ ] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값)
+  - [x] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값)
   - [ ] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
 - [ ] 중기
   - [ ] Timer/Answer 전용 블록 신택스 (`start_timer()` 등)
@@ -384,7 +384,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 5 + codegen 9 + compile 86 + parse 26 = 126 통과)
+cargo test                  # 전체 (entryc 5 + codegen 9 + compile 90 + parse 26 = 130 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만

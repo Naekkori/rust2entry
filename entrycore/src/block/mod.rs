@@ -106,6 +106,10 @@ pub enum Block {
     WaitUntilTrue {
         cond: ParamBlock,
     },
+    AskAndWait{
+        question: ParamBlock
+    },
+    GetCanvasInputValue {},
 
     // ── 산술 / 비교 / 논리 ──
     CalcBinOp {
@@ -250,6 +254,8 @@ impl Block {
             Block::Return { .. } => "function_return",
             Block::WaitSeconds { .. } => "wait_second",
             Block::WaitUntilTrue { .. } => "wait_until_true",
+            Block::AskAndWait { .. } => "ask_and_wait",
+            Block::GetCanvasInputValue {  } => "get_canvas_input_value",
             Block::CalcRand { .. } => "calc_rand",
             Block::GetProjectTimerValue {  } => "get_project_timer_value",
         }
@@ -292,6 +298,8 @@ impl Block {
             Block::WaitSeconds { .. } => Category::Flow,
             Block::WaitUntilTrue { .. } => Category::Flow,
             Block::GetProjectTimerValue {  } => Category::Calc,
+            Block::AskAndWait { .. } => Category::Variable,
+            Block::GetCanvasInputValue {  } => Category::Variable,
         }
     }
 }
@@ -356,6 +364,15 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "get_project_timer_value" {
                         return Ok(Block::GetProjectTimerValue{})
+                    }
+                    if fref.name == "ask_and_wait" {
+                        let arg = args.first().ok_or_else(|| UnmappedBlock("ask_and_wait needs arg".into()))?;
+                        return Ok(
+                            Block::AskAndWait { question: from_expr(arg)? }
+                        );
+                    }
+                    if fref.name == "get_canvas_input_value" {
+                        return Ok(Block::GetCanvasInputValue {  });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -485,6 +502,11 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             }
             if fref.name == "get_project_timer_value" {
                 return Ok(ParamBlock::Sub(Box::new(Block::GetProjectTimerValue {})));
+            }
+            if fref.name == "get_canvas_input_value" {
+                return Ok(ParamBlock::Sub(Box::new(
+                    Block::GetCanvasInputValue {  }
+                )));
             }
             let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
             Ok(ParamBlock::Sub(Box::new(Block::FuncCall {
@@ -658,6 +680,11 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             None
         ),
         Block::GetProjectTimerValue {  } => (vec![], None),
+        Block::AskAndWait { question } => (
+            vec![param_to_value(question),Value::Null],
+            None
+        ),
+        Block::GetCanvasInputValue {  } => (vec![], None),
     })
 }
 

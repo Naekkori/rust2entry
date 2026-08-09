@@ -519,6 +519,109 @@ fn compile_get_project_timer_value_roundtrip() {
     }
 }
 
+// ── ask_and_wait ──
+
+/// `ask_and_wait("이름을 입력")` → `ask_and_wait` 블록, params[0] = text 슬롯.
+#[test]
+fn compile_ask_and_wait() {
+    let src = r#"fn when_start() { ask_and_wait("이름을 입력"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let obj = &v["objects"][0];
+    let thread = &obj_threads(obj)[0];
+    let ask = thread
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["type"] == "ask_and_wait")
+        .expect("ask_and_wait");
+    assert_eq!(ask["params"][0]["type"], "text");
+    assert_eq!(ask["params"][0]["params"][0], "이름을 입력");
+}
+
+/// `ask_and_wait(name)` → params[0] = 변수 드롭다운.
+#[test]
+fn compile_ask_and_wait_var_arg() {
+    let src = r#"
+        fn when_start() {
+            ask_and_wait(name);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let obj = &v["objects"][0];
+    let thread = &obj_threads(obj)[0];
+    let ask = thread
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["type"] == "ask_and_wait")
+        .expect("ask_and_wait");
+    assert_eq!(ask["params"][0]["name"], "name");
+    assert!(ask["params"][0]["id"].is_string());
+    assert!(ask["params"][0]["variableType"].is_string());
+}
+
+/// 라운드트립: compile → deparse → IR 에 ask_and_wait 호출 보존.
+#[test]
+fn compile_ask_and_wait_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+
+    let src = r#"fn when_start() { ask_and_wait("이름"); }"#;
+    let p1 = entrycore::parse::parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = entrycore::codegen::collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "ask_and_wait");
+                    assert_eq!(args.len(), 1);
+                    match &args[0] {
+                        Expr::Str(s) => assert_eq!(s, "이름"),
+                        other => panic!("expected Str, got {other:?}"),
+                    }
+                }
+                other => panic!("expected Call(ask_and_wait), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `get_canvas_input_value()` 라운드트립.
+#[test]
+fn compile_get_canvas_input_value_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+
+    let src = r#"fn when_start() { let x = get_canvas_input_value(); }"#;
+    let p1 = entrycore::parse::parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = entrycore::codegen::collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::SetVar(_, Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "get_canvas_input_value");
+                    assert_eq!(args.len(), 0);
+                }
+                other => panic!("expected SetVar(Call(canvas_input)), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// base 에 objects 가 이미 있으면 추가하지 않고, rs stem == name 인 object 의
 /// script 필드만 패치한다.
 #[test]

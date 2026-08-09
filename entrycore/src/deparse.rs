@@ -255,7 +255,16 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             };
             Block::UnaryOp { op, expr }
         }
-        "get_project_timer_value" => Block::GetProjectTimerValue {  },
+        "get_project_timer_value" => Block::GetProjectTimerValue {},
+        "ask_and_wait" => {
+            let q = params
+                .get(0)
+                .map(|v| value_to_param(v, vars))
+                .transpose()?
+                .unwrap_or(ParamBlock::Null);
+            Block::AskAndWait { question: q }
+        }
+        "get_canvas_input_value" => Block::GetCanvasInputValue {},
         // 리터럴
         "number" => {
             let n = params
@@ -860,18 +869,37 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
-        Block::GetProjectTimerValue {  } => {
-            stmts.push(Stmt::Expr(
-                Expr::Call(
-                    ir::FuncRef{
-                        name: "get_project_timer_value".to_string(),
-                        arity: 0
-                    },
-                    Vec::new(),
-                )
-            ));
+        Block::GetProjectTimerValue {} => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "get_project_timer_value".to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
             Ok(())
-        },
+        }
+        Block::AskAndWait { question } => {
+            let q = expr_from_param(question, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "ask_and_wait".to_string(),
+                    arity: 1,
+                },
+                vec![q],
+            )));
+            Ok(())
+        }
+        Block::GetCanvasInputValue {} => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "get_canvas_input_value".to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -981,9 +1009,26 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         Block::GetProjectTimerValue {} => Ok(Expr::Call(
             ir::FuncRef {
                 name: "get_project_timer_value".to_string(),
-                arity: 0
+                arity: 0,
             },
-            Vec::new()
+            Vec::new(),
+        )),
+        Block::AskAndWait { question } => {
+            let q = expr_from_param(question, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "ask_and_wait".to_string(),
+                    arity: 1,
+                },
+                vec![q],
+            ))
+        }
+        Block::GetCanvasInputValue {} => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "get_canvas_input_value".to_string(),
+                arity: 0,
+            },
+            Vec::new(),
         )),
         Block::SetVar { .. }
         | Block::ChangeVar { .. }
