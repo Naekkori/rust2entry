@@ -622,6 +622,100 @@ fn compile_get_canvas_input_value_roundtrip() {
     }
 }
 
+// ── 타이머 시작/정지/리셋 ──
+
+/// `start_timer()` → `choose_project_timer_action` 블록, params[0] = "start".
+#[test]
+fn compile_start_timer() {
+    let src = r#"fn when_start() { start_timer(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let obj = &v["objects"][0];
+    let thread = &obj_threads(obj)[0];
+    let action = thread
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["type"] == "choose_project_timer_action")
+        .expect("choose_project_timer_action");
+    assert_eq!(action["params"][0], "start");
+}
+
+/// `stop_timer()` / `reset_timer()` 매핑.
+#[test]
+fn compile_stop_reset_timer() {
+    let src = r#"fn when_start() { stop_timer(); reset_timer(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let obj = &v["objects"][0];
+    let thread = &obj_threads(obj)[0];
+    let blocks: Vec<&Value> = thread
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|b| b["type"] == "choose_project_timer_action")
+        .collect();
+    assert_eq!(blocks.len(), 2);
+    assert_eq!(blocks[0]["params"][0], "stop");
+    assert_eq!(blocks[1]["params"][0], "reset");
+}
+
+/// start_timer 라운드트립.
+#[test]
+fn compile_start_timer_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+
+    let src = r#"fn when_start() { start_timer(); }"#;
+    let p1 = entrycore::parse::parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = entrycore::codegen::collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "start_timer");
+                    assert_eq!(args.len(), 0);
+                }
+                other => panic!("expected Call(start_timer), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// reset_timer 라운드트립.
+#[test]
+fn compile_reset_timer_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+
+    let src = r#"fn when_start() { reset_timer(); }"#;
+    let p1 = entrycore::parse::parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = entrycore::codegen::collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "reset_timer");
+                    assert_eq!(args.len(), 0);
+                }
+                other => panic!("expected Call(reset_timer), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 // ── show / hide (외형) ──
 
 /// `show()` → `show` 블록, params 없음.

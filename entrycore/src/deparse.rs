@@ -265,6 +265,12 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::AskAndWait { question: q }
         }
         "get_canvas_input_value" => Block::GetCanvasInputValue {},
+        "choose_project_timer_action" => Block::ChooseProjectTimerAction { action: params
+                                                                                    .get(0)
+                                                                                    .and_then(Value::as_str)
+                                                                                    .unwrap_or("start")
+                                                                                    .to_string(),
+         },
         // 리터럴
         "number" => {
             let n = params
@@ -922,6 +928,23 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::ChooseProjectTimerAction { action } => {
+            let fn_name = match action.as_str()
+            {
+                "start" => "start_timer",
+                "stop" => "stop_timer",
+                "reset" => "reset_timer",
+                _ => "start_timer",   
+            };
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: fn_name.to_string(),
+                    arity: 0,
+                },
+                Vec::new()
+            )));
+            Ok(())
+        },
     }
 }
 
@@ -1098,6 +1121,22 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             "block used as expr: {}",
             b.type_id()
         ))),
+        Block::ChooseProjectTimerAction { action } => {
+            let fn_name = match action.as_str()
+            {
+                "start" => "start_timer",
+                "stop" => "stop_timer",
+                "reset" => "reset_timer",
+                _ => "start_timer",   
+            };
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: fn_name.to_string(),
+                    arity: 0,
+                },
+                Vec::new()
+            ))
+        },
     }
 }
 

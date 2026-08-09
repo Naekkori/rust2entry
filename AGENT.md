@@ -147,7 +147,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 흐름 (8/15)
 - ✅ `repeat_basic` → `Repeat` (for-range 펼침)
-- ✅ `repeat_while` / `repeat_while_true` → `While`
+- ✅ `repeat_while` → `While`
 - ✅ `repeat_inf` / `repeat_forever` → `Forever`
 - ✅ `_if` / `if` → `If`
 - ✅ `if_else` → `IfElse`
@@ -234,7 +234,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `is_current_device_type` — □ 에서 실행하는가?
 - ⬜ `is_touch_supported` — 터치 가능한가?
 
-### 연산 (4/26)
+### 연산 (5/26)
 - ✅ `calc_basic` → `CalcBinOp`
 - ✅ `number` / `text` / `boolean` → 리터럴
 - ✅ `calc_rand` — □ 부터 □ 사이의 무작위 수 (→ `calc_rand(min, max)`)
@@ -243,7 +243,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `quotient_and_mod` — □ 를 □ 로 나눈 몫/나머지
 - ⬜ `calc_operation` — 삼각함수/절댓값/제곱/제곱근
 - ✅ `get_project_timer_value` — 타이머 값 (→ `get_project_timer_value()`)
-- ⬜ `choose_project_timer_action` — 타이머 시작/정지/리셋
+- ✅ `choose_project_timer_action` — 타이머 시작/정지/리셋 (→ `start_timer()` / `stop_timer()` / `reset_timer()`)
 - ⬜ `set_visible_project_timer` — 타이머 보이기/숨기기
 - ⬜ `get_date` — 날짜/시/분/초
 - ⬜ `distance_something` — 두 점 사이 거리
@@ -313,7 +313,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**39/203** 매핑됨 (약 19.2%)
+**40/203** 매핑됨 (약 19.7%)
 
 ## 남은 작업 (TODO)
 
@@ -356,9 +356,9 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 시작 (트리거): `when_key_pressed`, `when_mouse_clicked`, `when_mouse_released`, `when_object_released`, `when_scene_start`
   - [x] 시작 (액션): `send_message`/`wait_message`, `start_scene`/`start_next_scene`/`start_prev_scene`
   - [x] 흐름: `wait_second`, `wait_until_true` (쉬움, 즉시 가치)
-  - [ ] 흐름: `repeat_while_true` 별칭 추가 (현재 `repeat_while` 만 매핑)
+  - [x] 흐름: `repeat_while_true` 별칭 (Rust native `while` 키워드로 커버 — `f(args) { body }` 신택스는 syn 거부)
   - [x] 연산: `calc_rand` (난수), `get_project_timer_value` (타이머 값)
-    - 타이머 시작/정지/리셋 (`choose_project_timer_action`) 미완
+    - 타이머 시작/정지/리셋 (`choose_project_timer_action`) ✅ `start_timer()` / `stop_timer()` / `reset_timer()`
   - [x] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값)
   - [x] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
 - [ ] 중기
@@ -386,7 +386,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 5 + codegen 9 + compile 94 + parse 26 = 134 통과)
+cargo test                  # 전체 (entryc 5 + codegen 9 + compile 98 + parse 26 = 138 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -395,7 +395,7 @@ cargo build                 # 빌드만
 **샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 이 컴퓨터엔 없을 수 있음 — GitHub entryjs 코드 직접 참고)
 
 **다음 할 일 추천 순서**:
-1. 흐름 — `repeat_while_true` 별칭 / 연산 — `choose_project_timer_action` (타이머 시작/정지/리셋)
+1. 다음 우선 블록 선택 (예: 형태 — `change_to_some_shape`, 연산 — `set_visible_project_timer`)
 
 ## 디렉토리
 

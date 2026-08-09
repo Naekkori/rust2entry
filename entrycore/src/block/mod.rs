@@ -135,6 +135,9 @@ pub enum Block {
         min: ParamBlock,
         max: ParamBlock,
     },
+    ChooseProjectTimerAction {
+        action: String // start, stop, reset
+    },
     GetProjectTimerValue{},
     // ── 리터럴 (단독 값) ──
     Number(f64),
@@ -264,6 +267,7 @@ impl Block {
             Block::GetProjectTimerValue {  } => "get_project_timer_value",
             Block::Show {  } => "show",
             Block::Hide {  } => "hide",
+            Block::ChooseProjectTimerAction { .. } => "choose_project_timer_action",
         }
     }
 
@@ -308,6 +312,7 @@ impl Block {
             Block::GetCanvasInputValue {  } => Category::Variable,
             Block::Show {  } => Category::Looks,
             Block::Hide {  } => Category::Looks,
+            Block::ChooseProjectTimerAction { action } => Category::Calc,
         }
     }
 }
@@ -387,6 +392,15 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "hide" {
                         return Ok(Block::Hide {  });
+                    }
+                    if fref.name == "start_timer" {
+                        return Ok(Block::ChooseProjectTimerAction { action: "start".into() })
+                    }
+                    if fref.name == "stop_timer" {
+                        return Ok(Block::ChooseProjectTimerAction { action: "stop".into() });
+                    }
+                    if fref.name == "reset_timer" {
+                        return Ok(Block::ChooseProjectTimerAction { action: "reset".into() });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -701,6 +715,10 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::GetCanvasInputValue {  } => (vec![], None),
         Block::Show {  } => (vec![], None),
         Block::Hide {  } => (vec![], None),
+        Block::ChooseProjectTimerAction { action } => (
+            vec![json!(action)],
+            None
+        ),
     })
 }
 
