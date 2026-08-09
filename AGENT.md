@@ -240,7 +240,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `coordinate_object` — 오브젝트 x/y 좌표
 - ⬜ `quotient_and_mod` — □ 를 □ 로 나눈 몫/나머지
 - ⬜ `calc_operation` — 삼각함수/절댓값/제곱/제곱근
-- ⬜ `get_project_timer_value` — 타이머 값
+- ✅ `get_project_timer_value` — 타이머 값 (→ `get_project_timer_value()`)
 - ⬜ `choose_project_timer_action` — 타이머 시작/정지/리셋
 - ⬜ `set_visible_project_timer` — 타이머 보이기/숨기기
 - ⬜ `get_date` — 날짜/시/분/초
@@ -311,7 +311,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**34/203** 매핑됨 (약 16.7%)
+**35/203** 매핑됨 (약 17.2%)
 
 ## 남은 작업 (TODO)
 
@@ -355,7 +355,8 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 시작 (액션): `send_message`/`wait_message`, `start_scene`/`start_next_scene`/`start_prev_scene`
   - [x] 흐름: `wait_second`, `wait_until_true` (쉬움, 즉시 가치)
   - [ ] 흐름: `repeat_while_true` 별칭 추가 (현재 `repeat_while` 만 매핑)
-  - [x] 연산: `calc_rand` (난수) / `get_project_timer_value` (타이머 값)
+  - [x] 연산: `calc_rand` (난수), `get_project_timer_value` (타이머 값)
+    - 타이머 시작/정지/리셋 (`choose_project_timer_action`) 미완
   - [ ] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값)
   - [ ] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
 - [ ] 중기
@@ -383,7 +384,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 5 + codegen 9 + compile 83 + parse 26 = 123 통과)
+cargo test                  # 전체 (entryc 5 + codegen 9 + compile 86 + parse 26 = 126 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -392,7 +393,7 @@ cargo build                 # 빌드만
 **샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 이 컴퓨터엔 없을 수 있음 — GitHub entryjs 코드 직접 참고)
 
 **다음 할 일 추천 순서**:
-1. 연산 — `get_project_timer_value` (타이머 값) / 변수 — `ask_and_wait` (입력 묻기) / 형태 — `show` / `hide`
+1. 변수 — `ask_and_wait` (입력 묻기) / 형태 — `show` / `hide`
 
 ## 디렉토리
 

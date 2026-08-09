@@ -131,6 +131,7 @@ pub enum Block {
         min: ParamBlock,
         max: ParamBlock,
     },
+    GetProjectTimerValue{},
     // ── 리터럴 (단독 값) ──
     Number(f64),
     Text(String),
@@ -250,6 +251,7 @@ impl Block {
             Block::WaitSeconds { .. } => "wait_second",
             Block::WaitUntilTrue { .. } => "wait_until_true",
             Block::CalcRand { .. } => "calc_rand",
+            Block::GetProjectTimerValue {  } => "get_project_timer_value",
         }
     }
 
@@ -289,6 +291,7 @@ impl Block {
             }
             Block::WaitSeconds { .. } => Category::Flow,
             Block::WaitUntilTrue { .. } => Category::Flow,
+            Block::GetProjectTimerValue {  } => Category::Calc,
         }
     }
 }
@@ -350,6 +353,9 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         let min = from_expr(&args[0])?;
                         let max = from_expr(&args[1])?;
                         return Ok(Block::CalcRand { min, max });
+                    }
+                    if fref.name == "get_project_timer_value" {
+                        return Ok(Block::GetProjectTimerValue{})
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -476,6 +482,9 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 let min = from_expr(&args[0])?;
                 let max = from_expr(&args[1])?;
                 return Ok(ParamBlock::Sub(Box::new(Block::CalcRand { min, max })));
+            }
+            if fref.name == "get_project_timer_value" {
+                return Ok(ParamBlock::Sub(Box::new(Block::GetProjectTimerValue {})));
             }
             let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
             Ok(ParamBlock::Sub(Box::new(Block::FuncCall {
@@ -648,6 +657,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             vec![param_to_value(min), param_to_value(max)],
             None
         ),
+        Block::GetProjectTimerValue {  } => (vec![], None),
     })
 }
 

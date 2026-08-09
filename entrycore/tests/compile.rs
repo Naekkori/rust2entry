@@ -462,6 +462,63 @@ fn compile_calc_rand_roundtrip() {
     }
 }
 
+// ── get_project_timer_value (타이머 값) ──
+
+/// `let x = get_project_timer_value();` → set_variable 의 params[1] = get_project_timer_value 블록.
+#[test]
+fn compile_get_project_timer_value() {
+    let src = r#"fn when_start() { let x = get_project_timer_value(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set = thread.iter().find(|b| b["type"] == "set_variable").expect("set_variable");
+    assert_eq!(set["params"][1]["type"], "get_project_timer_value");
+}
+
+/// `let x = get_project_timer_value() + 1;` → calc_basic 의 lhs 가 timer 값.
+#[test]
+fn compile_get_project_timer_value_in_expr() {
+    let src = r#"fn when_start() { let x = get_project_timer_value() + 1; }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set = thread.iter().find(|b| b["type"] == "set_variable").expect("set_variable");
+    // params[1] = calc_basic, 그 lhs 가 timer 값 블록.
+    assert_eq!(set["params"][1]["type"], "calc_basic");
+    assert_eq!(set["params"][1]["params"][0]["type"], "get_project_timer_value");
+}
+
+/// 라운드트립: get_project_timer_value 가 IR 에서 Call 로 보존.
+#[test]
+fn compile_get_project_timer_value_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { let x = get_project_timer_value(); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::SetVar(_, Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "get_project_timer_value");
+                    assert_eq!(args.len(), 0);
+                }
+                other => panic!("expected SetVar(Call(timer)), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// base 에 objects 가 이미 있으면 추가하지 않고, rs stem == name 인 object 의
 /// script 필드만 패치한다.
 #[test]

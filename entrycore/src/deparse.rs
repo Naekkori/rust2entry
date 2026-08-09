@@ -4,6 +4,8 @@
 //! 이 모듈은 Entry project.json의 블록 Value를 `Block`으로 바꾸고
 //! 다시 IR `Stmt`/`Expr`로 변환한다.
 
+use std::vec;
+
 use crate::Error::UnmappedBlock;
 use crate::block::{Block, ParamBlock};
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
@@ -253,7 +255,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             };
             Block::UnaryOp { op, expr }
         }
-
+        "get_project_timer_value" => Block::GetProjectTimerValue {  },
         // 리터럴
         "number" => {
             let n = params
@@ -858,6 +860,18 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::GetProjectTimerValue {  } => {
+            stmts.push(Stmt::Expr(
+                Expr::Call(
+                    ir::FuncRef{
+                        name: "get_project_timer_value".to_string(),
+                        arity: 0
+                    },
+                    Vec::new(),
+                )
+            ));
+            Ok(())
+        },
     }
 }
 
@@ -964,6 +978,13 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![m, M],
             ))
         }
+        Block::GetProjectTimerValue {} => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "get_project_timer_value".to_string(),
+                arity: 0
+            },
+            Vec::new()
+        )),
         Block::SetVar { .. }
         | Block::ChangeVar { .. }
         | Block::ShowVar { .. }
