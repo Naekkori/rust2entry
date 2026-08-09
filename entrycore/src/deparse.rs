@@ -243,6 +243,10 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let max = param_at(&params, 1, vars)?;
             Block::CalcRand { min, max }
         }
+        "set_visible_project_timer" => {
+            let value = params.get(0).and_then(Value::as_bool).unwrap_or(true);
+            Block::SetVisibleProjectTimer { value }
+        }
         "calc_unary" => {
             let expr = param_at(&params, 0, vars)?;
             let op_str = params.get(1).and_then(Value::as_str).unwrap_or("");
@@ -945,6 +949,16 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         },
+        Block::SetVisibleProjectTimer { value } => {
+            let name = if *value { "show_timer" } else { "hide_timer" };
+            stmts.push(Stmt::Expr(
+                Expr::Call(
+                  ir::FuncRef { name: name.to_string(), arity: 0 },
+                  Vec::new()
+                ),
+            ));
+            Ok(())
+        },
     }
 }
 
@@ -1136,6 +1150,9 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 },
                 Vec::new()
             ))
+        },
+        Block::SetVisibleProjectTimer { value } => {
+            Ok(Expr::Bool(*value))
         },
     }
 }

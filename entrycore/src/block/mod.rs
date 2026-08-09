@@ -68,12 +68,14 @@ pub enum Block {
     GetVar {
         variable: String,
     },
-
     ShowVar {
         variable: String,
     },
     HideVar {
         variable: String,
+    },
+    SetVisibleProjectTimer{
+        value:bool
     },
 
     // ── 흐름 (제어) ──
@@ -268,6 +270,7 @@ impl Block {
             Block::Show {  } => "show",
             Block::Hide {  } => "hide",
             Block::ChooseProjectTimerAction { .. } => "choose_project_timer_action",
+            Block::SetVisibleProjectTimer { .. } => "set_visible_project_timer",
         }
     }
 
@@ -313,6 +316,7 @@ impl Block {
             Block::Show {  } => Category::Looks,
             Block::Hide {  } => Category::Looks,
             Block::ChooseProjectTimerAction { action } => Category::Calc,
+            Block::SetVisibleProjectTimer { .. } => Category::Calc
         }
     }
 }
@@ -392,6 +396,12 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "hide" {
                         return Ok(Block::Hide {  });
+                    }
+                    if fref.name == "show_timer" {
+                        return Ok(Block::SetVisibleProjectTimer { value: true })
+                    }
+                    if fref.name == "hide_timer"{
+                        return Ok(Block::SetVisibleProjectTimer { value: false });
                     }
                     if fref.name == "start_timer" {
                         return Ok(Block::ChooseProjectTimerAction { action: "start".into() })
@@ -717,6 +727,10 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::Hide {  } => (vec![], None),
         Block::ChooseProjectTimerAction { action } => (
             vec![json!(action)],
+            None
+        ),
+        Block::SetVisibleProjectTimer { value } => (
+            vec![Value::Bool(*value), Value::Null],
             None
         ),
     })

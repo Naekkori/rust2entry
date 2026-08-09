@@ -16,7 +16,7 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
 | 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 5/5 |
-| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 70/70 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 101/101 |
 
 ### lib::compile 세부 동작 (현재)
 
@@ -176,8 +176,8 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `move_to_angle` — □ 방향으로 □ 만큼 움직이기
 
 ### 형태 (2/17)
-- ✅ `show` — 보이기 (→ `show();`)
-- ✅ `hide` — 숨기기 (→ `hide();`)
+- ⬜ `show` — 보이기 (→ `show()`)
+- ⬜ `hide` — 숨기기 (→ `hide()`)
 - ⬜ `dialog` / `dialog_time` — □ 을(를) □ (초 동안) □ □
 - ⬜ `dialog` / `dialog_time` — □ 을(를) □ (초 동안) □ □
 - ⬜ `remove_dialog` — 말풍선 지우기
@@ -244,7 +244,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `calc_operation` — 삼각함수/절댓값/제곱/제곱근
 - ✅ `get_project_timer_value` — 타이머 값 (→ `get_project_timer_value()`)
 - ✅ `choose_project_timer_action` — 타이머 시작/정지/리셋 (→ `start_timer()` / `stop_timer()` / `reset_timer()`)
-- ⬜ `set_visible_project_timer` — 타이머 보이기/숨기기
+- ✅ `set_visible_project_timer` — 타이머 보이기/숨기기 (→ `show_timer()` / `hide_timer()`)
 - ⬜ `get_date` — 날짜/시/분/초
 - ⬜ `distance_something` — 두 점 사이 거리
 - ⬜ `get_user_name` — 아이디
@@ -313,7 +313,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**40/203** 매핑됨 (약 19.7%)
+**36/203** 매핑됨 (약 17.7%)
 
 ## 남은 작업 (TODO)
 
@@ -357,10 +357,10 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 시작 (액션): `send_message`/`wait_message`, `start_scene`/`start_next_scene`/`start_prev_scene`
   - [x] 흐름: `wait_second`, `wait_until_true` (쉬움, 즉시 가치)
   - [x] 흐름: `repeat_while_true` 별칭 (Rust native `while` 키워드로 커버 — `f(args) { body }` 신택스는 syn 거부)
-  - [x] 연산: `calc_rand` (난수), `get_project_timer_value` (타이머 값)
+  - [x] 연산: `calc_rand` (난수), `get_project_timer_value` (타이머 값), `set_visible_project_timer` (타이머 보이기/숨기기)
     - 타이머 시작/정지/리셋 (`choose_project_timer_action`) ✅ `start_timer()` / `stop_timer()` / `reset_timer()`
   - [x] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값)
-  - [x] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
+  - [ ] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
 - [ ] 중기
   - [ ] Timer/Answer 전용 블록 신택스 (`start_timer()` 등)
   - [x] Cloud/RealTime 변수 신택스 (`let x: CloudVar = ""` / `: RealtimeVar = ""`)
@@ -378,15 +378,15 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
-- 시작 블록 매핑 작업 중 (커밋 미완)
-- `a045d4c feat(generator): extract 출력에 생성기 헤더 prepend`
-- `3df669c feat(build): 함수 param type 신택스 (StringParam / BoolParam)`
-- `3e473e7 fix(build): function_call args 슬롯 보존 (param arity 맞춤)`
-- `ad4ab92 feat(build): 잠재 위험 정합화 3차 + Cloud/RealTime 변수 + let/static scope`
+- `3363398 feat(calc): get_project_timer_value 매핑 (타이머 값)`
+- `cdd59c5 feat(calc): calc_rand 매핑 (□ 부터 □ 사이의 무작위 수)`
+- `9266bba feat(flow): wait_until_true 매핑 + deparse variable dropdown fix`
+- `ea0278e feat(flow): wait_second 매핑 (□ 초 기다리기)`
+- `1866f25 feat(start): 시작 블록 9개 매핑 (트리거 5 + 액션 4)`
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 5 + codegen 9 + compile 98 + parse 26 = 138 통과)
+cargo test                  # 전체 (entryc 5 + codegen 9 + compile 101 + parse 26 = 141 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -395,7 +395,10 @@ cargo build                 # 빌드만
 **샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 이 컴퓨터엔 없을 수 있음 — GitHub entryjs 코드 직접 참고)
 
 **다음 할 일 추천 순서**:
-1. 다음 우선 블록 선택 (예: 형태 — `change_to_some_shape`, 연산 — `set_visible_project_timer`)
+1. 변수 — `set_visible_answer` (대답 보이기/숨기기) — `set_visible_project_timer` 와 같은 패턴
+2. 형태 — `show` / `hide` (오브젝트 보이기/숨기기) — 가장 흔함
+3. 연산 — `quotient_and_mod` (몫/나머지) — calc_basic 변형
+4. 연산 — `calc_operation` (절댓값/제곱/제곱근) — 단항
 
 ## 디렉토리
 
