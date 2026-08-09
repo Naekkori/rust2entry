@@ -175,8 +175,10 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `see_angle_object` — □ 쪽 바라보기
 - ⬜ `move_to_angle` — □ 방향으로 □ 만큼 움직이기
 
-### 형태 (0/17)
-- ⬜ `show` / `hide` — 모양 보이기/숨기기
+### 형태 (2/17)
+- ✅ `show` — 보이기 (→ `show();`)
+- ✅ `hide` — 숨기기 (→ `hide();`)
+- ⬜ `dialog` / `dialog_time` — □ 을(를) □ (초 동안) □ □
 - ⬜ `dialog` / `dialog_time` — □ 을(를) □ (초 동안) □ □
 - ⬜ `remove_dialog` — 말풍선 지우기
 - ⬜ `change_to_some_shape` / `change_to_next_shape` — □ 모양으로 바꾸기
@@ -311,7 +313,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**37/203** 매핑됨 (약 18.2%)
+**39/203** 매핑됨 (약 19.2%)
 
 ## 남은 작업 (TODO)
 
@@ -358,7 +360,7 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 연산: `calc_rand` (난수), `get_project_timer_value` (타이머 값)
     - 타이머 시작/정지/리셋 (`choose_project_timer_action`) 미완
   - [x] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값)
-  - [ ] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
+  - [x] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
 - [ ] 중기
   - [ ] Timer/Answer 전용 블록 신택스 (`start_timer()` 등)
   - [x] Cloud/RealTime 변수 신택스 (`let x: CloudVar = ""` / `: RealtimeVar = ""`)
@@ -384,7 +386,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 5 + codegen 9 + compile 90 + parse 26 = 130 통과)
+cargo test                  # 전체 (entryc 5 + codegen 9 + compile 94 + parse 26 = 134 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -393,7 +395,7 @@ cargo build                 # 빌드만
 **샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 이 컴퓨터엔 없을 수 있음 — GitHub entryjs 코드 직접 참고)
 
 **다음 할 일 추천 순서**:
-1. 변수 — `ask_and_wait` (입력 묻기) / 형태 — `show` / `hide`
+1. 흐름 — `repeat_while_true` 별칭 / 연산 — `choose_project_timer_action` (타이머 시작/정지/리셋)
 
 ## 디렉토리
 

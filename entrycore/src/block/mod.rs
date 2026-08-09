@@ -163,6 +163,10 @@ pub enum Block {
     Return {
         value: Option<ParamBlock>,
     },
+
+    // --- 모양 ---
+    Show {},
+    Hide {},
 }
 
 /// 블록 파라미터 슬롯.
@@ -258,6 +262,8 @@ impl Block {
             Block::GetCanvasInputValue {  } => "get_canvas_input_value",
             Block::CalcRand { .. } => "calc_rand",
             Block::GetProjectTimerValue {  } => "get_project_timer_value",
+            Block::Show {  } => "show",
+            Block::Hide {  } => "hide",
         }
     }
 
@@ -300,6 +306,8 @@ impl Block {
             Block::GetProjectTimerValue {  } => Category::Calc,
             Block::AskAndWait { .. } => Category::Variable,
             Block::GetCanvasInputValue {  } => Category::Variable,
+            Block::Show {  } => Category::Looks,
+            Block::Hide {  } => Category::Looks,
         }
     }
 }
@@ -373,6 +381,12 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "get_canvas_input_value" {
                         return Ok(Block::GetCanvasInputValue {  });
+                    }
+                    if fref.name == "show" {
+                        return Ok(Block::Show {  })
+                    }
+                    if fref.name == "hide" {
+                        return Ok(Block::Hide {  });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -685,6 +699,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             None
         ),
         Block::GetCanvasInputValue {  } => (vec![], None),
+        Block::Show {  } => (vec![], None),
+        Block::Hide {  } => (vec![], None),
     })
 }
 

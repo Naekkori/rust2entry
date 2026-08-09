@@ -310,7 +310,9 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let needle = param_at(&params, 1, vars)?;
             Block::StringIncludes { haystack, needle }
         }
-
+        // 모양
+        "show" => Block::Show {},
+        "hide" => Block::Hide {},
         // 함수
         "function_call" => {
             let name = params
@@ -900,6 +902,26 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::Show {} => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "show".to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::Hide {} => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "hide".to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -1026,6 +1048,20 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         Block::GetCanvasInputValue {} => Ok(Expr::Call(
             ir::FuncRef {
                 name: "get_canvas_input_value".to_string(),
+                arity: 0,
+            },
+            Vec::new(),
+        )),
+        Block::Show {  } =>Ok(Expr::Call(
+            ir::FuncRef {
+                name: "show".to_string(),
+                arity: 0,
+            },
+            Vec::new(),
+        )),
+        Block::Hide {  } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "hide".to_string(),
                 arity: 0,
             },
             Vec::new(),
