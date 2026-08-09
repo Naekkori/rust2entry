@@ -6,13 +6,13 @@
 pub mod category;
 pub mod registry;
 
-use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::Error::UnmappedBlock;
+use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};
 
 pub use category::Category;
 
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// 모든 Entry 블록의 통합 표현.
 #[derive(Debug, Clone)]
@@ -21,9 +21,13 @@ pub enum Block {
     WhenStart,
     WhenClick,
     WhenCloneStart,
-    WhenMessageRecv { msg: String },
+    WhenMessageRecv {
+        msg: String,
+    },
     /// `when_some_key_pressed` — 키 코드 (Keyboard dropdown, "q" → "81")
-    WhenKeyPressed { key_code: String },
+    WhenKeyPressed {
+        key_code: String,
+    },
     /// `mouse_clicked`
     WhenMouseClicked,
     /// `mouse_click_cancled`
@@ -36,53 +40,124 @@ pub enum Block {
     // ── 시작 (액션) ──
     /// `message_cast` — 메시지 이름 (EntryJS 는 DropdownDynamic 으로 받음).
     /// args 0 = 메시지 이름, args 1 = null (Indicator 자리).
-    MessageCast { msg: String },
+    MessageCast {
+        msg: String,
+    },
     /// `message_cast_wait` — 보낸 후 수신자 실행 완료까지 대기.
-    MessageCastWait { msg: String },
+    MessageCastWait {
+        msg: String,
+    },
     /// `start_scene` — 씬 id.
-    StartScene { scene: String },
+    StartScene {
+        scene: String,
+    },
     /// `start_neighbor_scene` — next 또는 prev.
-    StartNeighborScene { direction: String },
+    StartNeighborScene {
+        direction: String,
+    },
 
     // ── 변수 (출력: set_variable, change_variable, get_variable) ──
-    SetVar { variable: String, value: ParamBlock },
-    ChangeVar { variable: String, value: ParamBlock },
-    GetVar { variable: String },
+    SetVar {
+        variable: String,
+        value: ParamBlock,
+    },
+    ChangeVar {
+        variable: String,
+        value: ParamBlock,
+    },
+    GetVar {
+        variable: String,
+    },
 
-    ShowVar { variable: String },
-    HideVar { variable: String },
+    ShowVar {
+        variable: String,
+    },
+    HideVar {
+        variable: String,
+    },
 
     // ── 흐름 (제어) ──
-    If { cond: ParamBlock, body: Vec<Block> },
-    IfElse { cond: ParamBlock, then_body: Vec<Block>, else_body: Vec<Block> },
-    While { cond: ParamBlock, body: Vec<Block> },
-    Repeat { times: ParamBlock, body: Vec<Block> },
-    Forever { body: Vec<Block> },
+    If {
+        cond: ParamBlock,
+        body: Vec<Block>,
+    },
+    IfElse {
+        cond: ParamBlock,
+        then_body: Vec<Block>,
+        else_body: Vec<Block>,
+    },
+    While {
+        cond: ParamBlock,
+        body: Vec<Block>,
+    },
+    Repeat {
+        times: ParamBlock,
+        body: Vec<Block>,
+    },
+    Forever {
+        body: Vec<Block>,
+    },
     Break,
     Continue,
     StopAll,
-    WaitSeconds { time: ParamBlock },
-    WaitUntilTrue { cond: ParamBlock },
+    WaitSeconds {
+        time: ParamBlock,
+    },
+    WaitUntilTrue {
+        cond: ParamBlock,
+    },
 
     // ── 산술 / 비교 / 논리 ──
-    CalcBinOp { op: BinOp, lhs: ParamBlock, rhs: ParamBlock },
-    Compare { op: BinOp, lhs: ParamBlock, rhs: ParamBlock },
-    BoolOp { op: BinOp, lhs: ParamBlock, rhs: ParamBlock },
-    UnaryOp { op: UnaryOp, expr: ParamBlock },
-
+    CalcBinOp {
+        op: BinOp,
+        lhs: ParamBlock,
+        rhs: ParamBlock,
+    },
+    Compare {
+        op: BinOp,
+        lhs: ParamBlock,
+        rhs: ParamBlock,
+    },
+    BoolOp {
+        op: BinOp,
+        lhs: ParamBlock,
+        rhs: ParamBlock,
+    },
+    UnaryOp {
+        op: UnaryOp,
+        expr: ParamBlock,
+    },
+    CalcRand {
+        min: ParamBlock,
+        max: ParamBlock,
+    },
     // ── 리터럴 (단독 값) ──
     Number(f64),
     Text(String),
     Boolean(bool),
 
     // ── 문자열 ──
-    StringConcat { parts: Vec<ParamBlock> },
-    StringIncludes { haystack: ParamBlock, needle: ParamBlock },
+    StringConcat {
+        parts: Vec<ParamBlock>,
+    },
+    StringIncludes {
+        haystack: ParamBlock,
+        needle: ParamBlock,
+    },
 
     // ── 함수 ──
-    FuncCall { name: String, args: Vec<ParamBlock> },
-    FuncDef { name: String, params: Vec<String>, body: Vec<Block> },
-    Return { value: Option<ParamBlock> },
+    FuncCall {
+        name: String,
+        args: Vec<ParamBlock>,
+    },
+    FuncDef {
+        name: String,
+        params: Vec<String>,
+        body: Vec<Block>,
+    },
+    Return {
+        value: Option<ParamBlock>,
+    },
 }
 
 /// 블록 파라미터 슬롯.
@@ -99,8 +174,8 @@ pub enum ParamBlock {
     Boolean(bool),
     /// 변수 참조 (드롭다운 자리).
     Variable(String),
-/// 중첩 블록 (계산식 등).
-Sub(Box<Block>),
+    /// 중첩 블록 (계산식 등).
+    Sub(Box<Block>),
 }
 
 /// Entry 시작 액션 reserved name → Block 변환.
@@ -174,15 +249,17 @@ impl Block {
             Block::Return { .. } => "function_return",
             Block::WaitSeconds { .. } => "wait_second",
             Block::WaitUntilTrue { .. } => "wait_until_true",
+            Block::CalcRand { .. } => "calc_rand",
         }
     }
 
     /// BlockCategory.
     pub fn category(&self) -> Category {
         match self {
-            Block::WhenStart | Block::WhenClick | Block::WhenCloneStart | Block::WhenMessageRecv { .. } => {
-                Category::Start
-            }
+            Block::WhenStart
+            | Block::WhenClick
+            | Block::WhenCloneStart
+            | Block::WhenMessageRecv { .. } => Category::Start,
             Block::SetVar { .. }
             | Block::ChangeVar { .. }
             | Block::GetVar { .. }
@@ -200,12 +277,16 @@ impl Block {
             | Block::MessageCastWait { .. }
             | Block::StartScene { .. }
             | Block::StartNeighborScene { .. } => Category::Start,
-            Block::CalcBinOp { .. } | Block::Compare { .. } | Block::BoolOp { .. } | Block::UnaryOp { .. } => {
-                Category::Calc
-            }
+            Block::CalcBinOp { .. }
+            | Block::Compare { .. }
+            | Block::BoolOp { .. }
+            | Block::UnaryOp { .. } => Category::Calc,
             Block::Number(_) | Block::Text(_) | Block::Boolean(_) => Category::Calc,
+            Block::CalcRand { .. } => Category::Calc,
             Block::StringConcat { .. } | Block::StringIncludes { .. } => Category::String,
-            Block::FuncCall { .. } | Block::FuncDef { .. } | Block::Return { .. } => Category::Define,
+            Block::FuncCall { .. } | Block::FuncDef { .. } | Block::Return { .. } => {
+                Category::Define
+            }
             Block::WaitSeconds { .. } => Category::Flow,
             Block::WaitUntilTrue { .. } => Category::Flow,
         }
@@ -215,53 +296,98 @@ impl Block {
 /// IR stmt -> Block 변환.
 pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
     match stmt {
-        Stmt::VarDecl(name, expr, _, _) | Stmt::SetVar(name, expr)=>{
+        Stmt::VarDecl(name, expr, _, _) | Stmt::SetVar(name, expr) => {
             // Timer/Answer/List 변수는 Entry 전용 슬롯만 받음. 일반 let/set 불가.
             if matches!(kind_for(name), VarKind::Timer | VarKind::Answer) {
-                return Err(UnmappedBlock(format!("{name} is reserved Entry variable (use dedicated block)")))
+                return Err(UnmappedBlock(format!(
+                    "{name} is reserved Entry variable (use dedicated block)"
+                )));
             }
-            Ok(Block::SetVar { variable: name.clone(), value: from_expr(expr)? })
+            Ok(Block::SetVar {
+                variable: name.clone(),
+                value: from_expr(expr)?,
+            })
         }
-        Stmt::FuncDef { name, params, body } =>{
+        Stmt::FuncDef { name, params, body } => {
             let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;
             // IR param 의 (name, kind) → Block 은 name 만. kind 는 outer scope
             // (`lib.rs`) 에서 function_create head 빌드 시 사용.
             let param_names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-            Ok(Block::FuncDef { name: name.clone(), params: param_names, body })
+            Ok(Block::FuncDef {
+                name: name.clone(),
+                params: param_names,
+                body,
+            })
         }
-        Stmt::Expr(expr)=>{
+        Stmt::Expr(expr) => {
             match expr {
-                Expr::Call(fref, args)=>{
+                Expr::Call(fref, args) => {
                     // Entry 시작 액션 — reserved name 으로 매칭되는 호출은
                     // 별도 Block 으로 변환 (EntryJS 가 정의한 function 이 아님).
                     if let Some(block) = reserved_start_call_to_block(fref, args)? {
                         return Ok(block);
                     }
                     if fref.name == "wait_second" {
-                        let arg = args.first().ok_or_else(|| UnmappedBlock("wait_second needs arg".into()))?;
-                        return Ok(Block::WaitSeconds { time: from_expr(arg)? });
+                        let arg = args
+                            .first()
+                            .ok_or_else(|| UnmappedBlock("wait_second needs arg".into()))?;
+                        return Ok(Block::WaitSeconds {
+                            time: from_expr(arg)?,
+                        });
                     }
                     if fref.name == "wait_until_true" {
-                        let arg = args.first().ok_or_else(|| UnmappedBlock("wait_until_true needs arg".into()))?;
-                        return Ok(Block::WaitUntilTrue { cond: from_expr(arg)? })
+                        let arg = args
+                            .first()
+                            .ok_or_else(|| UnmappedBlock("wait_until_true needs arg".into()))?;
+                        return Ok(Block::WaitUntilTrue {
+                            cond: from_expr(arg)?,
+                        });
+                    }
+                    if fref.name == "calc_rand" {
+                        if args.len() != 2 {
+                            return Err(UnmappedBlock("calc_rand needs 2 args".into()));
+                        }
+                        let min = from_expr(&args[0])?;
+                        let max = from_expr(&args[1])?;
+                        return Ok(Block::CalcRand { min, max });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
-                    Ok(Block::FuncCall { name: fref.name.clone(), args })
+                    Ok(Block::FuncCall {
+                        name: fref.name.clone(),
+                        args,
+                    })
                 }
-                _=> Err(UnmappedBlock("stmt-level expr not a call".into()))
+                _ => Err(UnmappedBlock("stmt-level expr not a call".into())),
             }
         }
-        Stmt::If { cond, then_body, else_body }=>{
+        Stmt::If {
+            cond,
+            then_body,
+            else_body,
+        } => {
             let cond = from_expr(cond)?;
-            let then_body = then_body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;
-            let else_body = else_body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;
+            let then_body = then_body
+                .iter()
+                .map(from_stmt)
+                .collect::<Result<Vec<_>>>()?;
+            let else_body = else_body
+                .iter()
+                .map(from_stmt)
+                .collect::<Result<Vec<_>>>()?;
             if else_body.is_empty() {
-                Ok(Block::If { cond, body: then_body })
-            }else{
-                Ok(Block::IfElse { cond, then_body, else_body })
+                Ok(Block::If {
+                    cond,
+                    body: then_body,
+                })
+            } else {
+                Ok(Block::IfElse {
+                    cond,
+                    then_body,
+                    else_body,
+                })
             }
         }
-        Stmt::While { cond, body }=>{
+        Stmt::While { cond, body } => {
             let cond = from_expr(cond)?;
             let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;
             Ok(Block::While { cond, body })
@@ -299,9 +425,14 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                 variable: var.clone(),
                 value: ParamBlock::Number(1.0),
             });
-            Ok(Block::Repeat { times, body: new_body })
+            Ok(Block::Repeat {
+                times,
+                body: new_body,
+            })
         }
-        Stmt::Return(expr)=>Ok(Block::Return { value: Some(from_expr(expr)?) }),
+        Stmt::Return(expr) => Ok(Block::Return {
+            value: Some(from_expr(expr)?),
+        }),
         Stmt::Break => Ok(Block::Break),
         Stmt::Continue => Ok(Block::Continue),
     }
@@ -310,7 +441,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
 /// IR expr -> ParamBlock 변환.
 pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
     match expr {
-        Expr::Int(n)=>Ok(ParamBlock::Number(*n as f64)),
+        Expr::Int(n) => Ok(ParamBlock::Number(*n as f64)),
         Expr::Float(f) => Ok(ParamBlock::Number(*f)),
         Expr::Str(s) => Ok(ParamBlock::Text(s.clone())),
         Expr::Bool(b) => Ok(ParamBlock::Boolean(b.clone())),
@@ -333,18 +464,30 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             };
             Ok(ParamBlock::Sub(Box::new(block)))
         }
-        Expr::UnaryOp(op, expr) => Ok(ParamBlock::Sub(Box::new(
-            Block::UnaryOp { op: *op, expr: from_expr(expr)?, }
-        ))),
+        Expr::UnaryOp(op, expr) => Ok(ParamBlock::Sub(Box::new(Block::UnaryOp {
+            op: *op,
+            expr: from_expr(expr)?,
+        }))),
         Expr::Call(fref, args) => {
+            if fref.name == "calc_rand" {
+                if args.len() != 2 {
+                    return Err(UnmappedBlock("calc_rand needs 2 args".into()));
+                }
+                let min = from_expr(&args[0])?;
+                let max = from_expr(&args[1])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::CalcRand { min, max })));
+            }
             let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
-            Ok(ParamBlock::Sub(Box::new(Block::FuncCall { name: fref.name.clone(), args })))
-        },
+            Ok(ParamBlock::Sub(Box::new(Block::FuncCall {
+                name: fref.name.clone(),
+                args,
+            })))
+        }
         Expr::Func(_) => Err(UnmappedBlock("bare func ref".into())),
-        Expr::Range(start, end)=>{
-            let _ = (start,end);
+        Expr::Range(start, end) => {
+            let _ = (start, end);
             Err(UnmappedBlock("range expr".into()))
-        },
+        }
     }
 }
 
@@ -365,24 +508,14 @@ pub fn to_value(block: &Block) -> crate::Result<Value> {
 }
 
 /// `to_value` 내부 헬퍼. (params, Option<statements>) 분리 산출.
-fn build_params_and_statements(
-    block: &Block,
-) -> crate::Result<(Vec<Value>, Option<Vec<Value>>)> {
+fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Option<Vec<Value>>)> {
     Ok(match block {
         Block::SetVar { variable, value } => (
-            vec![
-                variable_param(variable),
-                param_to_value(value),
-                Value::Null,
-            ],
+            vec![variable_param(variable), param_to_value(value), Value::Null],
             None,
         ),
         Block::ChangeVar { variable, value } => (
-            vec![
-                variable_param(variable),
-                param_to_value(value),
-                Value::Null,
-            ],
+            vec![variable_param(variable), param_to_value(value), Value::Null],
             None,
         ),
         Block::GetVar { variable } => (vec![variable_param(variable)], None),
@@ -393,7 +526,11 @@ fn build_params_and_statements(
             vec![param_to_value(cond), Value::Null],
             Some(vec![blocks_to_thread(body)?]),
         ),
-        Block::IfElse { cond, then_body, else_body } => (
+        Block::IfElse {
+            cond,
+            then_body,
+            else_body,
+        } => (
             vec![param_to_value(cond), Value::Null],
             Some(vec![
                 blocks_to_thread(then_body)?,
@@ -455,7 +592,10 @@ fn build_params_and_statements(
             vec![
                 Value::String(name.clone()),
                 Value::Null,
-                args.iter().map(param_to_value).collect::<Value>().as_array()
+                args.iter()
+                    .map(param_to_value)
+                    .collect::<Value>()
+                    .as_array()
                     .cloned()
                     .map(Value::Array)
                     .unwrap_or(Value::Null),
@@ -465,8 +605,14 @@ fn build_params_and_statements(
         Block::FuncDef { name, params, body } => (
             vec![
                 Value::String(name.clone()),
-                params.iter().map(|p| Value::String(p.clone())).collect::<Value>()
-                    .as_array().cloned().map(Value::Array).unwrap_or(Value::Null),
+                params
+                    .iter()
+                    .map(|p| Value::String(p.clone()))
+                    .collect::<Value>()
+                    .as_array()
+                    .cloned()
+                    .map(Value::Array)
+                    .unwrap_or(Value::Null),
             ],
             Some(vec![blocks_to_thread(body)?]),
         ),
@@ -488,25 +634,18 @@ fn build_params_and_statements(
         | Block::WhenSceneStart => (vec![], None),
         // message_cast / message_cast_wait / start_scene:
         // [DropdownDynamic 메시지/씬, Indicator]. 우리 DSL 은 String literal 전달.
-        Block::MessageCast { msg } | Block::MessageCastWait { msg } => (
-            vec![Value::String(msg.clone()), Value::Null],
-            None,
-        ),
-        Block::StartScene { scene } => (
-            vec![Value::String(scene.clone()), Value::Null],
-            None,
-        ),
+        Block::MessageCast { msg } | Block::MessageCastWait { msg } => {
+            (vec![Value::String(msg.clone()), Value::Null], None)
+        }
+        Block::StartScene { scene } => (vec![Value::String(scene.clone()), Value::Null], None),
         // start_neighbor_scene: [Dropdown next/prev, Indicator]
-        Block::StartNeighborScene { direction } => (
-            vec![Value::String(direction.clone()), Value::Null],
-            None,
-        ),
-        Block::WaitSeconds { time } => (
-            vec![param_to_value(time)],
-            None
-        ),
-        Block::WaitUntilTrue { cond } => (
-            vec![param_to_value(cond), Value::Null],
+        Block::StartNeighborScene { direction } => {
+            (vec![Value::String(direction.clone()), Value::Null], None)
+        }
+        Block::WaitSeconds { time } => (vec![param_to_value(time)], None),
+        Block::WaitUntilTrue { cond } => (vec![param_to_value(cond), Value::Null], None),
+        Block::CalcRand { min, max } => (
+            vec![param_to_value(min), param_to_value(max)],
             None
         ),
     })
@@ -528,7 +667,7 @@ fn op_str(op: BinOp) -> &'static str {
         BinOp::Ge => ">=",
         BinOp::And => "&&",
         BinOp::Or => "||",
-        BinOp::Range => ".."
+        BinOp::Range => "..",
     }
 }
 
@@ -560,8 +699,8 @@ pub fn id_for(name: &str) -> String {
     format!("{:x}", h)
 }
 /// 이름 -> kind?
-pub fn kind_for(name: &str)-> crate::var::VarKind{
-    match name{
+pub fn kind_for(name: &str) -> crate::var::VarKind {
+    match name {
         "초시계" | "timer" | "Timer" => VarKind::Timer,
         "대답" | "answer" | "Answer" => VarKind::Answer,
         "리스트" | "list" | "List" => VarKind::List,
@@ -570,7 +709,7 @@ pub fn kind_for(name: &str)-> crate::var::VarKind{
 }
 
 // VarKind -> Entry variableType 문자열
-fn kind_to_str(kind: &crate::var::VarKind) -> &'static str{
+fn kind_to_str(kind: &crate::var::VarKind) -> &'static str {
     match kind {
         VarKind::Variable => "variable",
         VarKind::Timer => "timer",

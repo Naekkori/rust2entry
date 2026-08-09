@@ -4,17 +4,19 @@
 //! 이 모듈은 Entry project.json의 블록 Value를 `Block`으로 바꾸고
 //! 다시 IR `Stmt`/`Expr`로 변환한다.
 
-use crate::{Result, ir};
 use crate::Error::UnmappedBlock;
 use crate::block::{Block, ParamBlock};
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
+use crate::{Result, ir};
 use serde_json::Value;
 
 /// 변수 ID를 VarMap으로 lookup하여 사용자 노출 이름으로 변환.
 /// 매핑이 없으면 ID 그대로 사용.
 fn resolve_var(id: &str, vars: &VarMap) -> String {
-    vars.get(id).map(|v| v.name.clone()).unwrap_or_else(|| id.to_string())
+    vars.get(id)
+        .map(|v| v.name.clone())
+        .unwrap_or_else(|| id.to_string())
 }
 
 /// Entry `script` 필드(JSON 문자열 파싱 결과) -> IR Vec<Stmt>.
@@ -66,7 +68,11 @@ fn split_trigger(first: &Block, rest: &[Value], vars: &VarMap) -> Option<(String
         Block::WhenMessageRecv { .. } => "when_message",
         _ => return None,
     };
-    let body = rest.iter().map(|v| block_from_value(v, vars)).collect::<Result<Vec<_>>>().ok()?;
+    let body = rest
+        .iter()
+        .map(|v| block_from_value(v, vars))
+        .collect::<Result<Vec<_>>>()
+        .ok()?;
     Some((name.to_string(), body))
 }
 
@@ -199,11 +205,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let body = statements_thread(obj, 0, vars)?;
             Block::Forever { body }
         }
-        "wait_second" =>{
+        "wait_second" => {
             let time = param_at(&params, 0, vars)?;
             Block::WaitSeconds { time }
         }
-        "wait_until_true"=>{
+        "wait_until_true" => {
             let cond = param_at(&params, 0, vars)?;
             Block::WaitUntilTrue { cond }
         }
@@ -230,12 +236,14 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let rhs = param_at(&params, 2, vars)?;
             Block::BoolOp { op, lhs, rhs }
         }
+        "calc_rand" => {
+            let min = param_at(&params, 0, vars)?;
+            let max = param_at(&params, 1, vars)?;
+            Block::CalcRand { min, max }
+        }
         "calc_unary" => {
             let expr = param_at(&params, 0, vars)?;
-            let op_str = params
-                .get(1)
-                .and_then(Value::as_str)
-                .unwrap_or("");
+            let op_str = params.get(1).and_then(Value::as_str).unwrap_or("");
             let op = match op_str {
                 "-" => UnaryOp::Neg,
                 "!" => UnaryOp::Not,
@@ -315,7 +323,10 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         // id 가 보존되어 build 가 다시 같은 func_<id> 블록을 생성).
         t if t.starts_with("func_") => {
             let name = t.to_string();
-            Block::FuncCall { name, args: Vec::new() }
+            Block::FuncCall {
+                name,
+                args: Vec::new(),
+            }
         }
         "function_create" => {
             let name = params
@@ -360,10 +371,7 @@ fn value_to_param(v: &Value, vars: &VarMap) -> Result<ParamBlock> {
         // variable dropdown: codegen 이 `{id, name, variableType}` 형태로 emit.
         // `type` 키 없음 → block_from_value 호출하면 "block.type missing" 에러.
         // 이 분기를 먼저 처리해 ParamBlock::Variable 로 변환.
-        if v.get("type").is_none()
-            && v.get("id").is_some()
-            && v.get("name").is_some()
-        {
+        if v.get("type").is_none() && v.get("id").is_some() && v.get("name").is_some() {
             let id = v["id"].as_str().unwrap_or("");
             let name = resolve_var(id, vars);
             return Ok(ParamBlock::Variable(name));
@@ -371,17 +379,32 @@ fn value_to_param(v: &Value, vars: &VarMap) -> Result<ParamBlock> {
         if let Some(t) = v.get("type").and_then(Value::as_str) {
             match t {
                 "number" => {
-                    if let Some(n) = v.get("params").and_then(Value::as_array).and_then(|a| a.first()).and_then(Value::as_f64) {
+                    if let Some(n) = v
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|a| a.first())
+                        .and_then(Value::as_f64)
+                    {
                         return Ok(ParamBlock::Number(n));
                     }
                 }
                 "text" => {
-                    if let Some(s) = v.get("params").and_then(Value::as_array).and_then(|a| a.first()).and_then(Value::as_str) {
+                    if let Some(s) = v
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|a| a.first())
+                        .and_then(Value::as_str)
+                    {
                         return Ok(ParamBlock::Text(s.to_string()));
                     }
                 }
                 "boolean" => {
-                    if let Some(b) = v.get("params").and_then(Value::as_array).and_then(|a| a.first()).and_then(Value::as_bool) {
+                    if let Some(b) = v
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|a| a.first())
+                        .and_then(Value::as_bool)
+                    {
                         return Ok(ParamBlock::Boolean(b));
                     }
                 }
@@ -604,7 +627,10 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             Ok(())
         }
         Block::SetVar { variable, value } => {
-            stmts.push(Stmt::SetVar(variable.clone(), expr_from_param(value, vars)?));
+            stmts.push(Stmt::SetVar(
+                variable.clone(),
+                expr_from_param(value, vars)?,
+            ));
             Ok(())
         }
         Block::ChangeVar { variable, value } => {
@@ -723,11 +749,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         | Block::BoolOp { op, lhs, rhs } => {
             let lhs = expr_from_param(lhs, vars)?;
             let rhs = expr_from_param(rhs, vars)?;
-            stmts.push(Stmt::Expr(Expr::BinOp(
-                *op,
-                Box::new(lhs),
-                Box::new(rhs),
-            )));
+            stmts.push(Stmt::Expr(Expr::BinOp(*op, Box::new(lhs), Box::new(rhs))));
             Ok(())
         }
         Block::UnaryOp { op, expr } => {
@@ -805,25 +827,37 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::WaitSeconds { time } => {
             let arg = expr_from_param(time, vars)?;
             stmts.push(Stmt::Expr(Expr::Call(
-                ir::FuncRef{
+                ir::FuncRef {
                     name: "wait_second".to_string(),
                     arity: 1,
                 },
-                vec![arg]
+                vec![arg],
             )));
             Ok(())
-        },
+        }
         Block::WaitUntilTrue { cond } => {
             let arg = expr_from_param(cond, vars)?;
-                stmts.push(Stmt::Expr(Expr::Call(
-                    ir::FuncRef{
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
                     name: "wait_until_true".to_string(),
                     arity: 1,
                 },
-                vec![arg]    
+                vec![arg],
             )));
             Ok(())
-        },
+        }
+        Block::CalcRand { min, max } => {
+            let m = expr_from_param(min, vars)?;
+            let mx = expr_from_param(max, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "calc_rand".to_string(),
+                    arity: 2,
+                },
+                vec![m, mx],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -919,6 +953,17 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ir_args,
             ))
         }
+        Block::CalcRand { min, max } => {
+            let m = expr_from_param(min, vars)?;
+            let M = expr_from_param(max, vars)?;
+            Ok(Expr::Call(
+                crate::ir::FuncRef {
+                    name: "calc_rand".to_string(),
+                    arity: 2,
+                },
+                vec![m, M],
+            ))
+        }
         Block::SetVar { .. }
         | Block::ChangeVar { .. }
         | Block::ShowVar { .. }
@@ -945,24 +990,12 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         | Block::StartScene { .. }
         | Block::StartNeighborScene { .. }
         | Block::FuncDef { .. }
+        | Block::WaitSeconds { .. }
+        | Block::WaitUntilTrue { .. }
         | Block::Return { .. } => Err(UnmappedBlock(format!(
             "block used as expr: {}",
             b.type_id()
         ))),
-        Block::WaitSeconds { .. } => Err(UnmappedBlock(
-            format!(
-                "block used as expr: {}",
-                b.type_id()
-            )
-        )),
-        Block::WaitUntilTrue { .. } => Err(
-            UnmappedBlock(
-                format!(
-                    "block used as expr: {}",
-                    b.type_id()
-                )
-            )
-        ),
     }
 }
 
@@ -972,10 +1005,7 @@ pub fn program_from_script_string(s: &str) -> Result<crate::ir::Program> {
 }
 
 /// Entry 프로젝트 `script` (JSON 문자열) -> IR `Program`. 변수 맵 전달.
-pub fn program_from_script_string_with_vars(
-    s: &str,
-    vars: &VarMap,
-) -> Result<crate::ir::Program> {
+pub fn program_from_script_string_with_vars(s: &str, vars: &VarMap) -> Result<crate::ir::Program> {
     let v: Value = serde_json::from_str(s).map_err(|e| crate::Error::Parse(e.to_string()))?;
     program_from_script_value_with_vars(&v, vars)
 }
@@ -986,10 +1016,7 @@ pub fn program_from_script_value(v: &Value) -> Result<crate::ir::Program> {
 }
 
 /// Entry 오브젝트 `script` (`Value::String` 안의 JSON) -> IR `Program`. 변수 맵 전달.
-pub fn program_from_script_value_with_vars(
-    v: &Value,
-    vars: &VarMap,
-) -> Result<crate::ir::Program> {
+pub fn program_from_script_value_with_vars(v: &Value, vars: &VarMap) -> Result<crate::ir::Program> {
     let stmts = from_script(v, vars)?;
     Ok(crate::ir::Program { stmts })
 }

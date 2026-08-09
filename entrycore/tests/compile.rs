@@ -384,6 +384,84 @@ fn compile_if_roundtrip_with_var_cond() {
     }
 }
 
+// ── calc_rand (난수) ──
+
+/// `calc_rand(1, 10)` → `calc_rand` 블록, params[0]/[1] = number 슬롯.
+#[test]
+fn compile_calc_rand_int() {
+    let src = r#"fn when_start() { let x = calc_rand(1, 10); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set = thread.iter().find(|b| b["type"] == "set_variable").expect("set_variable");
+    // set 의 params[1] 이 calc_rand.
+    assert_eq!(set["params"][1]["type"], "calc_rand");
+    assert_eq!(set["params"][1]["params"][0]["params"][0].as_f64(), Some(1.0));
+    assert_eq!(set["params"][1]["params"][1]["params"][0].as_f64(), Some(10.0));
+}
+
+/// `calc_rand(1.5, 9.5)` → 실수 보존.
+#[test]
+fn compile_calc_rand_float() {
+    let src = r#"fn when_start() { let x = calc_rand(1.5, 9.5); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set = thread.iter().find(|b| b["type"] == "set_variable").expect("set_variable");
+    assert_eq!(set["params"][1]["params"][0]["params"][0].as_f64(), Some(1.5));
+    assert_eq!(set["params"][1]["params"][1]["params"][0].as_f64(), Some(9.5));
+}
+
+/// `calc_rand` 의 args 가 변수일 때 dropdown 슬롯.
+#[test]
+fn compile_calc_rand_var_args() {
+    let src = r#"
+        fn when_start() {
+            let lo = 1;
+            let hi = 10;
+            let x = calc_rand(lo, hi);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set = thread.iter().rev().find(|b| b["type"] == "set_variable").expect("last set");
+    assert_eq!(set["params"][1]["type"], "calc_rand");
+    assert_eq!(set["params"][1]["params"][0]["name"], "lo");
+    assert_eq!(set["params"][1]["params"][1]["name"], "hi");
+}
+
+/// 라운드트립: compile → deparse → IR 에 calc_rand 호출 보존.
+#[test]
+fn compile_calc_rand_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { let x = calc_rand(1, 10); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::SetVar(_, Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "calc_rand");
+                    assert_eq!(args.len(), 2);
+                }
+                other => panic!("expected SetVar(Call(calc_rand)), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// base 에 objects 가 이미 있으면 추가하지 않고, rs stem == name 인 object 의
 /// script 필드만 패치한다.
 #[test]

@@ -232,10 +232,10 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `is_current_device_type` — □ 에서 실행하는가?
 - ⬜ `is_touch_supported` — 터치 가능한가?
 
-### 연산 (3/26)
+### 연산 (4/26)
 - ✅ `calc_basic` → `CalcBinOp`
 - ✅ `number` / `text` / `boolean` → 리터럴
-- ⬜ `calc_rand` — □ 부터 □ 사이의 무작위 수
+- ✅ `calc_rand` — □ 부터 □ 사이의 무작위 수 (→ `calc_rand(min, max)`)
 - ⬜ `coordinate_mouse` — 마우스 x/y 좌표
 - ⬜ `coordinate_object` — 오브젝트 x/y 좌표
 - ⬜ `quotient_and_mod` — □ 를 □ 로 나눈 몫/나머지
@@ -311,7 +311,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**33/203** 매핑됨 (약 16.3%)
+**34/203** 매핑됨 (약 16.7%)
 
 ## 남은 작업 (TODO)
 
@@ -355,7 +355,7 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 시작 (액션): `send_message`/`wait_message`, `start_scene`/`start_next_scene`/`start_prev_scene`
   - [x] 흐름: `wait_second`, `wait_until_true` (쉬움, 즉시 가치)
   - [ ] 흐름: `repeat_while_true` 별칭 추가 (현재 `repeat_while` 만 매핑)
-  - [ ] 연산: `calc_rand` (난수) / `get_project_timer_value` (타이머 값)
+  - [x] 연산: `calc_rand` (난수) / `get_project_timer_value` (타이머 값)
   - [ ] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값)
   - [ ] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
 - [ ] 중기
@@ -383,7 +383,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 5 + codegen 9 + compile 79 + parse 26 = 119 통과)
+cargo test                  # 전체 (entryc 5 + codegen 9 + compile 83 + parse 26 = 123 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -392,7 +392,7 @@ cargo build                 # 빌드만
 **샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 이 컴퓨터엔 없을 수 있음 — GitHub entryjs 코드 직접 참고)
 
 **다음 할 일 추천 순서**:
-1. 흐름 — `repeat_while_true` 별칭 추가 / 연산 — `calc_rand` (난수) / 변수 — `ask_and_wait`
+1. 연산 — `get_project_timer_value` (타이머 값) / 변수 — `ask_and_wait` (입력 묻기) / 형태 — `show` / `hide`
 
 ## 디렉토리
 
