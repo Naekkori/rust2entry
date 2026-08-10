@@ -17,7 +17,23 @@ use serde_json::{Value, json};
 #[derive(Debug, Clone)]
 pub enum QamMethod {
     Quotient,
-    Mod
+    Mod,
+}
+
+#[derive(Debug, Clone)]
+pub enum MathOperation {
+    Abs,
+    Sqrt,
+    Sin,
+    Cos,
+    Tan,
+    Asin,
+    Acos,
+    Atan,
+    Ln,
+    Log,
+    Exp,
+    Pow10,
 }
 /// 모든 Entry 블록의 통합 표현.
 #[derive(Debug, Clone)]
@@ -79,11 +95,11 @@ pub enum Block {
     HideVar {
         variable: String,
     },
-    SetVisibleProjectTimer{
-        value:bool
+    SetVisibleProjectTimer {
+        value: bool,
     },
     SetVisibleAnswer {
-        value:bool
+        value: bool,
     },
 
     // ── 흐름 (제어) ──
@@ -116,8 +132,8 @@ pub enum Block {
     WaitUntilTrue {
         cond: ParamBlock,
     },
-    AskAndWait{
-        question: ParamBlock
+    AskAndWait {
+        question: ParamBlock,
     },
     GetCanvasInputValue {},
 
@@ -141,18 +157,22 @@ pub enum Block {
         op: UnaryOp,
         expr: ParamBlock,
     },
+    CalcOperation {
+        op: MathOperation,
+        expr: ParamBlock,
+    },
     CalcRand {
         min: ParamBlock,
         max: ParamBlock,
     },
     ChooseProjectTimerAction {
-        action: String // start, stop, reset
+        action: String, // start, stop, reset
     },
-    GetProjectTimerValue{},
+    GetProjectTimerValue {},
     QuotientAndMod {
         a: ParamBlock,
         b: ParamBlock,
-        mode: QamMethod
+        mode: QamMethod,
     },
     // ── 리터럴 (단독 값) ──
     Number(f64),
@@ -280,15 +300,16 @@ impl Block {
             Block::WaitSeconds { .. } => "wait_second",
             Block::WaitUntilTrue { .. } => "wait_until_true",
             Block::AskAndWait { .. } => "ask_and_wait",
-            Block::GetCanvasInputValue {  } => "get_canvas_input_value",
+            Block::GetCanvasInputValue {} => "get_canvas_input_value",
             Block::CalcRand { .. } => "calc_rand",
-            Block::GetProjectTimerValue {  } => "get_project_timer_value",
-            Block::Show {  } => "show",
-            Block::Hide {  } => "hide",
+            Block::GetProjectTimerValue {} => "get_project_timer_value",
+            Block::Show {} => "show",
+            Block::Hide {} => "hide",
             Block::ChooseProjectTimerAction { .. } => "choose_project_timer_action",
             Block::SetVisibleProjectTimer { .. } => "set_visible_project_timer",
             Block::SetVisibleAnswer { .. } => "set_visible_answer",
             Block::QuotientAndMod { .. } => "quotient_and_mod",
+            Block::CalcOperation { .. } => "calc_operation",
         }
     }
 
@@ -332,15 +353,16 @@ impl Block {
             }
             Block::WaitSeconds { .. } => Category::Flow,
             Block::WaitUntilTrue { .. } => Category::Flow,
-            Block::GetProjectTimerValue {  } => Category::Calc,
+            Block::GetProjectTimerValue {} => Category::Calc,
             Block::AskAndWait { .. } => Category::Variable,
-            Block::GetCanvasInputValue {  } => Category::Variable,
-            Block::Show {  } => Category::Looks,
-            Block::Hide {  } => Category::Looks,
+            Block::GetCanvasInputValue {} => Category::Variable,
+            Block::Show {} => Category::Looks,
+            Block::Hide {} => Category::Looks,
             Block::ChooseProjectTimerAction { .. } => Category::Calc,
             Block::SetVisibleProjectTimer { .. } => Category::Calc,
             Block::SetVisibleAnswer { .. } => Category::Variable,
             Block::QuotientAndMod { .. } => Category::Calc,
+            Block::CalcOperation { .. } => Category::Calc,
         }
     }
 }
@@ -404,37 +426,45 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         return Ok(Block::CalcRand { min, max });
                     }
                     if fref.name == "get_project_timer_value" {
-                        return Ok(Block::GetProjectTimerValue{})
+                        return Ok(Block::GetProjectTimerValue {});
                     }
                     if fref.name == "ask_and_wait" {
-                        let arg = args.first().ok_or_else(|| UnmappedBlock("ask_and_wait needs arg".into()))?;
-                        return Ok(
-                            Block::AskAndWait { question: from_expr(arg)? }
-                        );
+                        let arg = args
+                            .first()
+                            .ok_or_else(|| UnmappedBlock("ask_and_wait needs arg".into()))?;
+                        return Ok(Block::AskAndWait {
+                            question: from_expr(arg)?,
+                        });
                     }
                     if fref.name == "get_canvas_input_value" {
-                        return Ok(Block::GetCanvasInputValue {  });
+                        return Ok(Block::GetCanvasInputValue {});
                     }
                     if fref.name == "show" {
-                        return Ok(Block::Show {  })
+                        return Ok(Block::Show {});
                     }
                     if fref.name == "hide" {
-                        return Ok(Block::Hide {  });
+                        return Ok(Block::Hide {});
                     }
                     if fref.name == "show_timer" {
-                        return Ok(Block::SetVisibleProjectTimer { value: true })
+                        return Ok(Block::SetVisibleProjectTimer { value: true });
                     }
-                    if fref.name == "hide_timer"{
+                    if fref.name == "hide_timer" {
                         return Ok(Block::SetVisibleProjectTimer { value: false });
                     }
                     if fref.name == "start_timer" {
-                        return Ok(Block::ChooseProjectTimerAction { action: "start".into() })
+                        return Ok(Block::ChooseProjectTimerAction {
+                            action: "start".into(),
+                        });
                     }
                     if fref.name == "stop_timer" {
-                        return Ok(Block::ChooseProjectTimerAction { action: "stop".into() });
+                        return Ok(Block::ChooseProjectTimerAction {
+                            action: "stop".into(),
+                        });
                     }
                     if fref.name == "reset_timer" {
-                        return Ok(Block::ChooseProjectTimerAction { action: "reset".into() });
+                        return Ok(Block::ChooseProjectTimerAction {
+                            action: "reset".into(),
+                        });
                     }
                     if fref.name == "show_answer" {
                         return Ok(Block::SetVisibleAnswer { value: true });
@@ -449,11 +479,24 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         let mode = match &args[2] {
                             Expr::Str(s) if s == "quotient" => QamMethod::Quotient,
                             Expr::Str(s) if s == "modulo" => QamMethod::Mod,
-                            _ => return Err(UnmappedBlock("quotient_and_mod mode must be \"quotient\" \"modulo\" ".into()))
+                            _ => {
+                                return Err(UnmappedBlock(
+                                    "quotient_and_mod mode must be \"quotient\" \"modulo\" ".into(),
+                                ));
+                            }
                         };
                         let a = from_expr(&args[0])?;
                         let b = from_expr(&args[1])?;
-                        return Ok(Block::QuotientAndMod { a, b, mode })
+                        return Ok(Block::QuotientAndMod { a, b, mode });
+                    }
+                    if let Some(op) = calc_op_from_name(&fref.name) {
+                        let arg = args
+                            .first()
+                            .ok_or_else(|| UnmappedBlock(format!("{} needs arg", fref.name)))?;
+                        return Ok(Block::CalcOperation {
+                            op,
+                            expr: from_expr(arg)?,
+                        });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -585,9 +628,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 return Ok(ParamBlock::Sub(Box::new(Block::GetProjectTimerValue {})));
             }
             if fref.name == "get_canvas_input_value" {
-                return Ok(ParamBlock::Sub(Box::new(
-                    Block::GetCanvasInputValue {  }
-                )));
+                return Ok(ParamBlock::Sub(Box::new(Block::GetCanvasInputValue {})));
             }
             if fref.name == "quotient_and_mod" {
                 if args.len() != 3 {
@@ -596,11 +637,29 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 let mode = match &args[2] {
                     Expr::Str(s) if s == "quotient" => QamMethod::Quotient,
                     Expr::Str(s) if s == "modulo" => QamMethod::Mod,
-                    _ => return Err(UnmappedBlock("quotient_and_mod mode must be \"quotient\" \"modulo\"".into())),
+                    _ => {
+                        return Err(UnmappedBlock(
+                            "quotient_and_mod mode must be \"quotient\" \"modulo\"".into(),
+                        ));
+                    }
                 };
                 let a = from_expr(&args[0])?;
                 let b = from_expr(&args[1])?;
-                return Ok(ParamBlock::Sub(Box::new(Block::QuotientAndMod { a, b, mode })));
+                return Ok(ParamBlock::Sub(Box::new(Block::QuotientAndMod {
+                    a,
+                    b,
+                    mode,
+                })));
+            }
+            if let Some(op) = calc_op_from_name(&fref.name) {
+                let arg = args.first().ok_or_else(|| UnmappedBlock(format!("{} needs arg", fref.name)))?;
+                return Ok(
+                    ParamBlock::Sub(
+                        Box::new(
+                            Block::CalcOperation { op, expr: from_expr(arg)? }
+                        )
+                    )
+                );
             }
             let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
             Ok(ParamBlock::Sub(Box::new(Block::FuncCall {
@@ -706,6 +765,23 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
+        Block::CalcOperation { op, expr } => {
+            let op_str = match op {
+                MathOperation::Abs => "abs",
+                MathOperation::Sqrt => "sqrt",
+                MathOperation::Sin => "sin",
+                MathOperation::Cos => "cos",
+                MathOperation::Tan => "tan",
+                MathOperation::Asin => "asin",
+                MathOperation::Acos => "acos",
+                MathOperation::Atan => "atan",
+                MathOperation::Ln => "ln",
+                MathOperation::Log => "log",
+                MathOperation::Exp => "exp",
+                MathOperation::Pow10 => "pow10",
+            };
+            (vec![json!(op_str), param_to_value(expr)], None)
+        }
         Block::Number(n) => (vec![Value::from(*n)], None),
         Block::Text(s) => (vec![Value::String(s.clone())], None),
         Block::Boolean(b) => (vec![Value::Bool(*b)], None),
@@ -771,37 +847,25 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         }
         Block::WaitSeconds { time } => (vec![param_to_value(time)], None),
         Block::WaitUntilTrue { cond } => (vec![param_to_value(cond), Value::Null], None),
-        Block::CalcRand { min, max } => (
-            vec![param_to_value(min), param_to_value(max)],
-            None
-        ),
-        Block::GetProjectTimerValue {  } => (vec![], None),
-        Block::AskAndWait { question } => (
-            vec![param_to_value(question),Value::Null],
-            None
-        ),
-        Block::GetCanvasInputValue {  } => (vec![], None),
-        Block::Show {  } => (vec![], None),
-        Block::Hide {  } => (vec![], None),
-        Block::ChooseProjectTimerAction { action } => (
-            vec![json!(action)],
-            None
-        ),
-        Block::SetVisibleProjectTimer { value } => (
-            vec![Value::Bool(*value), Value::Null],
-            None
-        ),
-        Block::SetVisibleAnswer { value } => (
-            vec![Value::Bool(*value), Value::Null],
-            None
-        ),
+        Block::CalcRand { min, max } => (vec![param_to_value(min), param_to_value(max)], None),
+        Block::GetProjectTimerValue {} => (vec![], None),
+        Block::AskAndWait { question } => (vec![param_to_value(question), Value::Null], None),
+        Block::GetCanvasInputValue {} => (vec![], None),
+        Block::Show {} => (vec![], None),
+        Block::Hide {} => (vec![], None),
+        Block::ChooseProjectTimerAction { action } => (vec![json!(action)], None),
+        Block::SetVisibleProjectTimer { value } => (vec![Value::Bool(*value), Value::Null], None),
+        Block::SetVisibleAnswer { value } => (vec![Value::Bool(*value), Value::Null], None),
         Block::QuotientAndMod { a, b, mode } => {
             let mode_str = match mode {
                 QamMethod::Quotient => "quotient",
-                QamMethod::Mod => "modulo"
+                QamMethod::Mod => "modulo",
             };
-            (vec![param_to_value(a),param_to_value(b),json!(mode_str)], None)
-        },
+            (
+                vec![param_to_value(a), param_to_value(b), json!(mode_str)],
+                None,
+            )
+        }
     })
 }
 
@@ -878,4 +942,23 @@ fn kind_to_str(kind: &crate::var::VarKind) -> &'static str {
 fn blocks_to_thread(blocks: &[Block]) -> Result<Value> {
     let arr: Result<Vec<_>> = blocks.iter().map(to_value).collect();
     Ok(Value::Array(arr?))
+}
+
+// calc_op helper
+fn calc_op_from_name(name: &str) -> Option<MathOperation> {
+    Some(match name {
+        "abs" => MathOperation::Abs,
+        "sqrt" => MathOperation::Sqrt,
+        "sin" => MathOperation::Sin,
+        "cos" => MathOperation::Cos,
+        "tan" => MathOperation::Tan,
+        "asin" => MathOperation::Asin,
+        "acos" => MathOperation::Acos,
+        "atan" => MathOperation::Atan,
+        "ln" => MathOperation::Ln,
+        "log" => MathOperation::Log,
+        "exp" => MathOperation::Exp,
+        "pow10" => MathOperation::Pow10,
+        _ => return None,
+    })
 }

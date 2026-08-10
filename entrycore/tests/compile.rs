@@ -897,6 +897,73 @@ fn compile_quotient_and_mod_roundtrip() {
     }
 }
 
+// ── calc_operation ──
+
+/// `abs(x)` → calc_operation 블록, params[0] = "abs".
+#[test]
+fn compile_abs() {
+    let src = r#"fn when_start() { let y = abs(x); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let obj = &v["objects"][0];
+    let thread = &obj_threads(obj)[0];
+    let set_var = thread
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["type"] == "set_variable")
+        .expect("set_variable");
+    let block = &set_var["params"][1];
+    assert_eq!(block["type"], "calc_operation");
+    assert_eq!(block["params"][0], "abs");
+}
+
+/// sqrt 라운드트립.
+#[test]
+fn compile_sqrt_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+
+    let src = r#"fn when_start() { let y = sqrt(x); }"#;
+    let p1 = entrycore::parse::parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = entrycore::codegen::collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::SetVar(_, Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "sqrt");
+                    assert_eq!(args.len(), 1);
+                }
+                other => panic!("expected SetVar(Call(sqrt)), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// sin 매핑.
+#[test]
+fn compile_sin() {
+    let src = r#"fn when_start() { let y = sin(x); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let obj = &v["objects"][0];
+    let thread = &obj_threads(obj)[0];
+    let set_var = thread
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["type"] == "set_variable")
+        .expect("set_variable");
+    let block = &set_var["params"][1];
+    assert_eq!(block["type"], "calc_operation");
+    assert_eq!(block["params"][0], "sin");
+}
+
 // ── show / hide (외형) ──
 
 /// `show()` → `show` 블록, params 없음.

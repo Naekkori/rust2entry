@@ -240,7 +240,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `is_current_device_type` — □ 에서 실행하는가?
 - ⬜ `is_touch_supported` — 터치 가능한가?
 
-### 연산 (9/26)
+### 연산 (10/26)
 - ✅ `calc_basic` → `CalcBinOp` (사칙연산)
 - ✅ `number` → `Number` 리터럴
 - ✅ `text` → `Text` 리터럴
@@ -254,7 +254,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `coordinate_mouse` — 마우스 x/y 좌표
 - ⬜ `coordinate_object` — 오브젝트 x/y 좌표
 - ✅ `quotient_and_mod` — □ 를 □ 로 나눈 몫/나머지 (→ `quotient_and_mod(a, b, "quotient"|"modulo")`)
-- ⬜ `calc_operation` — 삼각함수/절댓값/제곱/제곱근
+- ✅ `calc_operation` — 삼각함수/절댓값/제곱/제곱근 (→ `abs(x)` / `sqrt(x)` / `sin(x)` / `cos(x)` / `tan(x)` / `asin(x)` / `acos(x)` / `atan(x)` / `ln(x)` / `log(x)` / `exp(x)` / `pow10(x)`)
 - ⬜ `get_date` — 날짜/시/분/초
 - ⬜ `distance_something` — 두 점 사이 거리
 - ⬜ `get_user_name` — 아이디
@@ -326,7 +326,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **54/203** 매핑됨 (약 26.6%)
 
-카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 2/17, 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 11/26, 변수 7/19, 함수 7/14, 데이터분석 0/18.
+카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 2/17, 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 10/26, 변수 7/19, 함수 7/14, 데이터분석 0/18.
 
 ## 남은 작업 (TODO)
 
@@ -375,6 +375,7 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값), `set_visible_answer` (대답 보이기/숨기기)
   - [x] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
   - [x] 연산: `quotient_and_mod` (몫/나머지) → `quotient_and_mod(a, b, "quotient"|"modulo")`
+  - [x] 연산: `calc_operation` (절댓값/제곱/제곱근) → `abs(x)` / `sqrt(x)` / `sin(x)` / ... (12개 함수)
   - [x] **리터럴 정합화 (EntryJS 호환)**:
     - [x] `Angle` 리터럴 (`Block::Angle(f64)` → EntryJS `angle` 타입 ID) — 각도 슬롯
     - [x] `Color` 리터럴 (`Block::Color(String)` → EntryJS `color` 타입 ID) — 색상 슬롯
@@ -405,7 +406,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 5 + codegen 9 + compile 107 + parse 26 = 147 통과)
+cargo test                  # 전체 (entryc 5 + codegen 9 + compile 111 + parse 26 = 151 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -414,10 +415,9 @@ cargo build                 # 빌드만
 **샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 이 컴퓨터엔 없을 수 있음 — GitHub entryjs 코드 직접 참고)
 
 **다음 할 일 추천 순서**:
-1. 연산 — `calc_operation` (절댓값/제곱/제곱근) — 단항
-2. 연산 — `calc_operation` (절댓값/제곱/제곱근) — 단항
-3. 형태 — `dialog` / `dialog_time` (말하기)
-4. 변수 — 리스트 (값 추가/삭제/길이) — list kind 활용
+1. 형태 — `dialog` / `dialog_time` (말하기)
+2. 변수 — 리스트 (값 추가/삭제/길이) — list kind 활용
+3. 형태 — `change_to_some_shape` / `change_to_next_shape` (모양 변경)
 
 ## 디렉토리
 

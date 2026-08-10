@@ -7,7 +7,7 @@
 use std::vec;
 
 use crate::Error::UnmappedBlock;
-use crate::block::{Block, ParamBlock, QamMethod};
+use crate::block::{Block, MathOperation, ParamBlock, QamMethod};
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
 use crate::{Result, ir};
@@ -262,6 +262,29 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 }
             };
             Block::UnaryOp { op, expr }
+        }
+        "calc_operation" => {
+            let op = match params.get(0).and_then(Value::as_str) {
+                Some("abs") => MathOperation::Abs,
+                Some("sqrt") => MathOperation::Sqrt,
+                Some("sin") => MathOperation::Sin,
+                Some("cos") => MathOperation::Cos,
+                Some("tan") => MathOperation::Tan,
+                Some("asin") => MathOperation::Asin,
+                Some("acos") => MathOperation::Acos,
+                Some("atan") => MathOperation::Atan,
+                Some("ln") => MathOperation::Ln,
+                Some("log") => MathOperation::Log,
+                Some("exp") => MathOperation::Exp,
+                Some("pow10") => MathOperation::Pow10,
+                _ => MathOperation::Abs,
+            };
+            let expr = params
+                .get(1)
+                .map(|v| value_to_param(v, vars))
+                .transpose()?
+                .unwrap_or(ParamBlock::Null);
+            Block::CalcOperation { op, expr }
         }
         "get_project_timer_value" => Block::GetProjectTimerValue {},
         "ask_and_wait" => {
@@ -1032,6 +1055,35 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::CalcOperation { op, expr } => {
+            let fn_name = math_op_to_name(op);
+            let e = expr_from_param(expr, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: fn_name.to_string(),
+                    arity: 1,
+                },
+                vec![e],
+            )));
+            Ok(())
+        }
+    }
+}
+
+fn math_op_to_name(op: &MathOperation) -> &'static str {
+    match op {
+        MathOperation::Abs => "abs",
+        MathOperation::Sqrt => "sqrt",
+        MathOperation::Sin => "sin",
+        MathOperation::Cos => "cos",
+        MathOperation::Tan => "tan",
+        MathOperation::Asin => "asin",
+        MathOperation::Acos => "acos",
+        MathOperation::Atan => "atan",
+        MathOperation::Ln => "ln",
+        MathOperation::Log => "log",
+        MathOperation::Exp => "exp",
+        MathOperation::Pow10 => "pow10",
     }
 }
 
@@ -1178,6 +1230,17 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             Vec::new(),
         )),
+        Block::CalcOperation { op, expr } => {
+            let fn_name = math_op_to_name(op);
+            let e = expr_from_param(expr, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: fn_name.to_string(),
+                    arity: 1,
+                },
+                vec![e],
+            ))
+        }
         Block::SetVar { .. }
         | Block::ChangeVar { .. }
         | Block::ShowVar { .. }
@@ -1241,7 +1304,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 },
                 vec![av, bv, Expr::Str(mode_str.to_string())],
             ))
-        },
+        }
     }
 }
 
