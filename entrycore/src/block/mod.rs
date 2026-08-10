@@ -315,7 +315,7 @@ impl Block {
             Block::GetCanvasInputValue {  } => Category::Variable,
             Block::Show {  } => Category::Looks,
             Block::Hide {  } => Category::Looks,
-            Block::ChooseProjectTimerAction { action } => Category::Calc,
+            Block::ChooseProjectTimerAction { action: _ } => Category::Calc,
             Block::SetVisibleProjectTimer { .. } => Category::Calc
         }
     }

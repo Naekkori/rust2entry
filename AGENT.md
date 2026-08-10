@@ -372,7 +372,7 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 연산: `calc_rand` (난수), `get_project_timer_value` (타이머 값), `set_visible_project_timer` (타이머 보이기/숨기기)
     - 타이머 시작/정지/리셋 (`choose_project_timer_action`) ✅ `start_timer()` / `stop_timer()` / `reset_timer()`
   - [x] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값)
-  - [ ] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
+  - [x] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
 - [ ] 중기
   - [ ] Timer/Answer 전용 블록 신택스 (`start_timer()` 등)
   - [x] Cloud/RealTime 변수 신택스 (`let x: CloudVar = ""` / `: RealtimeVar = ""`)
@@ -390,11 +390,11 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
+- `d72e92b feat(calc): set_visible_project_timer 매핑 (show_timer/hide_timer)`
 - `3363398 feat(calc): get_project_timer_value 매핑 (타이머 값)`
 - `cdd59c5 feat(calc): calc_rand 매핑 (□ 부터 □ 사이의 무작위 수)`
 - `9266bba feat(flow): wait_until_true 매핑 + deparse variable dropdown fix`
 - `ea0278e feat(flow): wait_second 매핑 (□ 초 기다리기)`
-- `1866f25 feat(start): 시작 블록 9개 매핑 (트리거 5 + 액션 4)`
 
 **빌드/테스트 명령**:
 ```
@@ -408,9 +408,9 @@ cargo build                 # 빌드만
 
 **다음 할 일 추천 순서**:
 1. 변수 — `set_visible_answer` (대답 보이기/숨기기) — `set_visible_project_timer` 와 같은 패턴
-2. 형태 — `show` / `hide` (오브젝트 보이기/숨기기) — 가장 흔함
-3. 연산 — `quotient_and_mod` (몫/나머지) — calc_basic 변형
-4. 연산 — `calc_operation` (절댓값/제곱/제곱근) — 단항
+2. 연산 — `quotient_and_mod` (몫/나머지) — calc_basic 변형
+3. 연산 — `calc_operation` (절댓값/제곱/제곱근) — 단항
+4. 형태 — `dialog` / `dialog_time` (말하기)
 
 ## 디렉토리
 
