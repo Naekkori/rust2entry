@@ -77,6 +77,9 @@ pub enum Block {
     SetVisibleProjectTimer{
         value:bool
     },
+    SetVisibleAnswer {
+        value:bool
+    },
 
     // ── 흐름 (제어) ──
     If {
@@ -271,6 +274,7 @@ impl Block {
             Block::Hide {  } => "hide",
             Block::ChooseProjectTimerAction { .. } => "choose_project_timer_action",
             Block::SetVisibleProjectTimer { .. } => "set_visible_project_timer",
+            Block::SetVisibleAnswer { .. } => "set_visible_answer",
         }
     }
 
@@ -315,8 +319,9 @@ impl Block {
             Block::GetCanvasInputValue {  } => Category::Variable,
             Block::Show {  } => Category::Looks,
             Block::Hide {  } => Category::Looks,
-            Block::ChooseProjectTimerAction { action: _ } => Category::Calc,
-            Block::SetVisibleProjectTimer { .. } => Category::Calc
+            Block::ChooseProjectTimerAction { .. } => Category::Calc,
+            Block::SetVisibleProjectTimer { .. } => Category::Calc,
+            Block::SetVisibleAnswer { .. } => Category::Variable,
         }
     }
 }
@@ -411,6 +416,12 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "reset_timer" {
                         return Ok(Block::ChooseProjectTimerAction { action: "reset".into() });
+                    }
+                    if fref.name == "show_answer" {
+                        return Ok(Block::SetVisibleAnswer { value: true });
+                    }
+                    if fref.name == "hide_answer" {
+                        return Ok(Block::SetVisibleAnswer { value: false });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -730,6 +741,10 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             None
         ),
         Block::SetVisibleProjectTimer { value } => (
+            vec![Value::Bool(*value), Value::Null],
+            None
+        ),
+        Block::SetVisibleAnswer { value } => (
             vec![Value::Bool(*value), Value::Null],
             None
         ),

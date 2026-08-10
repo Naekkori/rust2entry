@@ -279,7 +279,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `show_variable` / `hide_variable` → `ShowVar`/`HideVar`
 - ✅ `ask_and_wait` — □ 을(를) 묻고 대답 기다리기 (→ `ask_and_wait("질문")`)
 - ✅ `get_canvas_input_value` — 대답 값 (→ `get_canvas_input_value()`)
-- ⬜ `set_visible_answer` — 대답 보이기/숨기기
+- ✅ `set_visible_answer` — 대답 보이기/숨기기 (→ `show_answer()` / `hide_answer()`)
 - ⬜ `value_of_index_from_list` — 리스트 N번째 값
 - ⬜ `add_value_to_list` — 항목 추가
 - ⬜ `remove_value_from_list` — N번째 삭제
@@ -371,7 +371,7 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 흐름: `repeat_while_true` 별칭 (Rust native `while` 키워드로 커버 — `f(args) { body }` 신택스는 syn 거부)
   - [x] 연산: `calc_rand` (난수), `get_project_timer_value` (타이머 값), `set_visible_project_timer` (타이머 보이기/숨기기)
     - 타이머 시작/정지/리셋 (`choose_project_timer_action`) ✅ `start_timer()` / `stop_timer()` / `reset_timer()`
-  - [x] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값)
+  - [x] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값), `set_visible_answer` (대답 보이기/숨기기)
   - [x] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
 - [ ] 중기
   - [ ] Timer/Answer 전용 블록 신택스 (`start_timer()` 등)
@@ -390,15 +390,15 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
+- `6107c53 docs: AGENT.md 동기화 (show/hide 완료, 최근 커밋, 추천 순서)`
 - `d72e92b feat(calc): set_visible_project_timer 매핑 (show_timer/hide_timer)`
 - `3363398 feat(calc): get_project_timer_value 매핑 (타이머 값)`
 - `cdd59c5 feat(calc): calc_rand 매핑 (□ 부터 □ 사이의 무작위 수)`
 - `9266bba feat(flow): wait_until_true 매핑 + deparse variable dropdown fix`
-- `ea0278e feat(flow): wait_second 매핑 (□ 초 기다리기)`
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 5 + codegen 9 + compile 101 + parse 26 = 141 통과)
+cargo test                  # 전체 (entryc 5 + codegen 9 + compile 104 + parse 26 = 144 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -407,10 +407,10 @@ cargo build                 # 빌드만
 **샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 이 컴퓨터엔 없을 수 있음 — GitHub entryjs 코드 직접 참고)
 
 **다음 할 일 추천 순서**:
-1. 변수 — `set_visible_answer` (대답 보이기/숨기기) — `set_visible_project_timer` 와 같은 패턴
-2. 연산 — `quotient_and_mod` (몫/나머지) — calc_basic 변형
-3. 연산 — `calc_operation` (절댓값/제곱/제곱근) — 단항
-4. 형태 — `dialog` / `dialog_time` (말하기)
+1. 연산 — `quotient_and_mod` (몫/나머지) — calc_basic 변형
+2. 연산 — `calc_operation` (절댓값/제곱/제곱근) — 단항
+3. 형태 — `dialog` / `dialog_time` (말하기)
+4. 변수 — 리스트 (값 추가/삭제/길이) — list kind 활용
 
 ## 디렉토리
 

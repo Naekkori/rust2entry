@@ -247,6 +247,10 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let value = params.get(0).and_then(Value::as_bool).unwrap_or(true);
             Block::SetVisibleProjectTimer { value }
         }
+        "set_visible_answer" => {
+            let value = params.get(0).and_then(Value::as_bool).unwrap_or(true);
+            Block::SetVisibleAnswer { value }
+        }
         "calc_unary" => {
             let expr = param_at(&params, 0, vars)?;
             let op_str = params.get(1).and_then(Value::as_str).unwrap_or("");
@@ -959,6 +963,19 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             ));
             Ok(())
         },
+        Block::SetVisibleAnswer { value }=>{
+            let name = if *value { "show_answer" } else { "hide_answer"};
+            stmts.push(Stmt::Expr(
+                Expr::Call(
+                    ir::FuncRef {
+                        name: name.to_string(),
+                        arity: 0
+                    },
+                    Vec::new()
+                ),
+            ));
+            Ok(())
+        }
     }
 }
 
@@ -1152,6 +1169,9 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ))
         },
         Block::SetVisibleProjectTimer { value } => {
+            Ok(Expr::Bool(*value))
+        },
+        Block::SetVisibleAnswer { value } => {
             Ok(Expr::Bool(*value))
         },
     }
