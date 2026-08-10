@@ -1,146 +1,111 @@
 # Rust2Entry
-러스트 코드를 엔트리로 컴파일 합니다.
 
-## Editor 통합 (로드맵)
+Rust 소스를 Entry 프로젝트 파일(`.ent`)로 변환하고, Entry 프로젝트 파일을 Rust 소스로 추출하는 도구입니다.
 
-러스트 소스 자체는 `rust-analyzer`가 완전 지원. 본 프로젝트의 editor 통합은 **`.ent` 출력 + 매핑 진단** 두 축.
+## 현재 기능
 
-- **v0.1** — `cargo run --bin entryc -- sample.rs -o sample.ent`로 수동 빌드. EntryJS에 드래그&드롭으로 확인.
-- **v0.2** — `build.rs` 훅으로 `cargo build` 중 자동 `.ent` 생성. `target/debug/sample.ent`.
-- **v0.3+** — VSCode 확장:
-  - `.rs` 저장 시 `.ent` 미리보기/JSON 다이프
-  - 매핑 안 되는 Rust 구문 인레이 진단 (e.g. `async {}` → "엔트리에 async 블록 없음")
-  - 가능하면 `entryc --lsp`로 사용자 LSP 서버 모드 지원
+- `entrycore`: Rust 소스 파싱, IR 변환, Entry 블록 변환
+- `entryc build`: 하나 이상의 `.rs` 파일을 `.ent`로 빌드
+- `entryc extract`: `.ent`의 오브젝트별 스크립트를 `.rs` 파일로 추출
+- 기존 `.ent` 템플릿 사용
+- Rust 파일 이름과 Entry 오브젝트 이름을 대소문자 구분 없이 매칭
+- 매칭되지 않은 Rust 파일을 새 sprite 오브젝트로 추가
+- Rust 변수의 Entry 프로젝트 변수 생성 및 템플릿 변수 병합
+- 변환할 수 없는 블록을 빌드 경고로 표시
+- 추출할 수 없는 블록을 Rust 파일의 raw JSON 주석으로 보존
 
-핵심: **Rust 코드가 우선**, `.ent`는 부산물. 사용자는 Rust LSP만으로 Rust 기능 100% 사용 가능하고, `entryc`는 변환 파이프라인 역할만.
+지원되는 Rust 문법과 Entry 블록은 구현 범위에 한정됩니다. 지원되지 않는 문법은 변환되지 않습니다.
 
-## 스킴구조 (EntryJS 에서 퍼옴)
-```javascript
-/**
- * MongoDB 스키마 예제.
- */
-var ProjectSchema = new Schema({
-    speed: { // 초당 실행 프레임수
-        type: Number,
-        default: 60
-    },
-    objects: [ // 오브젝트 목록
-        {
-            id: String, // 오브젝트 ID. Unique.
-            name: String, // 오브젝트(또는 글상자 제목) 이름.
-            text: String, // 글상자 내용. (objectType이 textBox일 경우)
-            order: Number, // TODO
-            objectType: String, // 오브젝트 유형. (sprite, textBox)
-            scene: String, // 장면 ID. Unique.
-            active: { // 오브젝트 활성화 여부
-                type: Boolean,
-                default: true
-            },
-            lock: { // 오브젝트 잠금 여부
-                type: Boolean,
-                default: false
-            },
-            rotateMethod: String, // 회전방식. (free, vertical, none)
-            entity: { // 엔티티 정보
-                rotation: Number, // 회전
-                direction: Number, // 방향
-                x: Number, // x 좌표
-                y: Number, // y 좌표
-                regX: Number, // 가로 중심점
-                regY: Number, // 세로 중심점
-                scaleX: Number, // 가로 배율
-                scaleY: Number, // 세로 배율
-                width: Number, // 넓이
-                height: Number, // 높이
-                imageIndex: Number, // TODO
-                visible: Boolean, // 화면표시 여부
-                colour: String, // 글상자 폰트색깔
-                font: String, // 글상자 폰트
-                bgColor: String, // 글상자 배경색깔
-                textAlign: Number, // 글상자 정렬
-                lineBreak: Boolean, // 글상자 줄바꿈 여부
-                underLine: Boolean, // 글상자
-                strike: Boolean // 글상자 밑줄
-            },
-            script: String, // 블록 스크립트
-            sprite: { // 스프라이트 정보
-                name: String, // 스프라이트 이름
-                pictures: [{ // 모양 목록
-                    id: String, // 모양 ID. Unique/
-                    name: String, // 모양 이름
-                    fileurl: String, // 모양 이미지
-                    dimension: { // 모양 크기
-                        width: Number,
-                        height: Number,
-                        scaleX: Number,
-                        scaleY: Number
-                    },
-                    scale: { // 확대, 축소 비율(100% 기준)
-                        type: Number,
-                        default: 100
-                    }
-                }],
-                sounds: [{ // 소리 목록
-                    id: String, // 소리 ID. Unique.
-                    name: String, // 이름
-                    fileurl: String, // 사운드 파일 URL
-                    duration: Number // 재생시간. (초단위)
-                }]
-            },
-            selectedPictureId: String, // 현재 활성화된 모양의 ID
-            selectedSoundId: String // 현재 활성화된 소리의 ID
+## 빌드
 
-        }
-    ],
-    variables: [ // 프로젝트 변수
-        {
-            name: String, // 변수명
-            variableType: String, // 변수형. (일반변수: variable, 타이머: timer, 대답: answer, 슬라이드: slide, 리스트: list)
-            id: String, // 변수ID. Unique.
-            value: String, // 변수 값
-            minValue: Number, // 최소값
-            maxValue: Number, // 최대값
-            visible: Boolean, // 캔버스에 표시여부
-            x: Number, // 컨버스 위치 x좌표
-            y: Number, // 캔버스 위치 y좌표
-            width: Number, // 넓이
-            height: Number, // 높이
-            isCloud: { // 공유 변수 여부
-                type: Boolean,
-                default: false
-            },
-            object: { // 지역변수일 경우 참조하는 오브젝트 ID
-                type: String,
-                default: null
-            },
-            array: [{ // 변수형이 list일 경우 값 목록
-                data: String // 값 데이터
-            }]
-        }
-    ],
-    messages: [ // 신호 목록
-        {
-            name: String, // 신호명
-            id: String // 신호 ID. Unique.
-        }
-    ],
-    functions: [ // 함수 목록
-        {
-            id: String, // 함수 ID. Unique.
-            block: String, // 함수 블록 정보
-            content: String, // 함수 실행 정보
-                id: String,
-                name: String
-            }]
-        }
-    ],
-    scenes: { // 장면 정보
-        type: [ // 장면 목록
-            {
-                name: String, // 장면 이름
-                id: String // 장면 ID. Unique.
-            }
-        ]
-    },
-});
+```text
+cargo build --workspace
 ```
+
+## 사용법
+
+### Rust에서 Entry 프로젝트 빌드
+
+```text
+cargo run --bin entryc -- build --rs sample.rs --out sample.ent
+```
+
+여러 Rust 파일을 입력할 수 있습니다.
+
+```text
+cargo run --bin entryc -- build --rs player.rs --rs enemy.rs --out game.ent
+```
+
+템플릿과 옵션을 함께 사용할 수 있습니다.
+
+```text
+cargo run --bin entryc -- build --rs player.rs --ent-template base.ent --out game.ent
+cargo run --bin entryc -- build --rs player.rs --out game.ent --scene scene-id
+cargo run --bin entryc -- build --rs player.rs --out game.ent --replace-variables
+```
+
+옵션:
+
+| 옵션 | 설명 |
+|---|---|
+| `--rs FILE` | 입력 Rust 파일. 한 번 이상 지정해야 하며 반복할 수 있습니다. |
+| `--ent-template FILE` | 기존 Entry 프로젝트를 베이스로 사용합니다. 생략하면 빈 프로젝트에서 시작합니다. |
+| `--out FILE` | 출력 `.ent` 경로입니다. |
+| `--scene ID` | 새 오브젝트에 적용할 scene ID입니다. 생략하면 템플릿의 첫 sprite scene ID를 사용합니다. |
+| `--replace-variables` | 템플릿 변수를 유지하지 않고 Rust에서 생성한 변수로 교체합니다. 기본값은 ID 기준 병합입니다. |
+
+### Entry 프로젝트에서 Rust 추출
+
+```text
+cargo run --bin entryc -- extract --ent sample.ent
+```
+
+출력 폴더를 지정할 수 있습니다.
+
+```text
+cargo run --bin entryc -- extract --ent sample.ent --out extracted
+```
+
+기본 출력 폴더는 `.ent` 파일 위치의 프로젝트 이름 폴더입니다. 추출된 Rust 파일에는 `entryc` 생성기 헤더가 포함됩니다.
+
+## Rust 입력 규칙
+
+- `when_`으로 시작하는 함수는 Entry 트리거로 변환됩니다.
+- 그 외 함수는 Entry 함수로 변환됩니다.
+- top-level `static`은 전역 변수로 변환됩니다.
+- `const`와 지원되지 않는 top-level item은 변환되지 않습니다.
+- 변환할 수 없는 Rust 구문은 오류가 될 수 있습니다.
+- Entry 블록으로 표현할 수 없는 일부 IR은 경고와 함께 변환에서 제외될 수 있습니다.
+
+## 오브젝트 매칭
+
+`build`는 Rust 파일 stem과 Entry 오브젝트 `name`을 비교합니다.
+
+- 이름이 일치하면 기존 오브젝트의 `script`를 갱신합니다.
+- 일치하지 않으면 새 sprite 오브젝트를 추가합니다.
+- 기존 sprite 메타데이터가 있으면 새 오브젝트가 이를 복사합니다.
+- `project.scripts`는 템플릿 값을 유지합니다.
+- 실제 오브젝트 스크립트는 각 오브젝트의 `script` 필드에 저장됩니다.
+
+## 변수
+
+- 기본 동작은 템플릿 변수와 Rust 변수를 ID 기준으로 병합합니다.
+- 같은 ID의 템플릿 변수는 Rust 변수로 교체됩니다.
+- `--replace-variables` 사용 시 템플릿 변수는 제거됩니다.
+- `static` 변수는 전역 변수로 생성됩니다.
+- `CloudVar`, `cloud` 타입은 cloud 변수로 인식됩니다.
+- `RealtimeVar`, `RealTimeVar`, `realtime`, `realTime` 타입은 realtime 변수로 인식됩니다.
+
+## 테스트
+
+```text
+cargo test --workspace
+```
+
+## 관련 자료
+
+- `entryjs-basic-blocks-v2.md`: EntryJS 기본 블록 조사 자료
+- `entrycore/src/parse`: Rust 소스 파서
+- `entrycore/src/codegen`: Entry 프로젝트 데이터 생성기
+- `entrycore/src/deparse.rs`: Entry 블록에서 Rust 소스 추출기
+- `entryc/src/main.rs`: `entryc` CLI
