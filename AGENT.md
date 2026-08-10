@@ -16,7 +16,7 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
 | 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 5/5 |
-| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 101/101 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 107/107 |
 
 ### lib::compile 세부 동작 (현재)
 
@@ -24,8 +24,8 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 - **object 매칭**: rs stem ↔ `objects[].name` 대소문자 무시. 매칭된 object 의 `script` 를 thread 배열로 패치.
 - **trigger 스레드**: 각 `TriggerDef` 별로 `[when_run (또는 when_click/when_clone_start/when_message_cast), ...body_blocks]`. 여러 트리거 → thread 여러 개.
 - **helper FuncDef**: object script 가 아니라 `project.functions` 로 emit. 각 항목 = `{id: fn_<hash>, name, content:[function_create_head], param:[{name}]}`. EntryJS `Entry.Code` 호환을 위해 `content` 는 스레드 배열 (`[[block,...],...]`) 이며 thread[0] 은 `function_create` 헤드 블록. 헤드의 `statements[0]` 에 body.
-- **function param type 신택스**: 함수 정의 시 `fn f(a: &str, b: BoolParam)` 형태로 param 타입 지정. `StringParam` (default) 또는 `BoolParam`. function_create head 의 `params[0]` 에 `function_field_label` + 각 param 마다 `function_field_string` / `function_field_boolean` chain 으로 emit (EntryJS 가 chain 을 읽어 동적 `func_<id>` 호출 블록 schema 생성).
-- **function_call 재작성**: 빌드 시 helper 의 `name -> id` 맵과 `(id, param_names)` 를 만들고 object.script 의 모든 `function_call` 블록을 `func_<id>` 동적 호출 블록으로 재작성. 호출부 params 슬롯은 정의된 param 개수에 맞춰 emit (부족분 null, 초과분 무시). EntryJS `Func.registerFunction` 가 사용자 정의 함수를 `func_<id>` 타입으로 동적 등록. 미정의 호출은 stderr 경고 + 원본 유지.
+- **function param type 신택스**: 함수 정의 시 `fn f(a: &str, b: BoolParam)` 형태로 param 타입 지정. `StringParam` (default) 또는 `BoolParam`. function_create head 의 `params[0]` 에 `function_field_label` (EntryJS `params[0]` = `{type:'TextInput', value:name}` 객체 — `script.getField('NAME')` 경로) + 각 param 마다 `function_field_string` / `function_field_boolean` chain 으로 emit (EntryJS 가 chain 을 읽어 동적 `func_<id>` 호출 블록 schema 생성).
+- **function_call 재작성**: 빌드 시 helper 의 `name -> Vec<(id, param_names)>` (같은 이름 + 다른 arity 가 공존할 수 있어 arity 별로 누적) �을 만들고 object.script 의 모든 `function_call` 블록을 `func_<id>` 동적 호출 블록으로 재작성. 매칭은 `args.len()` 으로 정확 매칭 우선, 실패 시 가장 가까운 arity fallback. 호출부 params 슬롯은 정의된 param 개수에 맞춰 emit (부족분 null, 초과분 무시). EntryJS `Func.registerFunction` 가 사용자 정의 함수를 `func_<id>` 타입으로 동적 등록. 미정의 호출은 stderr 경고 + 원본 유지.
 - **function 이름 중복**: base `functions[].name` 과 충돌 시 `_2`, `_3`, ... suffix (EntryJS 가 name 으로 호출 매칭하므로 중복 방지).
 - **빈 배열 항상 emit**: helper/messages 가 없어도 `project.functions = []`, `project.messages = []` emit (EntryJS 가 키 부재 시 안전하지만 명시적 빈 배열이 안전).
 - **when_message 트리거**: 메시지 이름 수집 → `project.messages` 에 `{id: <name>, name}` emit (id = name, EntryJS 가 name 으로 매칭).
@@ -50,7 +50,6 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
   - 변수: `SetVar`/`ChangeVar`/`GetVar`/`ShowVar`/`HideVar`
   - 흐름: `If`/`IfElse`/`While`/`Repeat`/`Forever`/`Break`/`Continue`/`StopAll`
   - 산술: `CalcBinOp`/`Compare`/`BoolOp`/`UnaryOp`
-  - 리터럴: `Number`/`Text`/`Boolean`
   - 문자열: `StringConcat`/`StringIncludes`
   - 함수: `FuncCall`/`FuncDef`/`Return`
 - `codegen` — `Block` → `serde_json::Value`
@@ -246,6 +245,8 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `number` → `Number` 리터럴
 - ✅ `text` → `Text` 리터럴
 - ✅ `boolean` → `Boolean` 리터럴
+- ✅ `angle` → `Angle` 리터럴 (각도 슬롯)
+- ✅ `color` → `Color` 리터럴 (색상 슬롯)
 - ✅ `calc_rand` — □ 부터 □ 사이의 무작위 수 (→ `calc_rand(min, max)`)
 - ✅ `get_project_timer_value` — 타이머 값 (→ `get_project_timer_value()`)
 - ✅ `choose_project_timer_action` — 타이머 시작/정지/리셋 (→ `start_timer()` / `stop_timer()` / `reset_timer()`)
@@ -323,9 +324,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**52/203** 매핑됨 (약 25.6%)
+**54/203** 매핑됨 (약 26.6%)
 
-카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 2/17, 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 9/26, 변수 7/19, 함수 7/14, 데이터분석 0/18.
+카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 2/17, 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 11/26, 변수 7/19, 함수 7/14, 데이터분석 0/18.
 
 ## 남은 작업 (TODO)
 
@@ -374,6 +375,11 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값), `set_visible_answer` (대답 보이기/숨기기)
   - [x] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
   - [x] 연산: `quotient_and_mod` (몫/나머지) → `quotient_and_mod(a, b, "quotient"|"modulo")`
+  - [x] **리터럴 정합화 (EntryJS 호환)**:
+    - [x] `Angle` 리터럴 (`Block::Angle(f64)` → EntryJS `angle` 타입 ID) — 각도 슬롯
+    - [x] `Color` 리터럴 (`Block::Color(String)` → EntryJS `color` 타입 ID) — 색상 슬롯
+    - [x] `function_field_label.params[0]` = `{type:"TextInput", value:name}` 객체로 변경 (EntryJS `script.getField('NAME')` 경로, raw string 직접 박으면 필드 lookup 실패)
+    - [x] 같은 이름 + 다른 arity 함수 정의 → 호출 사이트가 `args.len()` 으로 매칭되어 각각 정확한 `func_<id>` 로 라우팅 (정확 매칭 우선, 실패 시 가장 가까운 arity fallback)
 - [ ] 중기
   - [ ] Timer/Answer 전용 블록 신택스 (`start_timer()` 등)
   - [x] Cloud/RealTime 변수 신택스 (`let x: CloudVar = ""` / `: RealtimeVar = ""`)
@@ -391,11 +397,11 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
+- (이번 커밋 — 직전) `feat(literal): Angle/Color 리터럴 + function_field_label TextInput 정합화 + 같은 이름+다른 arity 라우팅`
 - `6107c53 docs: AGENT.md 동기화 (show/hide 완료, 최근 커밋, 추천 순서)`
 - `d72e92b feat(calc): set_visible_project_timer 매핑 (show_timer/hide_timer)`
 - `3363398 feat(calc): get_project_timer_value 매핑 (타이머 값)`
 - `cdd59c5 feat(calc): calc_rand 매핑 (□ 부터 □ 사이의 무작위 수)`
-- `9266bba feat(flow): wait_until_true 매핑 + deparse variable dropdown fix`
 
 **빌드/테스트 명령**:
 ```

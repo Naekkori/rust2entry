@@ -302,11 +302,13 @@ pub fn compile_with_options(
             .cloned()
             .unwrap_or_default();
         let mut merged_funcs: Vec<Value> = base_funcs;
-        // helper 함수 이름 -> (id, param_names). function_call 블록을
-        // `func_<id>` 동적 블록으로 재작성할 때 사용. 호출부 params 슬롯을
-        // 정의된 param 개수에 맞춰 emit 하기 위해 param_names 도 같이 보관.
-        let mut fn_name_to_defs: std::collections::HashMap<String, (String, Vec<String>)> =
-            std::collections::HashMap::new();
+        // helper 함수 이름 -> [(id, param_names)]. 같은 이름 + 다른 arity 가
+        // 공존할 수 있으므로 arity 별로 보관. 호출 사이트에서 args.len() 으로
+        // 매칭해 정확한 id 로 재작성한다.
+        let mut fn_name_to_defs: std::collections::HashMap<
+            String,
+            Vec<(String, Vec<String>)>,
+        > = std::collections::HashMap::new();
         // 같은 이름의 base function 이 이미 있으면 두 번째 항목부터
         // 이름에 suffix 를 붙여 EntryJS 가 어느 것을 호출할지 모호한 상태를 방지.
         let mut existing_names: std::collections::HashSet<String> = merged_funcs
@@ -352,9 +354,13 @@ pub fn compile_with_options(
                 "params": [param_chain],
                 "statements": [Value::Array(h.body.clone())],
             });
-            // fn_name_to_defs 에 param 이름들 보관 (arity 매칭용).
+            // fn_name_to_defs 에 (id, param_names) 누적. 같은 이름 + 다른 arity
+            // 가 둘 이상 있어도 모두 보관. 호출 사이트는 args.len() 으로 매칭.
             let param_names: Vec<String> = h.params.iter().map(|(n, _)| n.clone()).collect();
-            fn_name_to_defs.insert(h.name.clone(), (id.clone(), param_names));
+            fn_name_to_defs
+                .entry(h.name.clone())
+                .or_default()
+                .push((id.clone(), param_names));
             merged_funcs.push(json!({
                 "id": id,
                 "name": emit_name,
@@ -657,16 +663,21 @@ fn build_function_param_chain(
     }
 
     // label head + field chain
-    // function_field_label.params[0] = TextInput, params[1] = Output → 첫 field
+    // function_field_label.params[0] = TextInput 필드 객체 (EntryJS script.getField('NAME') 경로).
+    // params[1] = Output → 첫 function_field_* 또는 null.
+    let label_params_0 = json!({
+        "type": "TextInput",
+        "value": name,
+    });
     let label_head = if let Some(first_field) = field_blocks.first().cloned() {
         json!({
             "type": "function_field_label",
-            "params": [Value::String(name.to_string()), first_field],
+            "params": [label_params_0, first_field],
         })
     } else {
         json!({
             "type": "function_field_label",
-            "params": [Value::String(name.to_string()), Value::Null],
+            "params": [label_params_0, Value::Null],
         })
     };
 
@@ -682,7 +693,7 @@ fn build_function_param_chain(
 /// 그대로 둔다 (EntryJS 가 미정의 함수 호출 시 경고 처리).
 fn rewrite_function_calls(
     project: &mut Value,
-    fn_name_to_defs: &std::collections::HashMap<String, (String, Vec<String>)>,
+    fn_name_to_defs: &std::collections::HashMap<String, Vec<(String, Vec<String>)>>,
 ) {
     let objects = match project.get_mut("objects").and_then(|v| v.as_array_mut()) {
         Some(a) => a,
@@ -718,7 +729,7 @@ fn rewrite_function_calls(
 /// 정의된 param 개수만큼 params 슬롯 emit — 부족분 null.
 fn rewrite_calls_in_value(
     v: &mut Value,
-    fn_name_to_defs: &std::collections::HashMap<String, (String, Vec<String>)>,
+    fn_name_to_defs: &std::collections::HashMap<String, Vec<(String, Vec<String>)>>,
 ) {
     match v {
         Value::Array(arr) => arr
@@ -742,18 +753,37 @@ fn rewrite_calls_in_value(
                     .cloned()
                     .unwrap_or_default();
                 if let Some(name) = name {
-                    if let Some((id, param_names)) = fn_name_to_defs.get(&name) {
-                        obj["type"] = Value::String(format!("func_{id}"));
-                        // param 개수만큼 params 슬롯 emit.
-                        // 부족분 null, args 초과분 무시.
-                        // args 는 사용자 식 그대로 전달 (EntryJS 가 평가 시
-                        // type 강제 — function_param_string/boolean 매핑은
-                        // 동적 schema 가 처리).
-                        let mut new_params: Vec<Value> = Vec::with_capacity(param_names.len());
-                        for i in 0..param_names.len() {
-                            new_params.push(raw_args.get(i).cloned().unwrap_or(Value::Null));
+                    // 같은 이름 + 다른 arity 가 둘 이상 있을 수 있으므로 args.len()
+                    // 으로 매칭. 정확히 일치하는 게 없으면 가장 가까운 arity 로
+                    // fallback (params 슬롯을 정의된 param 개수에 맞춰 emit 하기
+                    // 위함).
+                    if let Some(defs) = fn_name_to_defs.get(&name) {
+                        let matched = defs
+                            .iter()
+                            .find(|(_, pn)| pn.len() == raw_args.len())
+                            .or_else(|| {
+                                // 정확 매칭 실패 시 가장 가까운 arity 선택 (사용자
+                                // 가 args 를 잘못 줬을 때 silent drop 방지).
+                                defs.iter().min_by_key(|(_, pn)| {
+                                    (pn.len() as isize - raw_args.len() as isize).abs()
+                                })
+                            });
+                        if let Some((id, param_names)) = matched {
+                            obj["type"] = Value::String(format!("func_{id}"));
+                            // param 개수만큼 params 슬롯 emit.
+                            // 부족분 null, args 초과분 무시.
+                            let mut new_params: Vec<Value> =
+                                Vec::with_capacity(param_names.len());
+                            for i in 0..param_names.len() {
+                                new_params
+                                    .push(raw_args.get(i).cloned().unwrap_or(Value::Null));
+                            }
+                            obj["params"] = Value::Array(new_params);
+                        } else {
+                            eprintln!(
+                                "warning: function_call to undefined function: {name}"
+                            );
                         }
-                        obj["params"] = Value::Array(new_params);
                     } else {
                         // 미정의 함수 호출은 stderr 경고.
                         eprintln!("warning: function_call to undefined function: {name}");

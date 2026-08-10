@@ -325,6 +325,24 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 .ok_or_else(|| crate::Error::Parse("boolean param".into()))?;
             Block::Boolean(b)
         }
+        "angle" => {
+            let n = params
+                .get(0)
+                .and_then(|v| match v {
+                    Value::Number(n) => n.as_f64(),
+                    Value::String(s) => s.parse::<f64>().ok(),
+                    _ => None,
+                })
+                .ok_or_else(|| crate::Error::Parse("angle param".into()))?;
+            Block::Angle(n)
+        }
+        "color" => {
+            let s = params
+                .get(0)
+                .and_then(Value::as_str)
+                .ok_or_else(|| crate::Error::Parse("color param".into()))?;
+            Block::Color(s.to_string())
+        }
 
         // 문자열
         "string_concat" => {
@@ -804,7 +822,11 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             stmts.push(Stmt::Expr(Expr::UnaryOp(*op, Box::new(e))));
             Ok(())
         }
-        Block::Number(_) | Block::Text(_) | Block::Boolean(_) => Ok(()),
+        Block::Number(_)
+        | Block::Text(_)
+        | Block::Boolean(_)
+        | Block::Angle(_)
+        | Block::Color(_) => Ok(()),
         Block::StringConcat { parts } => {
             let mut args = Vec::new();
             for p in parts {
@@ -1048,6 +1070,8 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             }
         }
         Block::Boolean(b) => Ok(Expr::Bool(*b)),
+        Block::Angle(n) => Ok(Expr::Float(*n)),
+        Block::Color(s) => Ok(Expr::Str(s.clone())),
         Block::GetVar { variable } => Ok(Expr::Var(variable.clone())),
         Block::CalcBinOp { op, lhs, rhs } => {
             let l = expr_from_param(lhs, vars)?;

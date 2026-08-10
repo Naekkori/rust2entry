@@ -7,7 +7,6 @@ pub mod category;
 pub mod registry;
 
 use crate::Error::UnmappedBlock;
-use crate::block::QamMethod::Quotient;
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};
 
@@ -159,7 +158,8 @@ pub enum Block {
     Number(f64),
     Text(String),
     Boolean(bool),
-
+    Angle(f64),
+    Color(String),
     // ── 문자열 ──
     StringConcat {
         parts: Vec<ParamBlock>,
@@ -270,6 +270,8 @@ impl Block {
             Block::Number(_) => "number",
             Block::Text(_) => "text",
             Block::Boolean(_) => "boolean",
+            Block::Angle(_) => "angle",
+            Block::Color(_) => "color",
             Block::StringConcat { .. } => "string_concat",
             Block::StringIncludes { .. } => "string_index_of",
             Block::FuncCall { .. } => "function_call",
@@ -318,7 +320,11 @@ impl Block {
             | Block::Compare { .. }
             | Block::BoolOp { .. }
             | Block::UnaryOp { .. } => Category::Calc,
-            Block::Number(_) | Block::Text(_) | Block::Boolean(_) => Category::Calc,
+            Block::Number(_)
+            | Block::Text(_)
+            | Block::Boolean(_)
+            | Block::Angle(_)
+            | Block::Color(_) => Category::Calc,
             Block::CalcRand { .. } => Category::Calc,
             Block::StringConcat { .. } | Block::StringIncludes { .. } => Category::String,
             Block::FuncCall { .. } | Block::FuncDef { .. } | Block::Return { .. } => {
@@ -703,6 +709,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::Number(n) => (vec![Value::from(*n)], None),
         Block::Text(s) => (vec![Value::String(s.clone())], None),
         Block::Boolean(b) => (vec![Value::Bool(*b)], None),
+        Block::Angle(n) => (vec![Value::from(*n)], None),
+        Block::Color(s) => (vec![Value::String(s.clone())], None),
         Block::StringConcat { parts } => (parts.iter().map(param_to_value).collect(), None),
         Block::StringIncludes { haystack, needle } => {
             (vec![param_to_value(haystack), param_to_value(needle)], None)

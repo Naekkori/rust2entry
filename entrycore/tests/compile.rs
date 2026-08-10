@@ -1299,11 +1299,72 @@ fn compile_helpers_go_to_project_functions() {
     assert_eq!(head["type"], "function_create");
     let label = head["params"][0].as_object().expect("label block");
     assert_eq!(label["type"], "function_field_label");
-    assert_eq!(label["params"][0].as_str(), Some("helper"));
+    // EntryJS function_field_label.params[0] = TextInput 필드 객체.
+    let label_field = label["params"][0].as_object().expect("label textinput field");
+    assert_eq!(label_field["type"], "TextInput");
+    assert_eq!(label_field["value"].as_str(), Some("helper"));
     let head_body = head["statements"][0].as_array().expect("head body");
     assert_eq!(head_body.len(), 1);
     assert_eq!(head_body[0]["type"], "set_variable");
     assert_eq!(head_body[0]["params"][0]["name"], "y");
+}
+
+/// 같은 이름 + 다른 arity 함수 정의 → 호출은 args 개수로 매칭되어
+/// 각각 올바른 id 로 재작성되어야.
+#[test]
+fn compile_function_same_name_diff_arity_routes_by_arity() {
+    let src = r#"
+        fn when_start() {
+            greet("a");
+            greet("a", "b");
+        }
+
+        fn greet(x: String) {
+            let s = x;
+        }
+
+        fn greet(x: String, y: String) {
+            let s = x;
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    // 호출 블록 두 개가 서로 다른 func_<id> 로 재작성돼야.
+    let objects = v["objects"].as_array().unwrap();
+    let mut found_ids: Vec<String> = Vec::new();
+    walk_call_ids(&objects[0]["script"], &mut found_ids);
+    assert_eq!(found_ids.len(), 2);
+    assert_ne!(
+        found_ids[0], found_ids[1],
+        "arity 가 다른 호출은 서로 다른 func id 로 가야 함"
+    );
+}
+
+/// 호출 트리에서 func_<id> 타입의 `type` 값만 수집.
+/// script 가 JSON 문자열이면 파싱해서 walk.
+fn walk_call_ids(v: &Value, out: &mut Vec<String>) {
+    if v.is_string() {
+        if let Ok(parsed) = serde_json::from_str::<Value>(v.as_str().unwrap()) {
+            walk_call_ids(&parsed, out);
+        }
+        return;
+    }
+    match v {
+        Value::Array(arr) => arr.iter().for_each(|x| walk_call_ids(x, out)),
+        Value::Object(obj) => {
+            if let Some(t) = obj.get("type").and_then(|x| x.as_str()) {
+                if let Some(rest) = t.strip_prefix("func_") {
+                    out.push(rest.to_string());
+                }
+            }
+            if let Some(arr) = obj.get("params").and_then(|x| x.as_array()) {
+                arr.iter().for_each(|p| walk_call_ids(p, out));
+            }
+            if let Some(arr) = obj.get("statements").and_then(|x| x.as_array()) {
+                arr.iter().for_each(|p| walk_call_ids(p, out));
+            }
+        }
+        _ => {}
+    }
 }
 
 /// CompileOptions.default_scene 으로 가짜 object 의 scene 지정.
