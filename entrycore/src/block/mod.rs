@@ -7,6 +7,7 @@ pub mod category;
 pub mod registry;
 
 use crate::Error::UnmappedBlock;
+use crate::block::QamMethod::Quotient;
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};
 
@@ -14,6 +15,11 @@ pub use category::Category;
 
 use serde_json::{Value, json};
 
+#[derive(Debug, Clone)]
+pub enum QamMethod {
+    Quotient,
+    Mod
+}
 /// 모든 Entry 블록의 통합 표현.
 #[derive(Debug, Clone)]
 pub enum Block {
@@ -144,6 +150,11 @@ pub enum Block {
         action: String // start, stop, reset
     },
     GetProjectTimerValue{},
+    QuotientAndMod {
+        a: ParamBlock,
+        b: ParamBlock,
+        mode: QamMethod
+    },
     // ── 리터럴 (단독 값) ──
     Number(f64),
     Text(String),
@@ -275,6 +286,7 @@ impl Block {
             Block::ChooseProjectTimerAction { .. } => "choose_project_timer_action",
             Block::SetVisibleProjectTimer { .. } => "set_visible_project_timer",
             Block::SetVisibleAnswer { .. } => "set_visible_answer",
+            Block::QuotientAndMod { .. } => "quotient_and_mod",
         }
     }
 
@@ -322,6 +334,7 @@ impl Block {
             Block::ChooseProjectTimerAction { .. } => Category::Calc,
             Block::SetVisibleProjectTimer { .. } => Category::Calc,
             Block::SetVisibleAnswer { .. } => Category::Variable,
+            Block::QuotientAndMod { .. } => Category::Calc,
         }
     }
 }
@@ -422,6 +435,19 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "hide_answer" {
                         return Ok(Block::SetVisibleAnswer { value: false });
+                    }
+                    if fref.name == "quotient_and_mod" {
+                        if args.len() != 3 {
+                            return Err(UnmappedBlock("quotient_and_mod needs 3 args".into()));
+                        }
+                        let mode = match &args[2] {
+                            Expr::Str(s) if s == "quotient" => QamMethod::Quotient,
+                            Expr::Str(s) if s == "modulo" => QamMethod::Mod,
+                            _ => return Err(UnmappedBlock("quotient_and_mod mode must be \"quotient\" \"modulo\" ".into()))
+                        };
+                        let a = from_expr(&args[0])?;
+                        let b = from_expr(&args[1])?;
+                        return Ok(Block::QuotientAndMod { a, b, mode })
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -556,6 +582,19 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 return Ok(ParamBlock::Sub(Box::new(
                     Block::GetCanvasInputValue {  }
                 )));
+            }
+            if fref.name == "quotient_and_mod" {
+                if args.len() != 3 {
+                    return Err(UnmappedBlock("quotient_and_mod needs 3 args".into()));
+                }
+                let mode = match &args[2] {
+                    Expr::Str(s) if s == "quotient" => QamMethod::Quotient,
+                    Expr::Str(s) if s == "modulo" => QamMethod::Mod,
+                    _ => return Err(UnmappedBlock("quotient_and_mod mode must be \"quotient\" \"modulo\"".into())),
+                };
+                let a = from_expr(&args[0])?;
+                let b = from_expr(&args[1])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::QuotientAndMod { a, b, mode })));
             }
             let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
             Ok(ParamBlock::Sub(Box::new(Block::FuncCall {
@@ -748,6 +787,13 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             vec![Value::Bool(*value), Value::Null],
             None
         ),
+        Block::QuotientAndMod { a, b, mode } => {
+            let mode_str = match mode {
+                QamMethod::Quotient => "quotient",
+                QamMethod::Mod => "modulo"
+            };
+            (vec![param_to_value(a),param_to_value(b),json!(mode_str)], None)
+        },
     })
 }
 

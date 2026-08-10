@@ -826,6 +826,77 @@ fn compile_reset_timer_roundtrip() {
     }
 }
 
+// ── quotient_and_mod ──
+
+/// `quotient_and_mod(a, b, "quotient")` → 블록 + params[2] = "quotient".
+#[test]
+fn compile_quotient_and_mod_quotient() {
+    let src = r#"fn when_start() { let x = quotient_and_mod(10, 3, "quotient"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let obj = &v["objects"][0];
+    let thread = &obj_threads(obj)[0];
+    let set_var = thread
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["type"] == "set_variable")
+        .expect("set_variable");
+    let block = &set_var["params"][1];
+    assert_eq!(block["type"], "quotient_and_mod");
+    assert_eq!(block["params"][2], "quotient");
+}
+
+/// `quotient_and_mod(a, b, "modulo")` → params[2] = "modulo".
+#[test]
+fn compile_quotient_and_mod_modulo() {
+    let src = r#"fn when_start() { let x = quotient_and_mod(10, 3, "modulo"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let obj = &v["objects"][0];
+    let thread = &obj_threads(obj)[0];
+    let set_var = thread
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|b| b["type"] == "set_variable")
+        .expect("set_variable");
+    let block = &set_var["params"][1];
+    assert_eq!(block["type"], "quotient_and_mod");
+    assert_eq!(block["params"][2], "modulo");
+}
+
+/// quotient_and_mod 라운드트립.
+#[test]
+fn compile_quotient_and_mod_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+
+    let src = r#"fn when_start() { let x = quotient_and_mod(10, 3, "modulo"); }"#;
+    let p1 = entrycore::parse::parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = entrycore::codegen::collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::SetVar(_, Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "quotient_and_mod");
+                    assert_eq!(args.len(), 3);
+                    match &args[2] {
+                        Expr::Str(s) => assert_eq!(s, "modulo"),
+                        other => panic!("expected Str, got {other:?}"),
+                    }
+                }
+                other => panic!("expected SetVar(Call(quotient_and_mod)), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 // ── show / hide (외형) ──
 
 /// `show()` → `show` 블록, params 없음.

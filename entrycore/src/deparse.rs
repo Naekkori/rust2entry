@@ -7,7 +7,7 @@
 use std::vec;
 
 use crate::Error::UnmappedBlock;
-use crate::block::{Block, ParamBlock};
+use crate::block::{Block, ParamBlock, QamMethod};
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
 use crate::{Result, ir};
@@ -273,12 +273,32 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::AskAndWait { question: q }
         }
         "get_canvas_input_value" => Block::GetCanvasInputValue {},
-        "choose_project_timer_action" => Block::ChooseProjectTimerAction { action: params
-                                                                                    .get(0)
-                                                                                    .and_then(Value::as_str)
-                                                                                    .unwrap_or("start")
-                                                                                    .to_string(),
-         },
+        "choose_project_timer_action" => Block::ChooseProjectTimerAction {
+            action: params
+                .get(0)
+                .and_then(Value::as_str)
+                .unwrap_or("start")
+                .to_string(),
+        },
+        "quotient_and_mod" => {
+            let mode = match params.get(2).and_then(Value::as_str) {
+                Some("quotient") => QamMethod::Quotient,
+                Some("modulo") => QamMethod::Mod,
+                _ => QamMethod::Quotient,
+            };
+            let a = params
+                .get(0)
+                .map(|v| value_to_param(v, vars))
+                .transpose()?
+                .unwrap_or(ParamBlock::Null);
+            let b = params
+                .get(1)
+                .map(|v| value_to_param(v, vars))
+                .transpose()?
+                .unwrap_or(ParamBlock::Null);
+
+            Block::QuotientAndMod { a, b, mode }
+        }
         // 리터럴
         "number" => {
             let n = params
@@ -937,43 +957,57 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             Ok(())
         }
         Block::ChooseProjectTimerAction { action } => {
-            let fn_name = match action.as_str()
-            {
+            let fn_name = match action.as_str() {
                 "start" => "start_timer",
                 "stop" => "stop_timer",
                 "reset" => "reset_timer",
-                _ => "start_timer",   
+                _ => "start_timer",
             };
             stmts.push(Stmt::Expr(Expr::Call(
                 ir::FuncRef {
                     name: fn_name.to_string(),
                     arity: 0,
                 },
-                Vec::new()
+                Vec::new(),
             )));
             Ok(())
-        },
+        }
         Block::SetVisibleProjectTimer { value } => {
             let name = if *value { "show_timer" } else { "hide_timer" };
-            stmts.push(Stmt::Expr(
-                Expr::Call(
-                  ir::FuncRef { name: name.to_string(), arity: 0 },
-                  Vec::new()
-                ),
-            ));
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: name.to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
             Ok(())
-        },
-        Block::SetVisibleAnswer { value }=>{
-            let name = if *value { "show_answer" } else { "hide_answer"};
-            stmts.push(Stmt::Expr(
-                Expr::Call(
-                    ir::FuncRef {
-                        name: name.to_string(),
-                        arity: 0
-                    },
-                    Vec::new()
-                ),
-            ));
+        }
+        Block::SetVisibleAnswer { value } => {
+            let name = if *value { "show_answer" } else { "hide_answer" };
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: name.to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::QuotientAndMod { a, b, mode } => {
+            let av = expr_from_param(a, vars)?;
+            let bv = expr_from_param(b, vars)?;
+            let mode_str = match mode {
+                QamMethod::Quotient => "quotient",
+                QamMethod::Mod => "modulo",
+            };
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "quotient_and_mod".to_string(),
+                    arity: 3,
+                },
+                vec![av, bv, Expr::Str(mode_str.to_string())],
+            )));
             Ok(())
         }
     }
@@ -1106,14 +1140,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             Vec::new(),
         )),
-        Block::Show {  } =>Ok(Expr::Call(
+        Block::Show {} => Ok(Expr::Call(
             ir::FuncRef {
                 name: "show".to_string(),
                 arity: 0,
             },
             Vec::new(),
         )),
-        Block::Hide {  } => Ok(Expr::Call(
+        Block::Hide {} => Ok(Expr::Call(
             ir::FuncRef {
                 name: "hide".to_string(),
                 arity: 0,
@@ -1153,26 +1187,36 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             b.type_id()
         ))),
         Block::ChooseProjectTimerAction { action } => {
-            let fn_name = match action.as_str()
-            {
+            let fn_name = match action.as_str() {
                 "start" => "start_timer",
                 "stop" => "stop_timer",
                 "reset" => "reset_timer",
-                _ => "start_timer",   
+                _ => "start_timer",
             };
             Ok(Expr::Call(
                 ir::FuncRef {
                     name: fn_name.to_string(),
                     arity: 0,
                 },
-                Vec::new()
+                Vec::new(),
             ))
-        },
-        Block::SetVisibleProjectTimer { value } => {
-            Ok(Expr::Bool(*value))
-        },
-        Block::SetVisibleAnswer { value } => {
-            Ok(Expr::Bool(*value))
+        }
+        Block::SetVisibleProjectTimer { value } => Ok(Expr::Bool(*value)),
+        Block::SetVisibleAnswer { value } => Ok(Expr::Bool(*value)),
+        Block::QuotientAndMod { a, b, mode } => {
+            let av = expr_from_param(a, vars)?;
+            let bv = expr_from_param(b, vars)?;
+            let mode_str = match mode {
+                QamMethod::Quotient => "quotient",
+                QamMethod::Mod => "modulo",
+            };
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "quotient_and_mod".to_string(),
+                    arity: 3,
+                },
+                vec![av, bv, Expr::Str(mode_str.to_string())],
+            ))
         },
     }
 }

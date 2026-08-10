@@ -241,7 +241,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `is_current_device_type` — □ 에서 실행하는가?
 - ⬜ `is_touch_supported` — 터치 가능한가?
 
-### 연산 (8/26)
+### 연산 (9/26)
 - ✅ `calc_basic` → `CalcBinOp` (사칙연산)
 - ✅ `number` → `Number` 리터럴
 - ✅ `text` → `Text` 리터럴
@@ -252,7 +252,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `set_visible_project_timer` — 타이머 보이기/숨기기 (→ `show_timer()` / `hide_timer()`)
 - ⬜ `coordinate_mouse` — 마우스 x/y 좌표
 - ⬜ `coordinate_object` — 오브젝트 x/y 좌표
-- ⬜ `quotient_and_mod` — □ 를 □ 로 나눈 몫/나머지
+- ✅ `quotient_and_mod` — □ 를 □ 로 나눈 몫/나머지 (→ `quotient_and_mod(a, b, "quotient"|"modulo")`)
 - ⬜ `calc_operation` — 삼각함수/절댓값/제곱/제곱근
 - ⬜ `get_date` — 날짜/시/분/초
 - ⬜ `distance_something` — 두 점 사이 거리
@@ -323,9 +323,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**51/203** 매핑됨 (약 25.1%)
+**52/203** 매핑됨 (약 25.6%)
 
-카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 2/17, 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 8/26, 변수 7/19, 함수 7/14, 데이터분석 0/18.
+카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 2/17, 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 9/26, 변수 7/19, 함수 7/14, 데이터분석 0/18.
 
 ## 남은 작업 (TODO)
 
@@ -373,6 +373,7 @@ fn greet(a: StringParam, b: BoolParam) {
     - 타이머 시작/정지/리셋 (`choose_project_timer_action`) ✅ `start_timer()` / `stop_timer()` / `reset_timer()`
   - [x] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값), `set_visible_answer` (대답 보이기/숨기기)
   - [x] 형태: `show` / `hide` (오브젝트 보이기/숨기기)
+  - [x] 연산: `quotient_and_mod` (몫/나머지) → `quotient_and_mod(a, b, "quotient"|"modulo")`
 - [ ] 중기
   - [ ] Timer/Answer 전용 블록 신택스 (`start_timer()` 등)
   - [x] Cloud/RealTime 변수 신택스 (`let x: CloudVar = ""` / `: RealtimeVar = ""`)
@@ -398,7 +399,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 5 + codegen 9 + compile 104 + parse 26 = 144 통과)
+cargo test                  # 전체 (entryc 5 + codegen 9 + compile 107 + parse 26 = 147 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -407,7 +408,7 @@ cargo build                 # 빌드만
 **샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 이 컴퓨터엔 없을 수 있음 — GitHub entryjs 코드 직접 참고)
 
 **다음 할 일 추천 순서**:
-1. 연산 — `quotient_and_mod` (몫/나머지) — calc_basic 변형
+1. 연산 — `calc_operation` (절댓값/제곱/제곱근) — 단항
 2. 연산 — `calc_operation` (절댓값/제곱/제곱근) — 단항
 3. 형태 — `dialog` / `dialog_time` (말하기)
 4. 변수 — 리스트 (값 추가/삭제/길이) — list kind 활용
