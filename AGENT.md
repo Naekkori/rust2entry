@@ -129,7 +129,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ✅ = 매핑됨. `deparse.rs::block_from_value` 의 매치 arm 기준.
 
-### 시작 (12/26)
+### 시작 (13/26)
 - ✅ `when_run_button_click` / `when_run` → `WhenStart` (→ `fn when_start()`)
 - ✅ `when_object_click` / `when_click` → `WhenClick` (→ `fn when_click()`)
 - ✅ `when_clone_start` → `WhenCloneStart` (→ `fn when_clone_start()`)
@@ -145,7 +145,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `start_neighbor_scene` → `StartNeighborScene` (→ `start_next_scene();` / `start_prev_scene();`)
 - ⬜ 내부용 (이름 없음): `check_object_property`, `check_block_execution`, `switch_scope`, `is_answer_submited`, `check_lecture_goal`, `check_variable_by_name`, `show_prompt`, `check_goal_success`, `positive_number`, `negative_number`, `wildcard_string`, `wildcard_boolean`, `register_score`
 
-### 흐름 (8/15)
+### 흐름 (10/15)
 - ✅ `repeat_basic` → `Repeat` (for-range 펼침)
 - ✅ `repeat_while` → `While`
 - ✅ `repeat_inf` / `repeat_forever` → `Forever`
@@ -157,8 +157,11 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `wait_second` — □ 초 기다리기 (→ `wait_second(secs)`)
 - ✅ `wait_until_true` — □ 이(가) 될 때까지 기다리기 (→ `wait_until_true(cond)`)
 - ⬜ `restart_project` — 처음부터 다시 실행하기
-- ⬜ `when_clone_start` → 이미 `WhenCloneStart` 로 매핑됨
-- ⬜ `create_clone` / `delete_clone` / `remove_all_clones` — 복제본 생성/삭제
+- ⬜ `repeat_while_true` — 별칭 (Rust native `while` 키워드로 커버 — syn 이 `f(args) { body }` 신택스 거부, `block_from_value` 에 명시 arm 없음)
+- ⬜ `when_clone_start` → 이미 시작 `WhenCloneStart` 로 매핑됨
+- ⬜ `create_clone` — □ 의 복제본 만들기
+- ⬜ `delete_clone` — 이 복제본 삭제하기
+- ⬜ `remove_all_clones` — 모든 복제본 삭제하기
 
 ### 움직임 (0/19)
 - ⬜ `move_direction` — 이동 방향으로 □ 만큼 움직이기
@@ -176,18 +179,22 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `move_to_angle` — □ 방향으로 □ 만큼 움직이기
 
 ### 형태 (2/17)
-- ⬜ `show` — 보이기 (→ `show()`)
-- ⬜ `hide` — 숨기기 (→ `hide()`)
-- ⬜ `dialog` / `dialog_time` — □ 을(를) □ (초 동안) □ □
-- ⬜ `dialog` / `dialog_time` — □ 을(를) □ (초 동안) □ □
+- ✅ `show` — 모양 보이기 (→ `show()`)
+- ✅ `hide` — 모양 숨기기 (→ `hide()`)
+- ⬜ `dialog` — □ 을(를) □ □ (말하기)
+- ⬜ `dialog_time` — □ 을(를) □ 초 동안 □ □ (시간 말하기)
 - ⬜ `remove_dialog` — 말풍선 지우기
-- ⬜ `change_to_some_shape` / `change_to_next_shape` — □ 모양으로 바꾸기
-- ⬜ `add_effect_amount` / `change_effect_amount` — □ 효과 주기/정하기
+- ⬜ `change_to_some_shape` — □ 모양으로 바꾸기
+- ⬜ `change_to_next_shape` — 다음/이전 모양으로 바꾸기
+- ⬜ `add_effect_amount` — □ 효과를 □ 만큼 주기
+- ⬜ `change_effect_amount` — □ 효과를 □ (으)로 정하기
 - ⬜ `erase_all_effects` — 효과 모두 지우기
-- ⬜ `change_scale_size` / `set_scale_size` — 크기 바꾸기/정하기
+- ⬜ `change_scale_size` — 크기를 □ 만큼 바꾸기
+- ⬜ `set_scale_size` — 크기를 □ (으)로 정하기
 - ⬜ `stretch_scale_size` — □ 를 □ 만큼 늘이기
 - ⬜ `reset_scale_size` — 원래 크기로 되돌리기
-- ⬜ `flip_x` / `flip_y` — 상하/좌우 뒤집기
+- ⬜ `flip_x` — 상하 모양 뒤집기
+- ⬜ `flip_y` — 좌우 모양 뒤집기
 - ⬜ `change_object_index` — □ 보내기 (레이어)
 
 ### 붓 (0/13)
@@ -234,17 +241,19 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `is_current_device_type` — □ 에서 실행하는가?
 - ⬜ `is_touch_supported` — 터치 가능한가?
 
-### 연산 (5/26)
-- ✅ `calc_basic` → `CalcBinOp`
-- ✅ `number` / `text` / `boolean` → 리터럴
+### 연산 (8/26)
+- ✅ `calc_basic` → `CalcBinOp` (사칙연산)
+- ✅ `number` → `Number` 리터럴
+- ✅ `text` → `Text` 리터럴
+- ✅ `boolean` → `Boolean` 리터럴
 - ✅ `calc_rand` — □ 부터 □ 사이의 무작위 수 (→ `calc_rand(min, max)`)
+- ✅ `get_project_timer_value` — 타이머 값 (→ `get_project_timer_value()`)
+- ✅ `choose_project_timer_action` — 타이머 시작/정지/리셋 (→ `start_timer()` / `stop_timer()` / `reset_timer()`)
+- ✅ `set_visible_project_timer` — 타이머 보이기/숨기기 (→ `show_timer()` / `hide_timer()`)
 - ⬜ `coordinate_mouse` — 마우스 x/y 좌표
 - ⬜ `coordinate_object` — 오브젝트 x/y 좌표
 - ⬜ `quotient_and_mod` — □ 를 □ 로 나눈 몫/나머지
 - ⬜ `calc_operation` — 삼각함수/절댓값/제곱/제곱근
-- ✅ `get_project_timer_value` — 타이머 값 (→ `get_project_timer_value()`)
-- ✅ `choose_project_timer_action` — 타이머 시작/정지/리셋 (→ `start_timer()` / `stop_timer()` / `reset_timer()`)
-- ✅ `set_visible_project_timer` — 타이머 보이기/숨기기 (→ `show_timer()` / `hide_timer()`)
 - ⬜ `get_date` — 날짜/시/분/초
 - ⬜ `distance_something` — 두 점 사이 거리
 - ⬜ `get_user_name` — 아이디
@@ -280,7 +289,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `is_included_in_list` — 포함 여부
 - ⬜ `show_list` / `hide_list` — 리스트 보이기/숨기기
 
-### 함수 (8/14)
+### 함수 (7/14)
 - ✅ `function_call` → `FuncCall` (빌드 시 `func_<id>` 동적 호출 블록으로 재작성)
 - ✅ `function_create` → `FuncDef`
 - ✅ `function_return` → `Return`
@@ -294,6 +303,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `function_param_boolean` — 값 슬롯
 - ⬜ `function_create_value` — 결괏값 반환 함수 정의
 - ⬜ `set_func_variable` / `get_func_variable` — 함수 변수
+- ⬜ `functionAddButton` / `function_name` / `showFunctionPropsButton` — UI 버튼/라벨
 
 ### 데이터분석 (0/18)
 - ⬜ `append_row_to_table` — 테이블에 행 추가
@@ -313,7 +323,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**36/203** 매핑됨 (약 17.7%)
+**51/203** 매핑됨 (약 25.1%)
+
+카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 2/17, 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 8/26, 변수 7/19, 함수 7/14, 데이터분석 0/18.
 
 ## 남은 작업 (TODO)
 
@@ -410,6 +422,6 @@ entrycore/   라이브러리 (parse/block/codegen/deparse/decodegen/var) + lib::
              - ir::ParamKind: String (StringParam) / Bool (BoolParam)
 entryc/      CLI (extract/build subcommand, --rs/--out/--ent-template, --scene, --replace-vars)
 target/      빌드 산출물
-entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 + 매핑 현황 (203개, 31개 완료)
+entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 (203개, 51개 매핑)
 AGENT.md     이 문서
 ```
