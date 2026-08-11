@@ -396,6 +396,15 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             };
             Block::Dialog { mode, content }
         }
+        "dialog_time" => {
+            let content = param_at(&params, 0, vars)?;
+            let time = param_at(&params, 2, vars)?;
+            let mode = match params.get(1).and_then(Value::as_str) {
+                Some("think") => DialogMode::Think,
+                _ => DialogMode::Say,
+            };
+            Block::DialogTime { mode, content, time }
+        }
         // 함수
         "function_call" => {
             let name = params
@@ -1090,6 +1099,22 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::DialogTime { mode, content, time } => {
+            let content_arg = expr_from_param(content, vars)?;
+            let time_arg = expr_from_param(time, vars)?;
+            let name = match mode {
+                DialogMode::Say => "say",
+                DialogMode::Think => "think",
+            };
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: name.to_string(),
+                    arity: 2,
+                },
+                vec![content_arg, time_arg],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -1325,6 +1350,21 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     arity: 1,
                 },
                 vec![arg],
+            ))
+        }
+        Block::DialogTime { mode, content, time } => {
+            let content_arg = expr_from_param(content, vars)?;
+            let time_arg = expr_from_param(time, vars)?;
+            let name = match mode {
+                DialogMode::Say => "say",
+                DialogMode::Think => "think",
+            };
+            Ok(Expr::Call(
+                crate::ir::FuncRef {
+                    name: name.to_string(),
+                    arity: 2,
+                },
+                vec![content_arg, time_arg],
             ))
         }
         Block::QuotientAndMod { a, b, mode } => {

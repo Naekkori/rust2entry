@@ -213,7 +213,8 @@ pub enum Block {
     // --- 모양 ---
     Show {},
     Hide {},
-    Dialog { mode: DialogMode, content: ParamBlock}
+    Dialog { mode: DialogMode, content: ParamBlock},
+    DialogTime { mode: DialogMode, content: ParamBlock, time: ParamBlock },
 }
 
 /// 블록 파라미터 슬롯.
@@ -319,6 +320,7 @@ impl Block {
             Block::QuotientAndMod { .. } => "quotient_and_mod",
             Block::CalcOperation { .. } => "calc_operation",
             Block::Dialog { .. } => "dialog",
+            Block::DialogTime { .. } => "dialog_time"
         }
     }
 
@@ -373,6 +375,7 @@ impl Block {
             Block::QuotientAndMod { .. } => Category::Calc,
             Block::CalcOperation { .. } => Category::Calc,
             Block::Dialog { .. } => Category::Looks,
+            Block::DialogTime { .. } => Category::Looks,
         }
     }
 }
@@ -500,12 +503,22 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         return Ok(Block::QuotientAndMod { a, b, mode });
                     }
                     if fref.name == "say" {
-                        let arg = args.first().ok_or_else(|| UnmappedBlock("say needs arg".into()))?;
-                        return Ok(Block::Dialog { mode: DialogMode::Say, content: from_expr(arg)? });
+                        let content_arg = args.first().ok_or_else(|| UnmappedBlock("say needs arg".into()))?;
+                        let content = from_expr(content_arg)?;
+                        if let Some(time_arg) = args.get(1) {
+                            let time = from_expr(time_arg)?;
+                            return Ok(Block::DialogTime { mode: DialogMode::Say, content, time });
+                        }
+                        return Ok(Block::Dialog { mode: DialogMode::Say, content });
                     }
                     if fref.name == "think" {
-                        let arg = args.first().ok_or_else(|| UnmappedBlock("think needs arg".into()))?;
-                        return Ok(Block::Dialog { mode: DialogMode::Think, content: from_expr(arg)? });
+                        let content_arg = args.first().ok_or_else(|| UnmappedBlock("think needs arg".into()))?;
+                        let content = from_expr(content_arg)?;
+                        if let Some(time_arg) = args.get(1) {
+                            let time = from_expr(time_arg)?;
+                            return Ok(Block::DialogTime { mode: DialogMode::Think, content, time });
+                        }
+                        return Ok(Block::Dialog { mode: DialogMode::Think, content });
                     }
                     if let Some(op) = calc_op_from_name(&fref.name) {
                         let arg = args
@@ -643,12 +656,22 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 return Ok(ParamBlock::Sub(Box::new(Block::CalcRand { min, max })));
             }
             if fref.name == "say" {
-                let arg = args.first().ok_or_else(|| UnmappedBlock("say needs arg".into()))?;
-                return Ok(ParamBlock::Sub(Box::new(Block::Dialog { mode: DialogMode::Say, content: from_expr(arg)? })));
+                let content_arg = args.first().ok_or_else(|| UnmappedBlock("say needs arg".into()))?;
+                let content = from_expr(content_arg)?;
+                if let Some(time_arg) = args.get(1) {
+                    let time = from_expr(time_arg)?;
+                    return Ok(ParamBlock::Sub(Box::new(Block::DialogTime { mode: DialogMode::Say, content, time })));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::Dialog { mode: DialogMode::Say, content })));
             }
             if fref.name == "think" {
-                let arg = args.first().ok_or_else(|| UnmappedBlock("think needs arg".into()))?;
-                return Ok(ParamBlock::Sub(Box::new(Block::Dialog { mode: DialogMode::Think, content: from_expr(arg)? })));
+                let content_arg = args.first().ok_or_else(|| UnmappedBlock("think needs arg".into()))?;
+                let content = from_expr(content_arg)?;
+                if let Some(time_arg) = args.get(1) {
+                    let time = from_expr(time_arg)?;
+                    return Ok(ParamBlock::Sub(Box::new(Block::DialogTime { mode: DialogMode::Think, content, time })));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::Dialog { mode: DialogMode::Think, content })));
             }
             if fref.name == "get_project_timer_value" {
                 return Ok(ParamBlock::Sub(Box::new(Block::GetProjectTimerValue {})));
@@ -899,6 +922,18 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
                     DialogMode::Say => "say".into(),
                     DialogMode::Think => "think".into(),
                 }),
+                Value::Null,
+            ],
+            None,
+        ),
+        Block::DialogTime { mode, content, time } => (
+            vec![
+                param_to_value(content),
+                Value::String(match mode {
+                    DialogMode::Say => "say".into(),
+                    DialogMode::Think => "think".into(),
+                }),
+                param_to_value(time),
                 Value::Null,
             ],
             None,
