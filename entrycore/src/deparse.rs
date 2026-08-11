@@ -421,6 +421,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             };
             Block::FuncCall { name, args }
         }
+        "change_to_some_shape" => {
+            let picture = params.get(0).and_then(Value::as_str).unwrap_or("").to_string();
+            Block::ChangeToSomeShape { picture }
+        }
+        "change_to_next_shape" => Block::ChangeToNextShape{},
         // EntryJS 의 동적 함수 호출 블록. type = `func_<id>` 형식이며
         // id 는 project.functions[].id 와 매칭된다. args 슬롯은
         // EntryJS 가 동적 확장하므로 params[0] 만 (Indicator) 있다.
@@ -1115,6 +1120,28 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::ChangeToSomeShape { picture } => {
+            stmts.push(Stmt::Expr(
+                Expr::Call(
+                    ir::FuncRef {
+                        name: "change_to_some_shape".to_string(),
+                        arity: 1
+                    },
+                    vec![Expr::Str(picture.clone())]
+                )
+            ));
+            Ok(())
+        },
+        Block::ChangeToNextShape {} => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "change_to_next_shape".to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -1382,6 +1409,22 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![av, bv, Expr::Str(mode_str.to_string())],
             ))
         }
+        Block::ChangeToSomeShape { picture } => {
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "change_to_some_shape".to_string(),
+                    arity: 1,
+                },
+                vec![Expr::Str(picture.clone())],
+            ))
+        },
+        Block::ChangeToNextShape {} => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "change_to_next_shape".to_string(),
+                arity: 0,
+            },
+            Vec::new(),
+        )),
     }
 }
 
