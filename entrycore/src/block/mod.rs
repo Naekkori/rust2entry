@@ -257,6 +257,8 @@ pub enum Block {
         amount: ParamBlock,
     },
     ResetScaleSize {},
+    FlipX {}, //상하로 뒤집힘
+    FlipY {}, //좌우로 뒤집힘
 }
 
 /// 블록 파라미터 슬롯.
@@ -372,6 +374,8 @@ impl Block {
             Block::ChangeScaleSize { .. } => "change_scale_size",
             Block::SetScaleSize { .. } => "set_scale_size",
             Block::ResetScaleSize {} => "reset_scale_size",
+            Block::FlipX {} => "flip_x",
+            Block::FlipY {} => "flip_y",
         }
     }
 
@@ -436,6 +440,8 @@ impl Block {
             Block::ChangeScaleSize { .. } => Category::Looks,
             Block::SetScaleSize { .. } => Category::Looks,
             Block::ResetScaleSize {} => Category::Looks,
+            Block::FlipX {} => Category::Looks,
+            Block::FlipY {} => Category::Looks,
         }
     }
 }
@@ -681,6 +687,13 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "reset_scale_size" {
                         return Ok(Block::ResetScaleSize {});
                     }
+                    //얘네들은 반대로 작동함.
+                    if fref.name == "flip_x" {
+                        return Ok(Block::FlipX {});
+                    }
+                    if fref.name == "flip_y" {
+                        return Ok(Block::FlipY {});
+                    }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
                         name: fref.name.clone(),
@@ -880,12 +893,20 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 })));
             }
             if fref.name == "change_scale_size" {
-                let arg = args.first().ok_or_else(|| UnmappedBlock("change_scale_size needs arg".into()))?;
-                return Ok(ParamBlock::Sub(Box::new(Block::ChangeScaleSize { amount: from_expr(arg)? })));
+                let arg = args
+                    .first()
+                    .ok_or_else(|| UnmappedBlock("change_scale_size needs arg".into()))?;
+                return Ok(ParamBlock::Sub(Box::new(Block::ChangeScaleSize {
+                    amount: from_expr(arg)?,
+                })));
             }
             if fref.name == "set_scale_size" {
-                let arg = args.first().ok_or_else(|| UnmappedBlock("set_scale_size needs arg".into()))?;
-                return Ok(ParamBlock::Sub(Box::new(Block::SetScaleSize { amount: from_expr(arg)? })));
+                let arg = args
+                    .first()
+                    .ok_or_else(|| UnmappedBlock("set_scale_size needs arg".into()))?;
+                return Ok(ParamBlock::Sub(Box::new(Block::SetScaleSize {
+                    amount: from_expr(arg)?,
+                })));
             }
             if fref.name == "reset_scale_size" {
                 return Ok(ParamBlock::Sub(Box::new(Block::ResetScaleSize {})));
@@ -894,7 +915,13 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 return Ok(ParamBlock::Sub(Box::new(Block::EraseAllEffects {})));
             }
             if fref.name == "remove_dialog" {
-                return Ok(ParamBlock::Sub(Box::new(Block::RemoveDialog {  })));
+                return Ok(ParamBlock::Sub(Box::new(Block::RemoveDialog {})));
+            }
+            if fref.name == "flip_x" {
+                return Ok(ParamBlock::Sub(Box::new(Block::FlipX {})));
+            }
+            if fref.name == "flip_y" {
+                return Ok(ParamBlock::Sub(Box::new(Block::FlipY {})));
             }
             let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
             Ok(ParamBlock::Sub(Box::new(Block::FuncCall {
@@ -1153,6 +1180,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::ChangeScaleSize { amount } => (vec![param_to_value(amount), Value::Null], None),
         Block::SetScaleSize { amount } => (vec![param_to_value(amount), Value::Null], None),
         Block::ResetScaleSize {} => (vec![], None),
+        Block::FlipX {} => (vec![], None),
+        Block::FlipY {} => (vec![], None),
     })
 }
 

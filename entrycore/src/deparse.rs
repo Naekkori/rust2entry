@@ -417,6 +417,8 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::SetScaleSize { amount }
         }
         "reset_scale_size" => Block::ResetScaleSize {},
+        "flip_x" => Block::FlipX {},
+        "flip_y" => Block::FlipY {},
         // 함수
         "function_call" => {
             let name = params
@@ -1271,6 +1273,26 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::FlipX {} => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "flip_x".to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::FlipY {} => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "flip_y".to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -1613,6 +1635,20 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         Block::ResetScaleSize {} => Ok(Expr::Call(
             ir::FuncRef {
                 name: "reset_scale_size".to_string(),
+                arity: 0,
+            },
+            Vec::new(),
+        )),
+        Block::FlipX {} => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "flip_x".to_string(),
+                arity: 0,
+            },
+            Vec::new(),
+        )),
+        Block::FlipY {} => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "flip_y".to_string(),
                 arity: 0,
             },
             Vec::new(),
