@@ -206,6 +206,7 @@ pub enum Block {
     // --- 모양 ---
     Show {},
     Hide {},
+    Dialog { content: ParamBlock}
 }
 
 /// 블록 파라미터 슬롯.
@@ -310,6 +311,7 @@ impl Block {
             Block::SetVisibleAnswer { .. } => "set_visible_answer",
             Block::QuotientAndMod { .. } => "quotient_and_mod",
             Block::CalcOperation { .. } => "calc_operation",
+            Block::Dialog { .. } => "dialog",
         }
     }
 
@@ -363,6 +365,7 @@ impl Block {
             Block::SetVisibleAnswer { .. } => Category::Variable,
             Block::QuotientAndMod { .. } => Category::Calc,
             Block::CalcOperation { .. } => Category::Calc,
+            Block::Dialog { .. } => Category::Looks,
         }
     }
 }
@@ -488,6 +491,10 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         let a = from_expr(&args[0])?;
                         let b = from_expr(&args[1])?;
                         return Ok(Block::QuotientAndMod { a, b, mode });
+                    }
+                    if fref.name == "dialog" {
+                        let arg = args.first().ok_or_else(|| UnmappedBlock("dialog needs arg".into()))?;
+                        return Ok(Block::Dialog { content: from_expr(arg)? });
                     }
                     if let Some(op) = calc_op_from_name(&fref.name) {
                         let arg = args
@@ -866,6 +873,10 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
                 None,
             )
         }
+        Block::Dialog { content } => (
+            vec![param_to_value(content), Value::String("say".into()),Value::Null],
+            None
+        ),
     })
 }
 

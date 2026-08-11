@@ -388,6 +388,10 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         // 모양
         "show" => Block::Show {},
         "hide" => Block::Hide {},
+        "dialog" => {
+            let content = param_at(&params, 0, vars)?;
+            Block::Dialog { content }
+        }
         // 함수
         "function_call" => {
             let name = params
@@ -1067,6 +1071,17 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::Dialog { content } => {
+            let arg = expr_from_param(content, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "dialog".to_string(),
+                    arity: 1,
+                },
+                vec![arg],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -1290,6 +1305,16 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         }
         Block::SetVisibleProjectTimer { value } => Ok(Expr::Bool(*value)),
         Block::SetVisibleAnswer { value } => Ok(Expr::Bool(*value)),
+        Block::Dialog { content } => {
+            let arg = expr_from_param(content, vars)?;
+            Ok(Expr::Call(
+                crate::ir::FuncRef {
+                    name: "dialog".to_string(),
+                    arity: 1,
+                },
+                vec![arg],
+            ))
+        }
         Block::QuotientAndMod { a, b, mode } => {
             let av = expr_from_param(a, vars)?;
             let bv = expr_from_param(b, vars)?;
