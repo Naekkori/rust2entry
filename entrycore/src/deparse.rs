@@ -419,6 +419,10 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         "reset_scale_size" => Block::ResetScaleSize {},
         "flip_x" => Block::FlipX {},
         "flip_y" => Block::FlipY {},
+        "change_object_index" => {
+            let direction = params.get(0).and_then(Value::as_str).unwrap_or("front").to_string();
+            Block::ChangeObjectIndex { direction }
+        }
         // 함수
         "function_call" => {
             let name = params
@@ -1293,6 +1297,16 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::ChangeObjectIndex { direction } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "change_object_index".to_string(),
+                    arity: 1,
+                },
+                vec![Expr::Str(direction.clone())],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -1652,6 +1666,13 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 arity: 0,
             },
             Vec::new(),
+        )),
+        Block::ChangeObjectIndex { direction } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "change_object_index".to_string(),
+                arity: 1,
+            },
+            vec![Expr::Str(direction.clone())],
         )),
     }
 }

@@ -259,6 +259,9 @@ pub enum Block {
     ResetScaleSize {},
     FlipX {}, //상하로 뒤집힘
     FlipY {}, //좌우로 뒤집힘
+    ChangeObjectIndex {
+        direction: String,
+    },
 }
 
 /// 블록 파라미터 슬롯.
@@ -376,6 +379,7 @@ impl Block {
             Block::ResetScaleSize {} => "reset_scale_size",
             Block::FlipX {} => "flip_x",
             Block::FlipY {} => "flip_y",
+            Block::ChangeObjectIndex { .. } => "change_object_index",
         }
     }
 
@@ -442,6 +446,7 @@ impl Block {
             Block::ResetScaleSize {} => Category::Looks,
             Block::FlipX {} => Category::Looks,
             Block::FlipY {} => Category::Looks,
+            Block::ChangeObjectIndex { .. } => Category::Looks,
         }
     }
 }
@@ -694,6 +699,20 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "flip_y" {
                         return Ok(Block::FlipY {});
                     }
+                    if fref.name == "change_object_index" {
+                        let arg = args
+                            .first()
+                            .ok_or_else(|| UnmappedBlock("change_object_index needs arg".into()))?;
+                        let direction = match arg {
+                            Expr::Str(s) => s.clone(),
+                            _ => {
+                                return Err(UnmappedBlock(
+                                    "change_object_index arg must be string".into(),
+                                ));
+                            }
+                        };
+                        return Ok(Block::ChangeObjectIndex { direction });
+                    }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
                         name: fref.name.clone(),
@@ -922,6 +941,22 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             }
             if fref.name == "flip_y" {
                 return Ok(ParamBlock::Sub(Box::new(Block::FlipY {})));
+            }
+            if fref.name == "change_object_index" {
+                let arg = args
+                    .first()
+                    .ok_or_else(|| UnmappedBlock("change_object_index needs arg".into()))?;
+                let direction = match arg {
+                    Expr::Str(s) => s.clone(),
+                    _ => {
+                        return Err(UnmappedBlock(
+                            "change_object_index arg must be string".into(),
+                        ));
+                    }
+                };
+                return Ok(ParamBlock::Sub(Box::new(Block::ChangeObjectIndex {
+                    direction,
+                })));
             }
             let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
             Ok(ParamBlock::Sub(Box::new(Block::FuncCall {
@@ -1182,6 +1217,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::ResetScaleSize {} => (vec![], None),
         Block::FlipX {} => (vec![], None),
         Block::FlipY {} => (vec![], None),
+        Block::ChangeObjectIndex { direction } => (vec![Value::String(direction.clone())], None),
     })
 }
 

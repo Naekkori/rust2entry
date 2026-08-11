@@ -16,7 +16,7 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
 | 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 5/5 |
-| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 181/181 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 184/184 |
 
 ### lib::compile 세부 동작 (현재)
 
@@ -197,7 +197,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `flip_y` — 상하 모양 뒤집기 (→ `flip_y()`)
 
 > EntryJS 의 `flip_x` 는 setScaleY 부호 반전 (좌우), `flip_y` 는 setScaleX 부호 반전 (상하). EntryJS 변수명과 동작이 반대 — EntryJS 호환을 위해 그대로 매핑.
-- ⬜ `change_object_index` — □ 보내기 (레이어)
+- ✅ `change_object_index` — □ 보내기 (레이어) (→ `change_object_index("front")` / `change_object_index("back")`)
 
 ### 붓 (0/13)
 - ⬜ `brush_stamp` — 도장 찍기
@@ -327,7 +327,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**68/203** 매핑됨 (약 33.5%)
+**69/203** 매핑됨 (약 34.0%)
 
 카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 14/17, 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 10/26, 변수 7/19, 함수 7/14, 데이터분석 0/18.
 
@@ -401,15 +401,15 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
+- `f59d76a docs: AGENT.md 동기화 (중복 제거 + 카운트 갱신)`
 - `3d7b2c3 feat(looks): flip_x / flip_y 매핑 (모양 뒤집기)`
 - `9c805dc feat(looks): reset_scale_size 매핑 + from_expr 누락 일괄 수정`
 - `09771ea feat(looks): set_scale_size 매핑 (크기를 □ (으)로 정하기)`
 - `5f16f73 feat(looks): change_scale_size 매핑 (크기를 □ 만큼 바꾸기)`
-- `d5c11ab feat(looks): erase_all_effects 매핑 (효과 모두 지우기)`
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 5 + codegen 9 + compile 181 + parse 26 = 221 통과)
+cargo test                  # 전체 (entryc 5 + codegen 9 + compile 184 + parse 26 = 224 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -418,8 +418,8 @@ cargo build                 # 빌드만
 **샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 이 컴퓨터엔 없을 수 있음 — GitHub entryjs 코드 직접 참고)
 
 **다음 할 일 추천 순서**:
-1. 형태 — `change_object_index` (레이어)
-2. 형태 — `stretch_scale_size` (□ 를 □ 만큼 늘이기)
+1. 형태 — `stretch_scale_size` (□ 를 □ 만큼 늘이기)
+2. 형태 — `dialog_time` 의 남은 항목 (시간 말하기) — 이미 매핑됨
 3. 변수 — 리스트 (값 추가/삭제/길이)
 
 ## 디렉토리

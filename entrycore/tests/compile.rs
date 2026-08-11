@@ -1344,6 +1344,60 @@ fn compile_flip_y_roundtrip() {
 
 // ── ask_and_wait ──
 
+/// `change_object_index("front");` → `change_object_index`, params[0] = "front".
+#[test]
+fn compile_change_object_index_front() {
+    let src = r#"fn when_start() { change_object_index("front"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "change_object_index");
+    assert_eq!(thread[1]["params"][0].as_str(), Some("front"));
+}
+
+/// `change_object_index("back");` → params[0] = "back".
+#[test]
+fn compile_change_object_index_back() {
+    let src = r#"fn when_start() { change_object_index("back"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "change_object_index");
+    assert_eq!(thread[1]["params"][0].as_str(), Some("back"));
+}
+
+/// 라운드트립.
+#[test]
+fn compile_change_object_index_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { change_object_index("front"); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "change_object_index");
+                    assert_eq!(args.len(), 1);
+                    assert!(matches!(&args[0], Expr::Str(s) if s == "front"));
+                }
+                other => panic!("expected Call(change_object_index), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// `ask_and_wait("이름을 입력")` → `ask_and_wait` 블록, params[0] = text 슬롯.
 #[test]
 fn compile_ask_and_wait() {
