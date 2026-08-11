@@ -1127,6 +1127,76 @@ fn compile_change_scale_size_var() {
     assert_eq!(css["params"][0]["name"], "n");
 }
 
+/// `value_of_index_from_list(1, list)`는 set_variable의 값 슬롯 안에서
+/// 리스트 조회 표현식 블록으로 emit되어야 한다.
+#[test]
+fn compile_value_of_index_from_list() {
+    let src = r#"
+        fn when_start() {
+            let list = "";
+            let x = value_of_index_from_list(1, list);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+
+    let set_x = thread
+        .iter()
+        .find(|b| b["type"] == "set_variable" && b["params"][0]["name"] == "x")
+        .expect("set x");
+    let value = &set_x["params"][1];
+    assert_eq!(value["type"], "value_of_index_from_list");
+    assert_eq!(value["params"].as_array().unwrap().len(), 2);
+    assert_eq!(value["params"][0]["type"], "number");
+    assert_eq!(value["params"][0]["params"][0], 1.0);
+    assert_eq!(value["params"][1]["name"], "list");
+    assert_eq!(value["params"][1]["variableType"], "list");
+}
+
+/// 리스트 조회 표현식은 Entry JSON에서 DSL로 deparse한 뒤에도 보존되어야 한다.
+#[test]
+fn compile_value_of_index_from_list_roundtrip() {
+    use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"
+        fn when_start() {
+            let list = "";
+            let x = value_of_index_from_list(1, list);
+        }
+    "#;
+    let p1 = parse(src).expect("parse");
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let script = objects[0]["script"].as_str().expect("script string");
+    let p2 = program_from_script_string_with_vars(script, &vars).expect("deparse");
+
+    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
+        panic!("expected when_start function");
+    };
+    let Some(Stmt::SetVar(name, Expr::Call(fref, args))) = body.iter().find(|stmt| {
+        matches!(stmt, Stmt::SetVar(name, Expr::Call(_, _)) if name == "x")
+    }) else {
+        panic!("expected set x to list lookup call");
+    };
+    assert_eq!(name, "x");
+    assert_eq!(fref.name, "value_of_index_from_list");
+    assert_eq!(args.len(), 2);
+    assert!(
+        matches!(&args[0], Expr::Int(1))
+            || matches!(&args[0], Expr::Float(n) if *n == 1.0)
+    );
+    assert!(matches!(&args[1], Expr::Var(name) if name == "list"));
+}
+
 /// 라운드트립.
 #[test]
 fn compile_change_scale_size_roundtrip() {

@@ -8,8 +8,8 @@ use std::vec;
 
 use crate::Error::UnmappedBlock;
 use crate::block::{
-    Block, Dimension, DialogMode, EffectType, MathOperation, ParamBlock, QamMethod,
-    dim_to_dsl_str, effect_to_str,
+    Block, DialogMode, Dimension, EffectType, MathOperation, ParamBlock, QamMethod, dim_to_dsl_str,
+    effect_to_str,
 };
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
@@ -178,6 +178,13 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             } else {
                 Block::HideVar { variable }
             }
+        }
+        "value_of_index_from_list" => {
+            let index = param_at(&params, 0, vars)?;
+            let (list, _name) = variable_slot(&params, 1)?;
+            let list = resolve_var(&list, vars);
+
+            Block::ListValueAt { index, list }
         }
 
         // 흐름
@@ -421,7 +428,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         "flip_x" => Block::FlipX {},
         "flip_y" => Block::FlipY {},
         "change_object_index" => {
-            let direction = params.get(0).and_then(Value::as_str).unwrap_or("front").to_string();
+            let direction = params
+                .get(0)
+                .and_then(Value::as_str)
+                .unwrap_or("front")
+                .to_string();
             Block::ChangeObjectIndex { direction }
         }
         // 함수
@@ -1327,6 +1338,17 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::ListValueAt { index, list } => {
+            let index = expr_from_param(index, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "value_of_index_from_list".to_string(),
+                    arity: 2,
+                },
+                vec![index, Expr::Var(list.clone())],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -1704,6 +1726,16 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             vec![Expr::Str(direction.clone())],
         )),
+        Block::ListValueAt { index, list } => {
+            let index = expr_from_param(index, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "value_of_index_from_list".to_string(),
+                    arity: 2,
+                },
+                vec![index, Expr::Var(list.clone())],
+            ))
+        }
     }
 }
 

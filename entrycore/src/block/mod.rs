@@ -9,6 +9,7 @@ pub mod registry;
 use std::clone;
 
 use crate::Error::UnmappedBlock;
+use crate::codegen::schema::Param;
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};
 
@@ -128,6 +129,10 @@ pub enum Block {
     },
     SetVisibleAnswer {
         value: bool,
+    },
+    ListValueAt {
+        index: ParamBlock,
+        list: String,
     },
 
     // ── 흐름 (제어) ──
@@ -392,6 +397,7 @@ impl Block {
             Block::FlipY {} => "flip_y",
             Block::ChangeObjectIndex { .. } => "change_object_index",
             Block::StretchScaleSize { .. } => "stretch_scale_size",
+            Block::ListValueAt { index, list } => "value_of_index_from_list",
         }
     }
 
@@ -460,6 +466,7 @@ impl Block {
             Block::FlipY {} => Category::Looks,
             Block::ChangeObjectIndex { .. } => Category::Looks,
             Block::StretchScaleSize { .. } => Category::Looks,
+            Block::ListValueAt { index, list } => Category::Variable,
         }
     }
 }
@@ -987,6 +994,28 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     direction,
                 })));
             }
+            if fref.name == "value_of_index_from_list" {
+                if args.len() != 2 {
+                    return Err(UnmappedBlock(
+                        "value_of_index_from_list needs 2 args".into(),
+                    ));
+                }
+
+                let index = from_expr(&args[0])?;
+                let list = match &args[1] {
+                    Expr::Var(name) => name.clone(),
+                    _ => {
+                        return Err(UnmappedBlock(
+                            "value_of_index_from_list list must be variable".into(),
+                        ));
+                    }
+                };
+
+                return Ok(ParamBlock::Sub(Box::new(Block::ListValueAt {
+                    index,
+                    list,
+                })));
+            }
             let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
             Ok(ParamBlock::Sub(Box::new(Block::FuncCall {
                 name: fref.name.clone(),
@@ -1255,6 +1284,9 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::FlipX {} => (vec![], None),
         Block::FlipY {} => (vec![], None),
         Block::ChangeObjectIndex { direction } => (vec![Value::String(direction.clone())], None),
+        Block::ListValueAt { index, list } => {
+            (vec![param_to_value(index), variable_param(list)], None)
+        }
     })
 }
 
@@ -1399,11 +1431,9 @@ fn str_to_effect(s: &str) -> Option<EffectType> {
 
 //dim helper
 fn str_to_dim(s: &str) -> Option<Dimension> {
-    Some(
-         match s {
-            "width" => Dimension::Width,
-            "height" => Dimension::Height,
-            _ => return None
-        }
-    )
+    Some(match s {
+        "width" => Dimension::Width,
+        "height" => Dimension::Height,
+        _ => return None,
+    })
 }
