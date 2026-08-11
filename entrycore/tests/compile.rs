@@ -1197,6 +1197,71 @@ fn compile_value_of_index_from_list_roundtrip() {
     assert!(matches!(&args[1], Expr::Var(name) if name == "list"));
 }
 
+/// `add_value_to_list("apple", list)`는 항목 값과 리스트 dropdown을 가진
+/// statement 블록으로 emit되어야 한다.
+#[test]
+fn compile_add_value_to_list() {
+    let src = r#"
+        fn when_start() {
+            let list = "";
+            add_value_to_list("apple", list);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+
+    let add = thread
+        .iter()
+        .find(|b| b["type"] == "add_value_to_list")
+        .expect("add_value_to_list");
+    assert_eq!(add["params"].as_array().unwrap().len(), 3);
+    assert_eq!(add["params"][0]["type"], "text");
+    assert_eq!(add["params"][0]["params"][0], "apple");
+    assert_eq!(add["params"][1]["name"], "list");
+    assert_eq!(add["params"][1]["variableType"], "list");
+    assert!(add["params"][2].is_null());
+}
+
+/// 리스트 항목 추가 statement는 Entry JSON에서 DSL 호출로 deparse되어야 한다.
+#[test]
+fn compile_add_value_to_list_roundtrip() {
+    use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"
+        fn when_start() {
+            let list = "";
+            add_value_to_list("apple", list);
+        }
+    "#;
+    let p1 = parse(src).expect("parse");
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let script = objects[0]["script"].as_str().expect("script string");
+    let p2 = program_from_script_string_with_vars(script, &vars).expect("deparse");
+
+    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
+        panic!("expected when_start function");
+    };
+    let Some(Stmt::Expr(Expr::Call(fref, args))) = body.iter().find(|stmt| {
+        matches!(stmt, Stmt::Expr(Expr::Call(fref, _)) if fref.name == "add_value_to_list")
+    }) else {
+        panic!("expected add_value_to_list call");
+    };
+    assert_eq!(fref.name, "add_value_to_list");
+    assert_eq!(args.len(), 2);
+    assert!(matches!(&args[0], Expr::Str(value) if value == "apple"));
+    assert!(matches!(&args[1], Expr::Var(name) if name == "list"));
+}
+
 /// 라운드트립.
 #[test]
 fn compile_change_scale_size_roundtrip() {

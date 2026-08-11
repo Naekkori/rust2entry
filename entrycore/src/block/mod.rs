@@ -5,11 +5,7 @@
 
 pub mod category;
 pub mod registry;
-
-use std::clone;
-
 use crate::Error::UnmappedBlock;
-use crate::codegen::schema::Param;
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};
 
@@ -134,7 +130,10 @@ pub enum Block {
         index: ParamBlock,
         list: String,
     },
-
+    AddValueToList {
+        value: ParamBlock,
+        list: String,
+    },
     // ── 흐름 (제어) ──
     If {
         cond: ParamBlock,
@@ -397,7 +396,8 @@ impl Block {
             Block::FlipY {} => "flip_y",
             Block::ChangeObjectIndex { .. } => "change_object_index",
             Block::StretchScaleSize { .. } => "stretch_scale_size",
-            Block::ListValueAt { index, list } => "value_of_index_from_list",
+            Block::ListValueAt { .. } => "value_of_index_from_list",
+            Block::AddValueToList { .. } => "add_value_to_list",
         }
     }
 
@@ -466,7 +466,8 @@ impl Block {
             Block::FlipY {} => Category::Looks,
             Block::ChangeObjectIndex { .. } => Category::Looks,
             Block::StretchScaleSize { .. } => Category::Looks,
-            Block::ListValueAt { index, list } => Category::Variable,
+            Block::ListValueAt { .. } => Category::Variable,
+            Block::AddValueToList { .. } => Category::Variable,
         }
     }
 }
@@ -748,6 +749,23 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             }
                         };
                         return Ok(Block::ChangeObjectIndex { direction });
+                    }
+                    if fref.name == "add_value_to_list" {
+                        if args.len() != 2 {
+                            return Err(UnmappedBlock("add_value_to_list needs 2 args".into()));
+                        }
+
+                        let value = from_expr(&args[0])?;
+                        let list = match &args[1] {
+                            Expr::Var(name) => name.clone(),
+                            _ => {
+                                return Err(UnmappedBlock(
+                                    "add_value_to_list list must be variable".into(),
+                                ));
+                            }
+                        };
+
+                        return Ok(Block::AddValueToList { value, list });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -1286,6 +1304,12 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::ChangeObjectIndex { direction } => (vec![Value::String(direction.clone())], None),
         Block::ListValueAt { index, list } => {
             (vec![param_to_value(index), variable_param(list)], None)
+        }
+        Block::AddValueToList { value, list } => {
+            (
+                vec![param_to_value(value), variable_param(list), Value::Null],
+                None,
+            )
         }
     })
 }
