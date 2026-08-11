@@ -459,6 +459,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let amount = param_at(&params, 1, vars)?;
             Block::ChangeEffectAmount { effect, amount }
         }
+        "erase_all_effects" => Block::EraseAllEffects {},
         // EntryJS 의 동적 함수 호출 블록. type = `func_<id>` 형식이며
         // id 는 project.functions[].id 와 매칭된다. args 슬롯은
         // EntryJS 가 동적 확장하므로 params[0] 만 (Indicator) 있다.
@@ -1209,6 +1210,18 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             ));
             Ok(())
         },
+        Block::EraseAllEffects {  } => {
+            stmts.push(Stmt::Expr(
+                Expr::Call(
+                    ir::FuncRef {
+                        name: "erase_all_effects".to_string(),
+                        arity: 0
+                    },
+                    Vec::new()
+                )
+            ));
+            Ok(())
+        },
     }
 }
 
@@ -1517,6 +1530,15 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     arity: 2
                 },
                 vec![Expr::Str(effect_to_str(*effect).to_string()),a]
+            ))
+        },
+        Block::EraseAllEffects {  } => {
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "erase_all_effects".to_string(),
+                    arity: 0
+                },
+                Vec::new()
             ))
         },
     }

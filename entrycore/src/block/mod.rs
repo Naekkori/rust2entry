@@ -243,7 +243,8 @@ pub enum Block {
     },
     RemoveDialog{},
     AddEffectAmount {effect: EffectType, amount: ParamBlock},
-    ChangeEffectAmount { effect: EffectType, amount: ParamBlock}
+    ChangeEffectAmount { effect: EffectType, amount: ParamBlock},
+    EraseAllEffects  {}
 }
 
 /// 블록 파라미터 슬롯.
@@ -355,6 +356,7 @@ impl Block {
             Block::RemoveDialog {  } => "remove_dialog",
             Block::AddEffectAmount { .. } => "add_effect_amount",
             Block::ChangeEffectAmount { .. } => "change_effect_amount",
+            Block::EraseAllEffects {  } => "erase_all_effects",
         }
     }
 
@@ -415,6 +417,7 @@ impl Block {
             Block::RemoveDialog {  } => Category::Looks,
             Block::AddEffectAmount { .. } => Category::Looks,
             Block::ChangeEffectAmount { .. } => Category::Looks,
+            Block::EraseAllEffects {  } => Category::Looks,
         }
     }
 }
@@ -621,6 +624,9 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         let amount = from_expr(&args[1])?;
                         return Ok(Block::ChangeEffectAmount { effect, amount });
+                    }
+                    if fref.name == "erase_all_effects" {
+                        return Ok(Block::EraseAllEffects {  });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -1074,6 +1080,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None
         ),
+        Block::EraseAllEffects {  } => (vec![], None),
     })
 }
 
