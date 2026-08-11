@@ -416,6 +416,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let amount = param_at(&params, 0, vars)?;
             Block::SetScaleSize { amount }
         }
+        "reset_scale_size" => Block::ResetScaleSize {},
         // 함수
         "function_call" => {
             let name = params
@@ -1260,6 +1261,16 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::ResetScaleSize {} => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "reset_scale_size".to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -1599,6 +1610,13 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![a],
             ))
         }
+        Block::ResetScaleSize {} => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "reset_scale_size".to_string(),
+                arity: 0,
+            },
+            Vec::new(),
+        )),
     }
 }
 
