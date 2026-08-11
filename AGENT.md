@@ -16,7 +16,7 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
 | 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 5/5 |
-| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 126/126 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 129/129 |
 
 ### lib::compile 세부 동작 (현재)
 
@@ -187,7 +187,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `remove_dialog` — 말풍선 지우기 (→ `remove_dialog()`)
 - ✅ `change_to_some_shape` — □ 모양으로 바꾸기 (→ `change_to_some_shape("walk")`)
 - ✅ `change_to_next_shape` — 다음/이전 모양으로 바꾸기 (→ `change_to_next_shape()`)
-- ⬜ `add_effect_amount` — □ 효과를 □ 만큼 주기
+- ✅ `add_effect_amount` — □ 효과를 □ 만큼 주기 (→ `add_effect_amount("color", 50.0)`)
 - ⬜ `change_effect_amount` — □ 효과를 □ (으)로 정하기
 - ⬜ `erase_all_effects` — 효과 모두 지우기
 - ⬜ `change_scale_size` — 크기를 □ 만큼 바꾸기
@@ -326,7 +326,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**60/203** 매핑됨 (약 29.6%)
+**61/203** 매핑됨 (약 30.0%)
 
 카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 2/17, 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 10/26, 변수 7/19, 함수 7/14, 데이터분석 0/18.
 
@@ -400,15 +400,15 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
+- `d0f5885 feat(looks): remove_dialog 매핑 (말풍선 지우기)`
 - `34ef1f7 feat(looks): change_to_some_shape / change_to_next_shape 매핑`
 - `39c67ef feat(looks): say(text, secs) / think(text, secs) 시간 말하기`
 - `bf4a684 refactor(looks): dialog -> say 신택스 rename`
 - `161dc29 feat(looks): think 매핑 (□ 을(를) □ □ 생각하기)`
-- `2854275 feat(looks): dialog 매핑 (□ 을(를) □ □ 말하기)`
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 5 + codegen 9 + compile 126 + parse 26 = 166 통과)
+cargo test                  # 전체 (entryc 5 + codegen 9 + compile 129 + parse 26 = 169 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -417,7 +417,7 @@ cargo build                 # 빌드만
 **샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 이 컴퓨터엔 없을 수 있음 — GitHub entryjs 코드 직접 참고)
 
 **다음 할 일 추천 순서**:
-1. 형태 — `add_effect_amount` / `change_effect_amount` (효과)
+1. 형태 — `change_effect_amount` (효과 정하기) — add 와 같은 패턴
 2. 형태 — `erase_all_effects` / `change_scale_size` / `set_scale_size` / `reset_scale_size`
 3. 변수 — 리스트 (값 추가/삭제/길이)
 

@@ -42,6 +42,20 @@ pub enum DialogMode {
     Think,
 }
 
+// 효과 타입
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EffectType {
+    Color,
+    Brightness,
+    Ghost,
+    //엔트리에서 선언되어있지만 안쓰는것.
+    Fisheye,
+    Whirl,
+    Pixelate,
+    Mosaic,
+    Negative
+}
+
 /// 모든 Entry 블록의 통합 표현.
 #[derive(Debug, Clone)]
 pub enum Block {
@@ -227,7 +241,8 @@ pub enum Block {
     },
     ChangeToNextShape {
     },
-    RemoveDialog{}
+    RemoveDialog{},
+    AddEffectAmount {effect: EffectType, amount: ParamBlock}
 }
 
 /// 블록 파라미터 슬롯.
@@ -336,7 +351,8 @@ impl Block {
             Block::DialogTime { .. } => "dialog_time",
             Block::ChangeToSomeShape { .. } => "change_to_some_shape",
             Block::ChangeToNextShape {} => "change_to_next_shape",
-            Block::RemoveDialog {  } => "remove_dialog"
+            Block::RemoveDialog {  } => "remove_dialog",
+            Block::AddEffectAmount { .. } => "add_effect_amount",
         }
     }
 
@@ -394,7 +410,8 @@ impl Block {
             Block::DialogTime { .. } => Category::Looks,
             Block::ChangeToSomeShape { .. } => Category::Looks,
             Block::ChangeToNextShape {} => Category::Looks,
-            Block::RemoveDialog {  } => Category::Looks
+            Block::RemoveDialog {  } => Category::Looks,
+            Block::AddEffectAmount { .. } => Category::Looks,
         }
     }
 }
@@ -579,6 +596,17 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "remove_dialog" {
                         return Ok(Block::RemoveDialog {})
+                    }
+                    if fref.name == "add_effect_amount" {
+                        if args.len() != 2 {
+                            return  Err(UnmappedBlock("add_effect_amount needs 2 args".into()));
+                        }
+                        let effect = match &args[0] {
+                            Expr::Str(s) => str_to_effect(s).ok_or_else(|| UnmappedBlock(format!("unknown effect: {s}")))?,
+                            _ => return Err(UnmappedBlock("add_effect_amount effect must be string".into())),
+                        };
+                        let amount = from_expr(&args[1])?;
+                        return Ok(Block::AddEffectAmount { effect, amount });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -1015,7 +1043,15 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             None
         ),
         Block::ChangeToNextShape {  } => (vec![], None),
-        Block::RemoveDialog {  } => (vec![], None)
+        Block::RemoveDialog {  } => (vec![], None),
+        Block::AddEffectAmount { effect, amount } => (
+            vec![
+                Value::String(effect_to_str(*effect).to_string()),
+                param_to_value(amount),
+                Value::Null,
+            ],
+            None,
+        )
     })
 }
 
@@ -1035,7 +1071,21 @@ fn op_str(op: BinOp) -> &'static str {
         BinOp::Ge => ">=",
         BinOp::And => "&&",
         BinOp::Or => "||",
-        BinOp::Range => "..",
+        BinOp::Range => ".."
+    }
+}
+
+/// EffectType -> Entry effects 문자열.
+pub fn effect_to_str(e: EffectType) -> &'static str {
+    match e {
+        EffectType::Color => "color",
+        EffectType::Brightness => "brightness",
+        EffectType::Ghost => "ghost",
+        EffectType::Fisheye => "fisheye",
+        EffectType::Whirl => "whirl",
+        EffectType::Pixelate => "pixelate",
+        EffectType::Mosaic => "mosaic",
+        EffectType::Negative => "negative",
     }
 }
 
@@ -1110,5 +1160,20 @@ fn calc_op_from_name(name: &str) -> Option<MathOperation> {
         "exp" => MathOperation::Exp,
         "pow10" => MathOperation::Pow10,
         _ => return None,
+    })
+}
+
+//effect helper
+fn str_to_effect(s: &str) -> Option<EffectType> {
+    Some(match s {
+        "color" => EffectType::Color,
+        "brightness" => EffectType::Brightness,
+        "ghost" => EffectType::Ghost,
+        "fisheye" => EffectType::Fisheye,
+        "whirl" => EffectType::Whirl,
+        "pixelate" => EffectType::Pixelate,
+        "mosaic" => EffectType::Mosaic,
+        "negative" => EffectType::Negative,
+        _ => return None
     })
 }

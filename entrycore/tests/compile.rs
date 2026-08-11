@@ -948,6 +948,61 @@ fn compile_remove_dialog_roundtrip() {
     }
 }
 
+/// `add_effect_amount("color", 50.0);` → `add_effect_amount`, params[0] = "color", params[1] = 50.0.
+#[test]
+fn compile_add_effect_amount() {
+    let src = r#"fn when_start() { add_effect_amount("color", 50.0); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "add_effect_amount");
+    assert_eq!(thread[1]["params"][0].as_str(), Some("color"));
+    assert_eq!(thread[1]["params"][1]["params"][0].as_f64(), Some(50.0));
+}
+
+/// 다른 효과 (ghost).
+#[test]
+fn compile_add_effect_amount_ghost() {
+    let src = r#"fn when_start() { add_effect_amount("ghost", 25.0); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "add_effect_amount");
+    assert_eq!(thread[1]["params"][0].as_str(), Some("ghost"));
+}
+
+/// 라운드트립.
+#[test]
+fn compile_add_effect_amount_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { add_effect_amount("color", 50.0); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "add_effect_amount");
+                    assert_eq!(args.len(), 2);
+                    assert!(matches!(&args[0], Expr::Str(s) if s == "color"));
+                }
+                other => panic!("expected Call(add_effect_amount), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 // ── ask_and_wait ──
 
 /// `ask_and_wait("이름을 입력")` → `ask_and_wait` 블록, params[0] = text 슬롯.
