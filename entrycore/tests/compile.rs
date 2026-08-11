@@ -1158,6 +1158,64 @@ fn compile_change_scale_size_roundtrip() {
     }
 }
 
+/// `set_scale_size(100.0);` → `set_scale_size`, params[0] = number 슬롯.
+#[test]
+fn compile_set_scale_size() {
+    let src = r#"fn when_start() { set_scale_size(100.0); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "set_scale_size");
+    assert_eq!(thread[1]["params"][0]["params"][0].as_f64(), Some(100.0));
+}
+
+/// `set_scale_size(n);` → 변수 슬롯.
+#[test]
+fn compile_set_scale_size_var() {
+    let src = r#"
+        fn when_start() {
+            let n = 200.0;
+            set_scale_size(n);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let sss = thread.iter().find(|b| b["type"] == "set_scale_size").expect("set_scale_size");
+    assert_eq!(sss["params"][0]["name"], "n");
+}
+
+/// 라운드트립.
+#[test]
+fn compile_set_scale_size_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { set_scale_size(100.0); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "set_scale_size");
+                    assert_eq!(args.len(), 1);
+                }
+                other => panic!("expected Call(set_scale_size), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 // ── ask_and_wait ──
 
 /// `ask_and_wait("이름을 입력")` → `ask_and_wait` 블록, params[0] = text 슬롯.

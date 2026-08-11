@@ -253,6 +253,9 @@ pub enum Block {
     ChangeScaleSize {
         amount: ParamBlock,
     },
+    SetScaleSize {
+        amount: ParamBlock,
+    },
 }
 
 /// 블록 파라미터 슬롯.
@@ -366,6 +369,7 @@ impl Block {
             Block::ChangeEffectAmount { .. } => "change_effect_amount",
             Block::EraseAllEffects {} => "erase_all_effects",
             Block::ChangeScaleSize { .. } => "change_scale_size",
+            Block::SetScaleSize { .. } => "set_scale_size",
         }
     }
 
@@ -428,6 +432,7 @@ impl Block {
             Block::ChangeEffectAmount { .. } => Category::Looks,
             Block::EraseAllEffects {} => Category::Looks,
             Block::ChangeScaleSize { .. } => Category::Looks,
+            Block::SetScaleSize { .. } => Category::Looks,
         }
     }
 }
@@ -655,8 +660,20 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         return Ok(Block::EraseAllEffects {});
                     }
                     if fref.name == "change_scale_size" {
-                        let arg = args.first().ok_or_else(|| UnmappedBlock("change_scale_size needs arg".into()))?;
-                        return Ok(Block::ChangeScaleSize { amount: from_expr(arg)? });
+                        let arg = args
+                            .first()
+                            .ok_or_else(|| UnmappedBlock("change_scale_size needs arg".into()))?;
+                        return Ok(Block::ChangeScaleSize {
+                            amount: from_expr(arg)?,
+                        });
+                    }
+                    if fref.name == "set_scale_size" {
+                        let arg = args
+                            .first()
+                            .ok_or_else(|| UnmappedBlock("set_scale_size needs arg".into()))?;
+                        return Ok(Block::SetScaleSize {
+                            amount: from_expr(arg)?,
+                        });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -1110,10 +1127,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             None,
         ),
         Block::EraseAllEffects {} => (vec![], None),
-        Block::ChangeScaleSize { amount } => (
-            vec![param_to_value(amount), Value::Null],
-            None
-        ),
+        Block::ChangeScaleSize { amount } => (vec![param_to_value(amount), Value::Null], None),
+        Block::SetScaleSize { amount } => (vec![param_to_value(amount), Value::Null], None),
     })
 }
 
