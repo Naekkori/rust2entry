@@ -16,7 +16,7 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
 | 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 5/5 |
-| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 146/146 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 181/181 |
 
 ### lib::compile 세부 동작 (현재)
 
@@ -177,19 +177,17 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `see_angle_object` — □ 쪽 바라보기
 - ⬜ `move_to_angle` — □ 방향으로 □ 만큼 움직이기
 
-### 형태 (2/17)
+### 형태 (14/17)
 - ✅ `show` — 모양 보이기 (→ `show()`)
 - ✅ `hide` — 모양 숨기기 (→ `hide()`)
 - ✅ `dialog` — □ 을(를) □ □ (말하기) (→ `say(text)`)
 - ✅ `dialog` — □ 을(를) □ □ (생각하기) (→ `think(text)`) — 같은 블록, params[1] = "think"
 - ✅ `dialog_time` — □ 을(를) □ 초 동안 □ □ (시간 말하기) (→ `say(text, secs)` / `think(text, secs)`)
-- ⬜ `dialog_time` — □ 을(를) □ 초 동안 □ □ (시간 말하기) (시간 말하기)
 - ✅ `remove_dialog` — 말풍선 지우기 (→ `remove_dialog()`)
 - ✅ `change_to_some_shape` — □ 모양으로 바꾸기 (→ `change_to_some_shape("walk")`)
 - ✅ `change_to_next_shape` — 다음/이전 모양으로 바꾸기 (→ `change_to_next_shape()`)
 - ✅ `add_effect_amount` — □ 효과를 □ 만큼 주기 (→ `add_effect_amount("color", 50.0)`)
 - ✅ `change_effect_amount` — □ 효과를 □ (으)로 정하기 (→ `change_effect_amount("color", 50.0)`)
-- ⬜ `change_effect_amount` — □ 효과를 □ (으)로 정하기
 - ✅ `erase_all_effects` — 효과 모두 지우기 (→ `erase_all_effects()`)
 - ✅ `change_scale_size` — 크기를 □ 만큼 바꾸기 (→ `change_scale_size(50.0)`)
 - ✅ `set_scale_size` — 크기를 □ (으)로 정하기 (→ `set_scale_size(100.0)`)
@@ -331,7 +329,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **68/203** 매핑됨 (약 33.5%)
 
-카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 2/17, 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 10/26, 변수 7/19, 함수 7/14, 데이터분석 0/18.
+카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 14/17, 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 10/26, 변수 7/19, 함수 7/14, 데이터분석 0/18.
 
 ## 남은 작업 (TODO)
 
@@ -403,15 +401,15 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
+- `3d7b2c3 feat(looks): flip_x / flip_y 매핑 (모양 뒤집기)`
 - `9c805dc feat(looks): reset_scale_size 매핑 + from_expr 누락 일괄 수정`
 - `09771ea feat(looks): set_scale_size 매핑 (크기를 □ (으)로 정하기)`
 - `5f16f73 feat(looks): change_scale_size 매핑 (크기를 □ 만큼 바꾸기)`
 - `d5c11ab feat(looks): erase_all_effects 매핑 (효과 모두 지우기)`
-- `1bf0712 feat(looks): change_effect_amount 매핑 (□ 효과를 □ (으)로 정하기)`
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 5 + codegen 9 + compile 146 + parse 26 = 186 통과)
+cargo test                  # 전체 (entryc 5 + codegen 9 + compile 181 + parse 26 = 221 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
