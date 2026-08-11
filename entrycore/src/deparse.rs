@@ -8,7 +8,7 @@ use std::vec;
 
 use crate::Error::UnmappedBlock;
 use crate::block::{Block, DialogMode, MathOperation, ParamBlock, QamMethod};
-use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
+use crate::ir::{BinOp, Expr, FuncRef, Stmt, UnaryOp};
 use crate::var::VarMap;
 use crate::{Result, ir};
 use serde_json::Value;
@@ -388,6 +388,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         // 모양
         "show" => Block::Show {},
         "hide" => Block::Hide {},
+        "remove_dialog" => Block::RemoveDialog {},
         "dialog" => {
             let content = param_at(&params, 0, vars)?;
             let mode = match params.get(1).and_then(Value::as_str) {
@@ -1142,6 +1143,16 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::RemoveDialog {  } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "remove_dialog".to_string(),
+                    arity: 0
+                },
+                Vec::new()
+            )));
+            Ok(())
+        },
     }
 }
 
@@ -1424,6 +1435,13 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 arity: 0,
             },
             Vec::new(),
+        )),
+        Block::RemoveDialog {  } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "remove_dialog".to_string(),
+                arity: 0
+            },
+            Vec::new()
         )),
     }
 }

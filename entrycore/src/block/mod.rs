@@ -227,6 +227,7 @@ pub enum Block {
     },
     ChangeToNextShape {
     },
+    RemoveDialog{}
 }
 
 /// 블록 파라미터 슬롯.
@@ -335,6 +336,7 @@ impl Block {
             Block::DialogTime { .. } => "dialog_time",
             Block::ChangeToSomeShape { .. } => "change_to_some_shape",
             Block::ChangeToNextShape {} => "change_to_next_shape",
+            Block::RemoveDialog {  } => "remove_dialog"
         }
     }
 
@@ -392,6 +394,7 @@ impl Block {
             Block::DialogTime { .. } => Category::Looks,
             Block::ChangeToSomeShape { .. } => Category::Looks,
             Block::ChangeToNextShape {} => Category::Looks,
+            Block::RemoveDialog {  } => Category::Looks
         }
     }
 }
@@ -573,6 +576,9 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             op,
                             expr: from_expr(arg)?,
                         });
+                    }
+                    if fref.name == "remove_dialog" {
+                        return Ok(Block::RemoveDialog {})
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -1009,6 +1015,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             None
         ),
         Block::ChangeToNextShape {  } => (vec![], None),
+        Block::RemoveDialog {  } => (vec![], None)
     })
 }
 
