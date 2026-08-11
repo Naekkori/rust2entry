@@ -53,7 +53,7 @@ pub enum EffectType {
     Whirl,
     Pixelate,
     Mosaic,
-    Negative
+    Negative,
 }
 
 /// 모든 Entry 블록의 통합 표현.
@@ -239,12 +239,20 @@ pub enum Block {
     ChangeToSomeShape {
         picture: String,
     },
-    ChangeToNextShape {
+    ChangeToNextShape {},
+    RemoveDialog {},
+    AddEffectAmount {
+        effect: EffectType,
+        amount: ParamBlock,
     },
-    RemoveDialog{},
-    AddEffectAmount {effect: EffectType, amount: ParamBlock},
-    ChangeEffectAmount { effect: EffectType, amount: ParamBlock},
-    EraseAllEffects  {}
+    ChangeEffectAmount {
+        effect: EffectType,
+        amount: ParamBlock,
+    },
+    EraseAllEffects {},
+    ChangeScaleSize {
+        amount: ParamBlock,
+    },
 }
 
 /// 블록 파라미터 슬롯.
@@ -353,10 +361,11 @@ impl Block {
             Block::DialogTime { .. } => "dialog_time",
             Block::ChangeToSomeShape { .. } => "change_to_some_shape",
             Block::ChangeToNextShape {} => "change_to_next_shape",
-            Block::RemoveDialog {  } => "remove_dialog",
+            Block::RemoveDialog {} => "remove_dialog",
             Block::AddEffectAmount { .. } => "add_effect_amount",
             Block::ChangeEffectAmount { .. } => "change_effect_amount",
-            Block::EraseAllEffects {  } => "erase_all_effects",
+            Block::EraseAllEffects {} => "erase_all_effects",
+            Block::ChangeScaleSize { .. } => "change_scale_size",
         }
     }
 
@@ -414,10 +423,11 @@ impl Block {
             Block::DialogTime { .. } => Category::Looks,
             Block::ChangeToSomeShape { .. } => Category::Looks,
             Block::ChangeToNextShape {} => Category::Looks,
-            Block::RemoveDialog {  } => Category::Looks,
+            Block::RemoveDialog {} => Category::Looks,
             Block::AddEffectAmount { .. } => Category::Looks,
             Block::ChangeEffectAmount { .. } => Category::Looks,
-            Block::EraseAllEffects {  } => Category::Looks,
+            Block::EraseAllEffects {} => Category::Looks,
+            Block::ChangeScaleSize { .. } => Category::Looks,
         }
     }
 }
@@ -581,15 +591,21 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         });
                     }
                     if fref.name == "change_to_some_shape" {
-                        let arg = args.first().ok_or_else(|| UnmappedBlock("change_to_some_shape needs arg".into()))?;
+                        let arg = args.first().ok_or_else(|| {
+                            UnmappedBlock("change_to_some_shape needs arg".into())
+                        })?;
                         let picture = match arg {
-                            Expr::Str(s)=>s.clone(),
-                            _ => return Err(UnmappedBlock("change_to_some_shape arg must be string".into()))
+                            Expr::Str(s) => s.clone(),
+                            _ => {
+                                return Err(UnmappedBlock(
+                                    "change_to_some_shape arg must be string".into(),
+                                ));
+                            }
                         };
-                        return Ok(Block::ChangeToSomeShape { picture })
+                        return Ok(Block::ChangeToSomeShape { picture });
                     }
                     if fref.name == "change_to_next_shape" {
-                        return Ok(Block::ChangeToNextShape{});
+                        return Ok(Block::ChangeToNextShape {});
                     }
                     if let Some(op) = calc_op_from_name(&fref.name) {
                         let arg = args
@@ -601,15 +617,20 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         });
                     }
                     if fref.name == "remove_dialog" {
-                        return Ok(Block::RemoveDialog {})
+                        return Ok(Block::RemoveDialog {});
                     }
                     if fref.name == "add_effect_amount" {
                         if args.len() != 2 {
-                            return  Err(UnmappedBlock("add_effect_amount needs 2 args".into()));
+                            return Err(UnmappedBlock("add_effect_amount needs 2 args".into()));
                         }
                         let effect = match &args[0] {
-                            Expr::Str(s) => str_to_effect(s).ok_or_else(|| UnmappedBlock(format!("unknown effect: {s}")))?,
-                            _ => return Err(UnmappedBlock("add_effect_amount effect must be string".into())),
+                            Expr::Str(s) => str_to_effect(s)
+                                .ok_or_else(|| UnmappedBlock(format!("unknown effect: {s}")))?,
+                            _ => {
+                                return Err(UnmappedBlock(
+                                    "add_effect_amount effect must be string".into(),
+                                ));
+                            }
                         };
                         let amount = from_expr(&args[1])?;
                         return Ok(Block::AddEffectAmount { effect, amount });
@@ -619,14 +640,23 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             return Err(UnmappedBlock("change_effect_amount needs 2 arg".into()));
                         }
                         let effect = match &args[0] {
-                            Expr::Str(s)=>str_to_effect(s).ok_or_else(|| UnmappedBlock(format!("unknow effect: {s}")))?,
-                            _ => return Err(UnmappedBlock("change_effect_amount effect must be string".into())),
+                            Expr::Str(s) => str_to_effect(s)
+                                .ok_or_else(|| UnmappedBlock(format!("unknow effect: {s}")))?,
+                            _ => {
+                                return Err(UnmappedBlock(
+                                    "change_effect_amount effect must be string".into(),
+                                ));
+                            }
                         };
                         let amount = from_expr(&args[1])?;
                         return Ok(Block::ChangeEffectAmount { effect, amount });
                     }
                     if fref.name == "erase_all_effects" {
-                        return Ok(Block::EraseAllEffects {  });
+                        return Ok(Block::EraseAllEffects {});
+                    }
+                    if fref.name == "change_scale_size" {
+                        let arg = args.first().ok_or_else(|| UnmappedBlock("change_scale_size needs arg".into()))?;
+                        return Ok(Block::ChangeScaleSize { amount: from_expr(arg)? });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -1058,12 +1088,11 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
-        Block::ChangeToSomeShape { picture } => (
-            vec![Value::String(picture.clone()), Value::Null],
-            None
-        ),
-        Block::ChangeToNextShape {  } => (vec![], None),
-        Block::RemoveDialog {  } => (vec![], None),
+        Block::ChangeToSomeShape { picture } => {
+            (vec![Value::String(picture.clone()), Value::Null], None)
+        }
+        Block::ChangeToNextShape {} => (vec![], None),
+        Block::RemoveDialog {} => (vec![], None),
         Block::AddEffectAmount { effect, amount } => (
             vec![
                 Value::String(effect_to_str(*effect).to_string()),
@@ -1076,11 +1105,15 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             vec![
                 Value::String(effect_to_str(*effect).to_string()),
                 param_to_value(amount),
-                Value::Null
+                Value::Null,
             ],
+            None,
+        ),
+        Block::EraseAllEffects {} => (vec![], None),
+        Block::ChangeScaleSize { amount } => (
+            vec![param_to_value(amount), Value::Null],
             None
         ),
-        Block::EraseAllEffects {  } => (vec![], None),
     })
 }
 
@@ -1100,7 +1133,7 @@ fn op_str(op: BinOp) -> &'static str {
         BinOp::Ge => ">=",
         BinOp::And => "&&",
         BinOp::Or => "||",
-        BinOp::Range => ".."
+        BinOp::Range => "..",
     }
 }
 
@@ -1203,6 +1236,6 @@ fn str_to_effect(s: &str) -> Option<EffectType> {
         "pixelate" => EffectType::Pixelate,
         "mosaic" => EffectType::Mosaic,
         "negative" => EffectType::Negative,
-        _ => return None
+        _ => return None,
     })
 }
