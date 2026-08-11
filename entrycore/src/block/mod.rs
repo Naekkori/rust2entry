@@ -242,7 +242,8 @@ pub enum Block {
     ChangeToNextShape {
     },
     RemoveDialog{},
-    AddEffectAmount {effect: EffectType, amount: ParamBlock}
+    AddEffectAmount {effect: EffectType, amount: ParamBlock},
+    ChangeEffectAmount { effect: EffectType, amount: ParamBlock}
 }
 
 /// 블록 파라미터 슬롯.
@@ -353,6 +354,7 @@ impl Block {
             Block::ChangeToNextShape {} => "change_to_next_shape",
             Block::RemoveDialog {  } => "remove_dialog",
             Block::AddEffectAmount { .. } => "add_effect_amount",
+            Block::ChangeEffectAmount { .. } => "change_effect_amount",
         }
     }
 
@@ -412,6 +414,7 @@ impl Block {
             Block::ChangeToNextShape {} => Category::Looks,
             Block::RemoveDialog {  } => Category::Looks,
             Block::AddEffectAmount { .. } => Category::Looks,
+            Block::ChangeEffectAmount { .. } => Category::Looks,
         }
     }
 }
@@ -607,6 +610,17 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         let amount = from_expr(&args[1])?;
                         return Ok(Block::AddEffectAmount { effect, amount });
+                    }
+                    if fref.name == "change_effect_amount" {
+                        if args.len() != 2 {
+                            return Err(UnmappedBlock("change_effect_amount needs 2 arg".into()));
+                        }
+                        let effect = match &args[0] {
+                            Expr::Str(s)=>str_to_effect(s).ok_or_else(|| UnmappedBlock(format!("unknow effect: {s}")))?,
+                            _ => return Err(UnmappedBlock("change_effect_amount effect must be string".into())),
+                        };
+                        let amount = from_expr(&args[1])?;
+                        return Ok(Block::ChangeEffectAmount { effect, amount });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -1051,7 +1065,15 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
                 Value::Null,
             ],
             None,
-        )
+        ),
+        Block::ChangeEffectAmount { effect, amount } => (
+            vec![
+                Value::String(effect_to_str(*effect).to_string()),
+                param_to_value(amount),
+                Value::Null
+            ],
+            None
+        ),
     })
 }
 

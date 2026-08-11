@@ -443,6 +443,22 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let amount = param_at(&params, 1, vars)?;
             Block::AddEffectAmount { effect, amount }
         }
+        "change_effect_amount" => {
+            let effect_s = params.get(0).and_then(Value::as_str).unwrap_or("color");
+            let effect = match effect_s {
+                "color" => EffectType::Color,
+                "brightness" => EffectType::Brightness,
+                "ghost" => EffectType::Ghost,
+                "fisheye" => EffectType::Fisheye,
+                "whirl" => EffectType::Whirl,
+                "pixelate" => EffectType::Pixelate,
+                "mosaic" => EffectType::Mosaic,
+                "negative" => EffectType::Negative,
+                _ => EffectType::Color,
+            };
+            let amount = param_at(&params, 1, vars)?;
+            Block::ChangeEffectAmount { effect, amount }
+        }
         // EntryJS 의 동적 함수 호출 블록. type = `func_<id>` 형식이며
         // id 는 project.functions[].id 와 매칭된다. args 슬롯은
         // EntryJS 가 동적 확장하므로 params[0] 만 (Indicator) 있다.
@@ -1180,6 +1196,19 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         },
+        Block::ChangeEffectAmount { effect, amount } => {
+            let a = expr_from_param(amount, vars)?;
+            stmts.push(Stmt::Expr(
+                Expr::Call(
+                    ir::FuncRef {
+                        name: "change_effect_amount".to_string(),
+                        arity: 2,
+                    },
+                    vec![Expr::Str(effect_to_str(*effect).to_string()), a],
+                )
+            ));
+            Ok(())
+        },
     }
 }
 
@@ -1480,6 +1509,16 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![Expr::Str(effect_to_str(*effect).to_string()), a],
             ))
         }
+        Block::ChangeEffectAmount { effect, amount } => {
+            let a = expr_from_param(amount, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "change_effect_amount".to_string(),
+                    arity: 2
+                },
+                vec![Expr::Str(effect_to_str(*effect).to_string()),a]
+            ))
+        },
     }
 }
 
