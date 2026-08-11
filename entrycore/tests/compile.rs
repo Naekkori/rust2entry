@@ -631,10 +631,10 @@ fn compile_show_answer_roundtrip() {
 
 // ── dialog (말하기) ──
 
-/// `dialog("hello");` → `dialog` 블록, params[0] = text 슬롯, params[1] = "say".
+/// `say("hello");` → `dialog` 블록, params[0] = text 슬롯, params[1] = "say".
 #[test]
-fn compile_dialog_text() {
-    let src = r#"fn when_start() { dialog("hello"); }"#;
+fn compile_say_text() {
+    let src = r#"fn when_start() { say("hello"); }"#;
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
@@ -644,13 +644,13 @@ fn compile_dialog_text() {
     assert_eq!(thread[1]["params"][1].as_str(), Some("say"));
 }
 
-/// `dialog(x);` → params[0] = 변수 dropdown.
+/// `say(x);` → params[0] = 변수 dropdown.
 #[test]
-fn compile_dialog_var() {
+fn compile_say_var() {
     let src = r#"
         fn when_start() {
             let x = "hi";
-            dialog(x);
+            say(x);
         }
     "#;
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
@@ -662,13 +662,13 @@ fn compile_dialog_var() {
 
 /// 라운드트립.
 #[test]
-fn compile_dialog_roundtrip() {
+fn compile_say_roundtrip() {
     use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
-    let src = r#"fn when_start() { dialog("hi"); }"#;
+    let src = r#"fn when_start() { say("hi"); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let vars = collect_var_map(&p1);
@@ -681,10 +681,10 @@ fn compile_dialog_roundtrip() {
             assert_eq!(body.len(), 1);
             match &body[0] {
                 Stmt::Expr(Expr::Call(fref, args)) => {
-                    assert_eq!(fref.name, "dialog");
+                    assert_eq!(fref.name, "say");
                     assert_eq!(args.len(), 1);
                 }
-                other => panic!("expected Call(dialog), got {other:?}"),
+                other => panic!("expected Call(say), got {other:?}"),
             }
         }
         other => panic!("expected FuncDef(when_start), got {other:?}"),

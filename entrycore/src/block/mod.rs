@@ -499,8 +499,8 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         let b = from_expr(&args[1])?;
                         return Ok(Block::QuotientAndMod { a, b, mode });
                     }
-                    if fref.name == "dialog" {
-                        let arg = args.first().ok_or_else(|| UnmappedBlock("dialog needs arg".into()))?;
+                    if fref.name == "say" {
+                        let arg = args.first().ok_or_else(|| UnmappedBlock("say needs arg".into()))?;
                         return Ok(Block::Dialog { mode: DialogMode::Say, content: from_expr(arg)? });
                     }
                     if fref.name == "think" {
@@ -642,8 +642,8 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 let max = from_expr(&args[1])?;
                 return Ok(ParamBlock::Sub(Box::new(Block::CalcRand { min, max })));
             }
-            if fref.name == "dialog" {
-                let arg = args.first().ok_or_else(|| UnmappedBlock("dialog needs arg".into()))?;
+            if fref.name == "say" {
+                let arg = args.first().ok_or_else(|| UnmappedBlock("say needs arg".into()))?;
                 return Ok(ParamBlock::Sub(Box::new(Block::Dialog { mode: DialogMode::Say, content: from_expr(arg)? })));
             }
             if fref.name == "think" {

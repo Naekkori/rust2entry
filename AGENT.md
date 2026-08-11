@@ -180,7 +180,7 @@ fn greet(a: StringParam, b: BoolParam) {
 ### 형태 (2/17)
 - ✅ `show` — 모양 보이기 (→ `show()`)
 - ✅ `hide` — 모양 숨기기 (→ `hide()`)
-- ✅ `dialog` — □ 을(를) □ □ (말하기) (→ `dialog(text)`)
+- ✅ `dialog` — □ 을(를) □ □ (말하기) (→ `say(text)`)
 - ✅ `dialog` — □ 을(를) □ □ (생각하기) (→ `think(text)`) — 같은 블록, params[1] = "think"
 - ⬜ `dialog_time` — □ 을(를) □ 초 동안 □ □ (시간 말하기)
 - ⬜ `dialog_time` — □ 을(를) □ 초 동안 □ □ (시간 말하기) (시간 말하기)
@@ -375,7 +375,7 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 연산: `calc_rand` (난수), `get_project_timer_value` (타이머 값), `set_visible_project_timer` (타이머 보이기/숨기기)
     - 타이머 시작/정지/리셋 (`choose_project_timer_action`) ✅ `start_timer()` / `stop_timer()` / `reset_timer()`
   - [x] 변수: `ask_and_wait` (입력 묻기) / `get_canvas_input_value` (대답 값), `set_visible_answer` (대답 보이기/숨기기)
-  - [x] 형태: `show` / `hide` (오브젝트 보이기/숨기기), `dialog` (말하기) + `think` (생각하기)
+  - [x] 형태: `show` / `hide` (오브젝트 보이기/숨기기), `say`/`think` (말하기/생각하기)
     - `dialog_time` (시간 말하기) 미완
   - [x] 연산: `quotient_and_mod` (몫/나머지) → `quotient_and_mod(a, b, "quotient"|"modulo")`
   - [x] 연산: `calc_operation` (절댓값/제곱/제곱근) → `abs(x)` / `sqrt(x)` / `sin(x)` / ... (12개 함수)
@@ -401,11 +401,11 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
+- `161dc29 feat(looks): think 매핑 (□ 을(를) □ □ 생각하기)`
 - `2854275 feat(looks): dialog 매핑 (□ 을(를) □ □ 말하기)`
 - `8dee09e feat(var): set_visible_answer 매핑 (show_answer/hide_answer)`
 - (이전) `feat(literal): Angle/Color 리터럴 + function_field_label TextInput 정합화 + 같은 이름+다른 arity 라우팅`
 - `6107c53 docs: AGENT.md 동기화 (show/hide 완료, 최근 커밋, 추천 순서)`
-- `d72e92b feat(calc): set_visible_project_timer 매핑 (show_timer/hide_timer)`
 
 **빌드/테스트 명령**:
 ```

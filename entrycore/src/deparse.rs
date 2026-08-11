@@ -1078,7 +1078,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::Dialog { mode, content } => {
             let arg = expr_from_param(content, vars)?;
             let name = match mode {
-                DialogMode::Say => "dialog",
+                DialogMode::Say => "say",
                 DialogMode::Think => "think",
             };
             stmts.push(Stmt::Expr(Expr::Call(
@@ -1316,7 +1316,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         Block::Dialog { mode, content } => {
             let arg = expr_from_param(content, vars)?;
             let name = match mode {
-                DialogMode::Say => "dialog",
+                DialogMode::Say => "say",
                 DialogMode::Think => "think",
             };
             Ok(Expr::Call(
