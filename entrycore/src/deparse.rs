@@ -193,6 +193,13 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
 
             Block::AddValueToList { value, list }
         }
+        "remove_value_from_list" => {
+            let index = param_at(&params, 0, vars)?;
+            let (list, _name) = variable_slot(&params, 1)?;
+            let list = resolve_var(&list, vars);
+
+            Block::RemoveValueFromList { index, list }
+        }
 
         // 흐름
         "if" => {
@@ -1367,6 +1374,16 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::RemoveValueFromList { index, list } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "remove_value_from_list".to_string(),
+                    arity: 2,
+                },
+                vec![expr_from_param(index, vars)?, Expr::Var(list.clone())],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -1570,6 +1587,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         | Block::WaitSeconds { .. }
         | Block::WaitUntilTrue { .. }
         | Block::AddValueToList { .. }
+        | Block::RemoveValueFromList { .. }
         | Block::Return { .. } => Err(UnmappedBlock(format!(
             "block used as expr: {}",
             b.type_id()

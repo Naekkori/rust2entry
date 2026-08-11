@@ -16,7 +16,7 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
 | 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 6/6 |
-| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 155/155 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 157/157 |
 
 ### lib::compile 세부 동작 (현재)
 
@@ -276,7 +276,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `change_hex_to_rgb` — HEX → R/G/B
 - ⬜ `get_boolean_value` — 값 슬롯 (boolean)
 
-### 변수 (9/19)
+### 변수 (10/19)
 - ✅ `set_variable` → `SetVar`
 - ✅ `change_variable` → `ChangeVar`
 - ✅ `get_variable` → `GetVar`
@@ -286,7 +286,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `set_visible_answer` — 대답 보이기/숨기기 (→ `show_answer()` / `hide_answer()`)
 - ✅ `value_of_index_from_list` → `ListValueAt` (→ `value_of_index_from_list(index, list)`)
 - ✅ `add_value_to_list` → `AddValueToList` (→ `add_value_to_list(value, list)`)
-- ⬜ `remove_value_from_list` — N번째 삭제
+- ✅ `remove_value_from_list` → `RemoveValueFromList` (→ `remove_value_from_list(index, list)`)
 - ⬜ `insert_value_to_list` — N번째에 삽입
 - ⬜ `change_value_list_index` — N번째 값 바꾸기
 - ⬜ `length_of_list` — 리스트 길이
@@ -327,11 +327,11 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**72/203** 매핑됨 (약 35.5%)
+**73/203** 매핑됨 (약 36.0%)
 
-카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 12/26, 변수 9/19, 함수 7/14, 데이터분석 0/18.
+카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 12/26, 변수 10/19, 함수 7/14, 데이터분석 0/18.
 
-> 주의: 위 카테고리별 숫자 중 일부는 과거 갱신 누락으로 실제 매핑 수와 어긋나 있었음 (형태 14→17, 연산 10→12). 합계 72 는 실제 ✅ 표시 기준.
+> 주의: 위 카테고리별 숫자 중 일부는 과거 갱신 누락으로 실제 매핑 수와 어긋나 있었음 (형태 14→17, 연산 10→12). 합계 73 은 실제 ✅ 표시 기준.
 
 ## 남은 작업 (TODO)
 
@@ -412,7 +412,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 155 + parse 26 = 196 통과)
+cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 157 + parse 26 = 198 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -427,7 +427,7 @@ cargo build                 # 빌드만
 - `block::Dimension` (Width/Height) vs `codegen/schema.rs::Dimension` (picture width/height i64) — 이름 겹침. 현재는 모듈이 달라 컴파일 되지만 codegen 에서 둘 다 쓰면 alias 강제됨. `ScaleAxis` 로 rename 권장 (참조 ~7곳)
 
 **다음 할 일 추천 순서**:
-1. 변수 — 리스트 (값 추가/삭제/길이) — 6블록, 변수 9/19 → 15/19
+1. 변수 — 리스트 (값 추가/삭제/길이) — 5블록, 변수 10/19 → 15/19
 2. 판단 — `is_press_some_key` / `reach_something` (게임 로직 필수)
 3. 움직임 — `move_x` / `move_y` / `locate_xy` (0/19, 가장 큰 미개척 영역)
 

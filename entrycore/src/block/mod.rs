@@ -134,6 +134,10 @@ pub enum Block {
         value: ParamBlock,
         list: String,
     },
+    RemoveValueFromList {
+        index: ParamBlock,
+        list: String,
+    },
     // ── 흐름 (제어) ──
     If {
         cond: ParamBlock,
@@ -398,6 +402,7 @@ impl Block {
             Block::StretchScaleSize { .. } => "stretch_scale_size",
             Block::ListValueAt { .. } => "value_of_index_from_list",
             Block::AddValueToList { .. } => "add_value_to_list",
+            Block::RemoveValueFromList { .. } => "remove_value_from_list",
         }
     }
 
@@ -468,6 +473,7 @@ impl Block {
             Block::StretchScaleSize { .. } => Category::Looks,
             Block::ListValueAt { .. } => Category::Variable,
             Block::AddValueToList { .. } => Category::Variable,
+            Block::RemoveValueFromList { .. } => Category::Variable,
         }
     }
 }
@@ -766,6 +772,25 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
 
                         return Ok(Block::AddValueToList { value, list });
+                    }
+                    if fref.name == "remove_value_from_list" {
+                        if args.len() != 2 {
+                            return Err(UnmappedBlock(
+                                "remove_value_from_list needs 2 args".into(),
+                            ));
+                        }
+
+                        let index = from_expr(&args[0])?;
+                        let list = match &args[1] {
+                            Expr::Var(name) => name.clone(),
+                            _ => {
+                                return Err(UnmappedBlock(
+                                    "remove_value_from_list list must be variable".into(),
+                                ));
+                            }
+                        };
+
+                        return Ok(Block::RemoveValueFromList { index, list });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -1305,12 +1330,14 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::ListValueAt { index, list } => {
             (vec![param_to_value(index), variable_param(list)], None)
         }
-        Block::AddValueToList { value, list } => {
-            (
-                vec![param_to_value(value), variable_param(list), Value::Null],
-                None,
-            )
-        }
+        Block::AddValueToList { value, list } => (
+            vec![param_to_value(value), variable_param(list), Value::Null],
+            None,
+        ),
+        Block::RemoveValueFromList { index, list } => (
+            vec![param_to_value(index), variable_param(list), Value::Null],
+            None,
+        ),
     })
 }
 
