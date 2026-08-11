@@ -7,7 +7,7 @@
 use std::vec;
 
 use crate::Error::UnmappedBlock;
-use crate::block::{Block, MathOperation, ParamBlock, QamMethod};
+use crate::block::{Block, DialogMode, MathOperation, ParamBlock, QamMethod};
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
 use crate::{Result, ir};
@@ -390,7 +390,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         "hide" => Block::Hide {},
         "dialog" => {
             let content = param_at(&params, 0, vars)?;
-            Block::Dialog { content }
+            let mode = match params.get(1).and_then(Value::as_str) {
+                Some("think") => DialogMode::Think,
+                _ => DialogMode::Say,
+            };
+            Block::Dialog { mode, content }
         }
         // 함수
         "function_call" => {
@@ -1071,11 +1075,15 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
-        Block::Dialog { content } => {
+        Block::Dialog { mode, content } => {
             let arg = expr_from_param(content, vars)?;
+            let name = match mode {
+                DialogMode::Say => "dialog",
+                DialogMode::Think => "think",
+            };
             stmts.push(Stmt::Expr(Expr::Call(
                 ir::FuncRef {
-                    name: "dialog".to_string(),
+                    name: name.to_string(),
                     arity: 1,
                 },
                 vec![arg],
@@ -1305,11 +1313,15 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         }
         Block::SetVisibleProjectTimer { value } => Ok(Expr::Bool(*value)),
         Block::SetVisibleAnswer { value } => Ok(Expr::Bool(*value)),
-        Block::Dialog { content } => {
+        Block::Dialog { mode, content } => {
             let arg = expr_from_param(content, vars)?;
+            let name = match mode {
+                DialogMode::Say => "dialog",
+                DialogMode::Think => "think",
+            };
             Ok(Expr::Call(
                 crate::ir::FuncRef {
-                    name: "dialog".to_string(),
+                    name: name.to_string(),
                     arity: 1,
                 },
                 vec![arg],

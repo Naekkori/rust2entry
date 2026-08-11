@@ -36,6 +36,13 @@ pub enum MathOperation {
     Pow10,
 }
 /// 모든 Entry 블록의 통합 표현.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DialogMode {
+    Say,
+    Think,
+}
+
+/// 모든 Entry 블록의 통합 표현.
 #[derive(Debug, Clone)]
 pub enum Block {
     // ── 시작 (트리거) ──
@@ -206,7 +213,7 @@ pub enum Block {
     // --- 모양 ---
     Show {},
     Hide {},
-    Dialog { content: ParamBlock}
+    Dialog { mode: DialogMode, content: ParamBlock}
 }
 
 /// 블록 파라미터 슬롯.
@@ -494,7 +501,11 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "dialog" {
                         let arg = args.first().ok_or_else(|| UnmappedBlock("dialog needs arg".into()))?;
-                        return Ok(Block::Dialog { content: from_expr(arg)? });
+                        return Ok(Block::Dialog { mode: DialogMode::Say, content: from_expr(arg)? });
+                    }
+                    if fref.name == "think" {
+                        let arg = args.first().ok_or_else(|| UnmappedBlock("think needs arg".into()))?;
+                        return Ok(Block::Dialog { mode: DialogMode::Think, content: from_expr(arg)? });
                     }
                     if let Some(op) = calc_op_from_name(&fref.name) {
                         let arg = args
@@ -630,6 +641,14 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 let min = from_expr(&args[0])?;
                 let max = from_expr(&args[1])?;
                 return Ok(ParamBlock::Sub(Box::new(Block::CalcRand { min, max })));
+            }
+            if fref.name == "dialog" {
+                let arg = args.first().ok_or_else(|| UnmappedBlock("dialog needs arg".into()))?;
+                return Ok(ParamBlock::Sub(Box::new(Block::Dialog { mode: DialogMode::Say, content: from_expr(arg)? })));
+            }
+            if fref.name == "think" {
+                let arg = args.first().ok_or_else(|| UnmappedBlock("think needs arg".into()))?;
+                return Ok(ParamBlock::Sub(Box::new(Block::Dialog { mode: DialogMode::Think, content: from_expr(arg)? })));
             }
             if fref.name == "get_project_timer_value" {
                 return Ok(ParamBlock::Sub(Box::new(Block::GetProjectTimerValue {})));
@@ -873,9 +892,16 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
                 None,
             )
         }
-        Block::Dialog { content } => (
-            vec![param_to_value(content), Value::String("say".into()),Value::Null],
-            None
+        Block::Dialog { mode, content } => (
+            vec![
+                param_to_value(content),
+                Value::String(match mode {
+                    DialogMode::Say => "say".into(),
+                    DialogMode::Think => "think".into(),
+                }),
+                Value::Null,
+            ],
+            None,
         ),
     })
 }
