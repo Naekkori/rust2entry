@@ -6,6 +6,8 @@
 pub mod category;
 pub mod registry;
 
+use std::clone;
+
 use crate::Error::UnmappedBlock;
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};
@@ -18,6 +20,11 @@ use serde_json::{Value, json};
 pub enum QamMethod {
     Quotient,
     Mod,
+}
+#[derive(Debug, Clone)]
+pub enum Dimension {
+    Width,
+    Height,
 }
 
 #[derive(Debug, Clone)]
@@ -262,6 +269,10 @@ pub enum Block {
     ChangeObjectIndex {
         direction: String,
     },
+    StretchScaleSize {
+        dim: Dimension,
+        value: ParamBlock,
+    },
 }
 
 /// 블록 파라미터 슬롯.
@@ -380,6 +391,7 @@ impl Block {
             Block::FlipX {} => "flip_x",
             Block::FlipY {} => "flip_y",
             Block::ChangeObjectIndex { .. } => "change_object_index",
+            Block::StretchScaleSize { .. } => "stretch_scale_size",
         }
     }
 
@@ -447,6 +459,7 @@ impl Block {
             Block::FlipX {} => Category::Looks,
             Block::FlipY {} => Category::Looks,
             Block::ChangeObjectIndex { .. } => Category::Looks,
+            Block::StretchScaleSize { .. } => Category::Looks,
         }
     }
 }
@@ -691,6 +704,22 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "reset_scale_size" {
                         return Ok(Block::ResetScaleSize {});
+                    }
+                    if fref.name == "stretch_scale_size" {
+                        if args.len() != 2 {
+                            return Err(UnmappedBlock("stretch_scale_size needs 2 args".into()));
+                        }
+                        let dim = match &args[0] {
+                            Expr::Str(s) => str_to_dim(s)
+                                .ok_or_else(|| UnmappedBlock(format!("unknown dimension: {s}")))?,
+                            _ => {
+                                return Err(UnmappedBlock(
+                                    "stretch_scale_size dimension must be string".into(),
+                                ));
+                            }
+                        };
+                        let value = from_expr(&args[1])?;
+                        return Ok(Block::StretchScaleSize { dim, value });
                     }
                     //얘네들은 반대로 작동함.
                     if fref.name == "flip_x" {
@@ -1203,6 +1232,14 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
+        Block::StretchScaleSize { dim, value } => (
+            vec![
+                Value::String(dim_to_str(dim).to_string()),
+                param_to_value(value),
+                Value::Null,
+            ],
+            None,
+        ),
         Block::ChangeEffectAmount { effect, amount } => (
             vec![
                 Value::String(effect_to_str(*effect).to_string()),
@@ -1252,6 +1289,22 @@ pub fn effect_to_str(e: EffectType) -> &'static str {
         EffectType::Pixelate => "pixelate",
         EffectType::Mosaic => "mosaic",
         EffectType::Negative => "negative",
+    }
+}
+
+/// Dimension -> EntryJS dropdown 값 (대문자).
+pub fn dim_to_str(d: &Dimension) -> &'static str {
+    match d {
+        Dimension::Width => "WIDTH",
+        Dimension::Height => "HEIGHT",
+    }
+}
+
+/// Dimension -> DSL 신택스 문자열 (소문자, `str_to_dim` 의 역).
+pub fn dim_to_dsl_str(d: &Dimension) -> &'static str {
+    match d {
+        Dimension::Width => "width",
+        Dimension::Height => "height",
     }
 }
 
@@ -1342,4 +1395,15 @@ fn str_to_effect(s: &str) -> Option<EffectType> {
         "negative" => EffectType::Negative,
         _ => return None,
     })
+}
+
+//dim helper
+fn str_to_dim(s: &str) -> Option<Dimension> {
+    Some(
+         match s {
+            "width" => Dimension::Width,
+            "height" => Dimension::Height,
+            _ => return None
+        }
+    )
 }

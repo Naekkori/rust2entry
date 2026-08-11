@@ -15,8 +15,8 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 7 | `for-range` — `for i in a..b` → `repeat_basic` 펼침 | ✅ | in 1, 3 |
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
-| 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 5/5 |
-| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 184/184 |
+| 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 6/6 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 151/151 |
 
 ### lib::compile 세부 동작 (현재)
 
@@ -177,7 +177,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `see_angle_object` — □ 쪽 바라보기
 - ⬜ `move_to_angle` — □ 방향으로 □ 만큼 움직이기
 
-### 형태 (14/17)
+### 형태 (17/17)
 - ✅ `show` — 모양 보이기 (→ `show()`)
 - ✅ `hide` — 모양 숨기기 (→ `hide()`)
 - ✅ `dialog` — □ 을(를) □ □ (말하기) (→ `say(text)`)
@@ -191,7 +191,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `erase_all_effects` — 효과 모두 지우기 (→ `erase_all_effects()`)
 - ✅ `change_scale_size` — 크기를 □ 만큼 바꾸기 (→ `change_scale_size(50.0)`)
 - ✅ `set_scale_size` — 크기를 □ (으)로 정하기 (→ `set_scale_size(100.0)`)
-- ⬜ `stretch_scale_size` — □ 를 □ 만큼 늘이기
+- ✅ `stretch_scale_size` — □ 를 □ 만큼 늘이기 (→ `stretch_scale_size("width", 10)` / `("height", 10)`)
 - ✅ `reset_scale_size` — 원래 크기로 되돌리기 (→ `reset_scale_size()`)
 - ✅ `flip_x` — 좌우 모양 뒤집기 (→ `flip_x()`)
 - ✅ `flip_y` — 상하 모양 뒤집기 (→ `flip_y()`)
@@ -243,7 +243,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `is_current_device_type` — □ 에서 실행하는가?
 - ⬜ `is_touch_supported` — 터치 가능한가?
 
-### 연산 (10/26)
+### 연산 (12/26)
 - ✅ `calc_basic` → `CalcBinOp` (사칙연산)
 - ✅ `number` → `Number` 리터럴
 - ✅ `text` → `Text` 리터럴
@@ -327,9 +327,11 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**69/203** 매핑됨 (약 34.0%)
+**70/203** 매핑됨 (약 34.5%)
 
-카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 14/17, 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 10/26, 변수 7/19, 함수 7/14, 데이터분석 0/18.
+카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 12/26, 변수 7/19, 함수 7/14, 데이터분석 0/18.
+
+> 주의: 위 카테고리별 숫자 중 일부는 과거 갱신 누락으로 실제 매핑 수와 어긋나 있었음 (형태 14→17, 연산 10→12). 합계 70 은 실제 ✅ 표시 기준.
 
 ## 남은 작업 (TODO)
 
@@ -379,6 +381,7 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 형태: `show` / `hide` (오브젝트 보이기/숨기기), `say`/`think` (말하기/생각하기), `say(text, secs)` / `think(text, secs)` (시간 말하기)
   - [x] 연산: `quotient_and_mod` (몫/나머지) → `quotient_and_mod(a, b, "quotient"|"modulo")`
   - [x] 연산: `calc_operation` (절댓값/제곱/제곱근) → `abs(x)` / `sqrt(x)` / `sin(x)` / ... (12개 함수)
+  - [x] 형태: `stretch_scale_size` (□ 를 □ 만큼 늘이기) → `stretch_scale_size("width"|"height", v)`. EntryJS dropdown 값은 대문자 `WIDTH`/`HEIGHT` 라 emit 시 변환 (`dim_to_str`), DSL 신택스는 소문자 (`dim_to_dsl_str` / `str_to_dim`). **형태 카테고리 17/17 완료.**
   - [x] **리터럴 정합화 (EntryJS 호환)**:
     - [x] `Angle` 리터럴 (`Block::Angle(f64)` → EntryJS `angle` 타입 ID) — 각도 슬롯
     - [x] `Color` 리터럴 (`Block::Color(String)` → EntryJS `color` 타입 ID) — 색상 슬롯
@@ -396,31 +399,37 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ## 다른 컴퓨터에서 이어서 시작할 때
 
-**현재 작업 디렉토리**: `D:\kkori\rust2entry` (Windows / PowerShell 5.1)
+**현재 작업 디렉토리**: `D:\source\rust2entry` (Windows / PowerShell 5.1)
 
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
+- `feat(looks): stretch_scale_size 매핑 (□ 를 □ 만큼 늘이기) — 형태 17/17 완료`
+- `a4da298 feat(looks): change_object_index 매핑 (□ 보내기 — 레이어)`
 - `f59d76a docs: AGENT.md 동기화 (중복 제거 + 카운트 갱신)`
 - `3d7b2c3 feat(looks): flip_x / flip_y 매핑 (모양 뒤집기)`
 - `9c805dc feat(looks): reset_scale_size 매핑 + from_expr 누락 일괄 수정`
-- `09771ea feat(looks): set_scale_size 매핑 (크기를 □ (으)로 정하기)`
-- `5f16f73 feat(looks): change_scale_size 매핑 (크기를 □ 만큼 바꾸기)`
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc 5 + codegen 9 + compile 184 + parse 26 = 224 통과)
+cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 151 + parse 26 = 192 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
 ```
 
+> `cargo test` 출력 중 `error: the following required arguments were not provided: --rs <FILE>` 는 CLI 인자 누락을 검증하는 테스트의 정상 stderr 임. 실패 아님.
+
 **샘플 .ent 위치**: `C:\Users\NEKO\Documents\test.ent` (EntryJS 실제 export 형식 참고용, 이 컴퓨터엔 없을 수 있음 — GitHub entryjs 코드 직접 참고)
 
+**알려진 정리 대상**:
+- `entrycore/src/block/mod.rs:9` `use std::clone;` — 미사용 import 경고
+- `block::Dimension` (Width/Height) vs `codegen/schema.rs::Dimension` (picture width/height i64) — 이름 겹침. 현재는 모듈이 달라 컴파일 되지만 codegen 에서 둘 다 쓰면 alias 강제됨. `ScaleAxis` 로 rename 권장 (참조 ~7곳)
+
 **다음 할 일 추천 순서**:
-1. 형태 — `stretch_scale_size` (□ 를 □ 만큼 늘이기)
-2. 형태 — `dialog_time` 의 남은 항목 (시간 말하기) — 이미 매핑됨
-3. 변수 — 리스트 (값 추가/삭제/길이)
+1. 변수 — 리스트 (값 추가/삭제/길이) — 8블록, 변수 7/19 → 15/19
+2. 판단 — `is_press_some_key` / `reach_something` (게임 로직 필수)
+3. 움직임 — `move_x` / `move_y` / `locate_xy` (0/19, 가장 큰 미개척 영역)
 
 ## 디렉토리
 
@@ -432,6 +441,6 @@ entrycore/   라이브러리 (parse/block/codegen/deparse/decodegen/var) + lib::
              - ir::ParamKind: String (StringParam) / Bool (BoolParam)
 entryc/      CLI (extract/build subcommand, --rs/--out/--ent-template, --scene, --replace-vars)
 target/      빌드 산출물
-entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 (203개, 51개 매핑)
+entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 (203개, 70개 매핑)
 AGENT.md     이 문서
 ```

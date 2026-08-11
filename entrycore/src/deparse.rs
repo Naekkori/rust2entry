@@ -8,7 +8,8 @@ use std::vec;
 
 use crate::Error::UnmappedBlock;
 use crate::block::{
-    Block, DialogMode, EffectType, MathOperation, ParamBlock, QamMethod, effect_to_str,
+    Block, Dimension, DialogMode, EffectType, MathOperation, ParamBlock, QamMethod,
+    dim_to_dsl_str, effect_to_str,
 };
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
@@ -448,6 +449,14 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::ChangeToSomeShape { picture }
         }
         "change_to_next_shape" => Block::ChangeToNextShape {},
+        "stretch_scale_size" => {
+            let dim = match params.get(0).and_then(Value::as_str).unwrap_or("WIDTH") {
+                "HEIGHT" => Dimension::Height,
+                _ => Dimension::Width,
+            };
+            let value = param_at(&params, 1, vars)?;
+            Block::StretchScaleSize { dim, value }
+        }
         "add_effect_amount" => {
             let effect_s = params.get(0).and_then(Value::as_str).unwrap_or("color");
             let effect = match effect_s {
@@ -1214,6 +1223,17 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::StretchScaleSize { dim, value } => {
+            let v = expr_from_param(value, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "stretch_scale_size".to_string(),
+                    arity: 2,
+                },
+                vec![Expr::Str(dim_to_dsl_str(dim).to_string()), v],
+            )));
+            Ok(())
+        }
         Block::RemoveDialog {} => {
             stmts.push(Stmt::Expr(Expr::Call(
                 ir::FuncRef {
@@ -1607,6 +1627,16 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     arity: 2,
                 },
                 vec![Expr::Str(effect_to_str(*effect).to_string()), a],
+            ))
+        }
+        Block::StretchScaleSize { dim, value } => {
+            let v = expr_from_param(value, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "stretch_scale_size".to_string(),
+                    arity: 2,
+                },
+                vec![Expr::Str(dim_to_dsl_str(dim).to_string()), v],
             ))
         }
         Block::ChangeEffectAmount { effect, amount } => {

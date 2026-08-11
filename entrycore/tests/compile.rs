@@ -1258,6 +1258,55 @@ fn compile_reset_scale_size_roundtrip() {
     }
 }
 
+/// `stretch_scale_size("height", 10);` → params = ["HEIGHT", 10, null].
+#[test]
+fn compile_stretch_scale_size() {
+    let src = r#"fn when_start() { stretch_scale_size("height", 10); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "stretch_scale_size");
+    let params = thread[1]["params"].as_array().unwrap();
+    assert_eq!(params.len(), 3);
+    assert_eq!(params[0], "HEIGHT");
+    assert!(params[2].is_null());
+}
+
+/// 라운드트립.
+#[test]
+fn compile_stretch_scale_size_roundtrip() {
+    use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { stretch_scale_size("width", 10); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "stretch_scale_size");
+                    assert_eq!(args.len(), 2);
+                    match &args[0] {
+                        Expr::Str(s) => assert_eq!(s, "width"),
+                        other => panic!("expected Str(width), got {other:?}"),
+                    }
+                }
+                other => panic!("expected Call(stretch_scale_size), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// `flip_x();` → `flip_x` 블록, params = [].
 #[test]
 fn compile_flip_x() {
