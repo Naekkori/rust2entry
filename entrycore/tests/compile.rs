@@ -3642,3 +3642,97 @@ fn compile_restart_project_roundtrip() {
     });
     assert!(found_call.is_some(), "expected restart_project call");
 }
+
+/// `create_clone()` → target="self" 디폴트. `create_clone("sprite_name")` → target=sprite_name.
+#[test]
+fn compile_create_clone() {
+    let src = r#"
+        fn when_start() {
+            create_clone();
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "create_clone")
+        .expect("create_clone block");
+    eprintln!("DEBUG create_clone block = {}", serde_json::to_string(block).unwrap());
+    let params = block["params"].as_array().unwrap();
+    assert_eq!(params.len(), 2);
+    assert!(params[1].is_null());
+}
+
+/// 라운드트립 — self 디폴트 args=[] 로 emit.
+#[test]
+fn compile_create_clone_roundtrip() {
+    use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"
+        fn when_start() {
+            create_clone();
+        }
+    "#;
+    let p1 = parse(src).expect("parse");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let script_str = objects[0]["script"].as_str().expect("script string");
+    let p2 = program_from_script_string_with_vars(script_str, &vars).expect("deparse");
+
+    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
+        panic!("expected when_start function");
+    };
+    let found_call = body.iter().find_map(|stmt| match stmt {
+        Stmt::Expr(Expr::Call(fref, _)) if fref.name == "create_clone" => Some(fref),
+        _ => None,
+    });
+    assert!(found_call.is_some(), "expected create_clone call");
+}
+
+/// `create_clone("sprite_name")` → args[0] = target string.
+#[test]
+fn compile_create_clone_with_target() {
+    let src = r#"
+        fn when_start() {
+            create_clone("another_sprite");
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "create_clone")
+        .expect("create_clone block");
+    eprintln!("DEBUG create_clone with target block = {}", serde_json::to_string(block).unwrap());
+    let params = block["params"].as_array().unwrap();
+    assert_eq!(params.len(), 2);
+    assert!(params[1].is_null());
+}
+
+/// `create_clone(&self)` → Expr::Reference normalize 후 self 로 처리. 동일 emit.
+#[test]
+fn compile_create_clone_self_reference() {
+    let src = r#"
+        fn when_start() {
+            create_clone(&self);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "create_clone")
+        .expect("create_clone block");
+    eprintln!("DEBUG create_clone &self block = {}", serde_json::to_string(block).unwrap());
+    let params = block["params"].as_array().unwrap();
+    assert_eq!(params.len(), 2);
+    assert_eq!(params[0].as_str().unwrap(), "self");
+    assert!(params[1].is_null());
+}

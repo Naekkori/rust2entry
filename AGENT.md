@@ -19,7 +19,7 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
 | 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 6/6 |
-| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 174/174 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 178/178 |
 
 ### lib::compile 세부 동작 (현재)
 
@@ -154,7 +154,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `start_neighbor_scene` → `StartNeighborScene` (→ `start_next_scene();` / `start_prev_scene();`)
 - 제외 (내부용, 매핑 대상 아님): `check_object_property`, `check_block_execution`, `switch_scope`, `is_answer_submited`, `check_lecture_goal`, `check_variable_by_name`, `show_prompt`, `check_goal_success`, `positive_number`, `negative_number`, `wildcard_string`, `wildcard_boolean`, `register_score`
 
-### 흐름 (11/13) — when_clone_start 중복 외 repeat_while_true 미적용 제외 후 남은 것
+### 흐름 (12/13) — when_clone_start 중복 외 repeat_while_true 미적용 제외 후 남은 것
 - ✅ `repeat_basic` → `Repeat` (for-range 펼침)
 - ✅ `repeat_while` → `While`
 - ✅ `repeat_inf` / `repeat_forever` → `Forever`
@@ -167,7 +167,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `wait_until_true` — □ 이(가) 될 때까지 기다리기 (→ `wait_until_true(cond)`)
 - ✅ `restart_project` — 처음부터 다시 실행하기 (→ `restart_project()`)
 - 제외 (별도 블록 필요 없음): `repeat_while_true` (Rust native `while` 키워드로 커버), `when_clone_start` (시작 카테고리에 이미 매핑)
-- ⬜ `create_clone` — □ 의 복제본 만들기
+- ✅ `create_clone` — □ 의 복제본 만들기 (→ `create_clone()` 로 self, `create_clone("sprite_name")` 로 다른 sprite. `&self` 도 허용)
 - ⬜ `delete_clone` — 이 복제본 삭제하기
 - ⬜ `remove_all_clones` — 모든 복제본 삭제하기
 
@@ -336,9 +336,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**79/187** 매핑됨 (약 42.2%, 내부용 16개 제외 기준)
+**80/187** 매핑됨 (약 42.8%, 내부용 16개 제외 기준)
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 11/13, 움직임 0/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 12/13, 움직임 0/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18.
 
 ## 남은 작업 (TODO)
 
@@ -421,7 +421,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 174 + parse 26 = 215 통과)
+cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 178 + parse 26 = 219 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -450,6 +450,6 @@ entrycore/   라이브러리 (parse/block/codegen/deparse/decodegen/var) + lib::
              - ir::ParamKind: String (StringParam) / Bool (BoolParam)
 entryc/      CLI (extract/build subcommand, --rs/--out/--ent-template, --scene, --replace-vars)
 target/      빌드 산출물
-entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 (187개 사용자용 중, 79개 매핑; 원본 203개 중 내부용 16개 제외)
+entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 (187개 사용자용 중, 80개 매핑; 원본 203개 중 내부용 16개 제외)
 AGENT.md     이 문서
 ```

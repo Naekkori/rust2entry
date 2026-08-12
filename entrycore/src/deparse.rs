@@ -279,6 +279,14 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         "_continue" => Block::Continue,
         "stop_run_all" => Block::StopAll,
         "restart_project" => Block::RestartProject,
+        "create_clone" => {
+            let target = params
+                .get(0)
+                .and_then(Value::as_str)
+                .unwrap_or("self")
+                .to_string();
+            Block::CreateClone { target }
+        }
 
         // 산술/비교/논리
         "calc_basic" => {
@@ -1501,6 +1509,21 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::CreateClone { target } => {
+            let args = if target == "self" {
+                Vec::new()
+            } else {
+                vec![Expr::Str(target.clone())]
+            };
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "create_clone".to_string(),
+                    arity: args.len(),
+                },
+                args,
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -1679,6 +1702,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         | Block::ChangeVar { .. }
         | Block::ShowVar { .. }
         | Block::HideVar { .. }
+        | Block::CreateClone { .. }
         | Block::HideList { .. }
         | Block::ShowList { .. }
         | Block::If { .. }

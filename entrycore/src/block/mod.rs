@@ -305,6 +305,9 @@ pub enum Block {
         dim: Dimension,
         value: ParamBlock,
     },
+    CreateClone {
+        target: String,
+    },
 }
 
 /// 블록 파라미터 슬롯.
@@ -434,6 +437,7 @@ impl Block {
             Block::IsIncludedInList { .. } => "is_included_in_list",
             Block::ShowList { .. } => "show_list",
             Block::HideList { .. } => "hide_list",
+            Block::CreateClone { .. } => "create_clone",
         }
     }
 
@@ -513,6 +517,7 @@ impl Block {
             Block::IsIncludedInList { .. } => Category::Variable,
             Block::ShowList { .. } => Category::Variable,
             Block::HideList { .. } => Category::Variable,
+            Block::CreateClone { .. } => Category::Flow,
         }
     }
 }
@@ -922,6 +927,29 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         let value = from_expr(&args[1])?;
                         return Ok(Block::IsIncludedInList { list, value });
+                    }
+                    if fref.name == "create_clone" {
+                        let target = match &args.len() {
+                            0 => "self".to_string(),
+                            1 => match &args[0] {
+                                Expr::Str(s) => s.clone(),
+                                Expr::Var(name) if name == "self" => "self".to_string(),
+                                Expr::Var(name) => name.clone(),
+                                _ => {
+                                    return Err(UnmappedBlock(
+                                        "create_clone target must be string literal or variable"
+                                            .into(),
+                                    ));
+                                }
+                            },
+                            _ => {
+                                return Err(UnmappedBlock(format!(
+                                    "create_clone needs 0 or 1 args, got {}",
+                                    args.len()
+                                )));
+                            }
+                        };
+                        return Ok(Block::CreateClone { target });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -1543,6 +1571,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         ),
         Block::ShowList { list } => (vec![list_variable_param(list), Value::Null], None),
         Block::HideList { list } => (vec![list_variable_param(list), Value::Null], None),
+        Block::CreateClone { target } => (vec![Value::String(target.clone()), Value::Null], None),
     })
 }
 

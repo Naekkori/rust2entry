@@ -96,6 +96,7 @@ pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
                 Box::new(convert_expr(end.clone())?),
             ))
         }
+        Expr::Reference(r) => convert_expr(*r.expr),
         _ => Err(UnmappedBlock("expr".into())),
     }
 }
