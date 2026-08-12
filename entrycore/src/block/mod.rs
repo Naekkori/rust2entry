@@ -1375,21 +1375,21 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::FlipY {} => (vec![], None),
         Block::ChangeObjectIndex { direction } => (vec![Value::String(direction.clone())], None),
         Block::ListValueAt { index, list } => {
-            (vec![param_to_value(index), variable_param(list)], None)
+            (vec![param_to_value(index), list_variable_param(list)], None)
         }
         Block::AddValueToList { value, list } => (
-            vec![param_to_value(value), variable_param(list), Value::Null],
+            vec![param_to_value(value), list_variable_param(list), Value::Null],
             None,
         ),
         Block::RemoveValueFromList { index, list } => (
-            vec![param_to_value(index), variable_param(list), Value::Null],
+            vec![param_to_value(index), list_variable_param(list), Value::Null],
             None,
         ),
         Block::InsertValueToList { value, index, list } => (
             vec![
                 param_to_value(value),
                 param_to_value(index),
-                variable_param(list),
+                list_variable_param(list),
                 Value::Null,
             ],
             None,
@@ -1398,7 +1398,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             vec![
                 param_to_value(index),
                 param_to_value(value),
-                variable_param(list),
+                list_variable_param(list),
                 Value::Null,
             ],
             None,
@@ -1473,6 +1473,10 @@ fn variable_param(name: &str) -> Value {
     let id = id_for(name);
     let kind = kind_for(name);
     json!({ "id": id, "name": name, "variableType": kind_to_str(&kind) })
+}
+
+fn list_variable_param(name: &str) -> Value {
+    json!({ "id": id_for(name), "name": name, "variableType": "list" })
 }
 
 /// 이름 -> 해시 ID (간단한 해시).

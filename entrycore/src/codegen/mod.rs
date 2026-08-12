@@ -21,30 +21,36 @@ pub fn generate(program: &Program, original: &Value) -> Result<Value> {
     // IR stmt들을 Block으로 변환한 뒤 to_value() 호출.
     // project.json 최상위 구조는 schema::Project 참고.
     let blocks: Result<Vec<_>> = program.stmts.iter().map(from_stmt).collect();
-    let scripts = blocks?.into_iter().map(|b| to_value(&b)).collect::<Result<Vec<_>>>()?;
+    let scripts = blocks?
+        .into_iter()
+        .map(|b| to_value(&b))
+        .collect::<Result<Vec<_>>>()?;
     let vars = collect_var_map(program);
-    let vars_arr: Vec<Value> = vars.iter().map(|v| {
-        json!({
-            "id":v.id,
-            "name": v.name,
-            "variableType": match v.kind{
-                VarKind::Variable => "variable",
-                VarKind::Answer => "answer",
-                VarKind::Timer => "timer",
-                VarKind::List => "list",
-                VarKind::Cloud => "cloud",
-                VarKind::RealTime => "realtime",
-                VarKind::Unknown => "variable",
-            },
-            "value":match v.init {
-                VarInit::Int0 => json!(0),
-                VarInit::Float0 => json!(0.0),
-                VarInit::EmptyStr => json!(""),
-                VarInit::False => json!(false),
-                VarInit::EmptyList => json!([]),
-            }
+    let vars_arr: Vec<Value> = vars
+        .iter()
+        .map(|v| {
+            json!({
+                "id":v.id,
+                "name": v.name,
+                "variableType": match v.kind{
+                    VarKind::Variable => "variable",
+                    VarKind::Answer => "answer",
+                    VarKind::Timer => "timer",
+                    VarKind::List => "list",
+                    VarKind::Cloud => "cloud",
+                    VarKind::RealTime => "realtime",
+                    VarKind::Unknown => "variable",
+                },
+                "value":match v.init {
+                    VarInit::Int0 => json!(0),
+                    VarInit::Float0 => json!(0.0),
+                    VarInit::EmptyStr => json!(""),
+                    VarInit::False => json!(false),
+                    VarInit::EmptyList => json!([]),
+                }
+            })
         })
-    }).collect();
+        .collect();
     let mut project = original.clone();
     project["scripts"] = json!(scripts);
     // variables 는 base 의 기존 항목을 보존하고, 같은 id 의 새 항목은 덮어쓰고,
@@ -59,9 +65,10 @@ pub fn generate(program: &Program, original: &Value) -> Result<Value> {
     for v in &vars_arr {
         let new_id = v.get("id").and_then(|x| x.as_str());
         if let Some(new_id) = new_id {
-            if let Some(existing) = merged_vars.iter_mut().find(|e| {
-                e.get("id").and_then(|x| x.as_str()) == Some(new_id)
-            }) {
+            if let Some(existing) = merged_vars
+                .iter_mut()
+                .find(|e| e.get("id").and_then(|x| x.as_str()) == Some(new_id))
+            {
                 *existing = v.clone();
                 continue;
             }
@@ -87,22 +94,23 @@ pub fn collect_var_map(program: &Program) -> VarMap {
     let mut names: Vec<String> = Vec::new();
     let mut explicit_kinds: std::collections::HashMap<String, VarKind> =
         std::collections::HashMap::new();
-    let mut scopes: std::collections::HashMap<String, VarScope> =
-        std::collections::HashMap::new();
+    let mut scopes: std::collections::HashMap<String, VarScope> = std::collections::HashMap::new();
+
+    let mut list_context_names: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
     collect_vars_program(program, &mut names);
     collect_explicit_kinds_program(program, &mut explicit_kinds);
     collect_scopes_program(program, &mut scopes);
+    collect_list_contexts_program(program, &mut list_context_names);
     for name in names {
         let id = crate::block::id_for(&name);
         let kind = explicit_kinds
             .get(&name)
             .cloned()
+            .or_else(|| list_context_names.contains(&name).then_some(VarKind::List))
             .unwrap_or_else(|| crate::block::kind_for(&name));
         // scope: Global scope VarDecl 이 있으면 우선, 없으면 Local (default).
-        let scope = scopes
-            .get(&name)
-            .copied()
-            .unwrap_or(VarScope::Local);
+        let scope = scopes.get(&name).copied().unwrap_or(VarScope::Local);
         map.insert(VarInfo {
             id,
             name: name.clone(),
@@ -132,10 +140,7 @@ pub(crate) fn collect_explicit_kinds_program(
     }
 }
 
-fn collect_explicit_kinds_stmt(
-    s: &Stmt,
-    out: &mut std::collections::HashMap<String, VarKind>,
-) {
+fn collect_explicit_kinds_stmt(s: &Stmt, out: &mut std::collections::HashMap<String, VarKind>) {
     match s {
         Stmt::VarDecl(name, _, Some(kind), _) => {
             out.insert(name.clone(), kind.clone());
@@ -145,7 +150,11 @@ fn collect_explicit_kinds_stmt(
         Stmt::Expr(e) => {
             collect_explicit_kinds_expr(e, out);
         }
-        Stmt::If { cond, then_body, else_body } => {
+        Stmt::If {
+            cond,
+            then_body,
+            else_body,
+        } => {
             collect_explicit_kinds_expr(cond, out);
             for s in then_body {
                 collect_explicit_kinds_stmt(s, out);
@@ -206,7 +215,11 @@ fn collect_scopes_stmt(
         }
         Stmt::SetVar(_, _) => {}
         Stmt::Expr(_) => {}
-        Stmt::If { then_body, else_body, .. } => {
+        Stmt::If {
+            then_body,
+            else_body,
+            ..
+        } => {
             for s in then_body {
                 collect_scopes_stmt(s, out);
             }
@@ -254,7 +267,11 @@ pub(crate) fn collect_vars_stmt(s: &Stmt, out: &mut Vec<String>) {
             }
         }
         Stmt::Expr(e) => collect_vars_expr(e, out),
-        Stmt::If { cond, then_body, else_body } => {
+        Stmt::If {
+            cond,
+            then_body,
+            else_body,
+        } => {
             collect_vars_expr(cond, out);
             for s in then_body {
                 collect_vars_stmt(s, out);
@@ -305,6 +322,86 @@ pub(crate) fn collect_vars_expr(e: &Expr, out: &mut Vec<String>) {
             collect_vars_expr(r, out);
         }
         Expr::Int(_) | Expr::Float(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Func(_) => {}
+    }
+}
+
+fn collect_list_contexts_program(
+    p: &Program,
+    out: &mut std::collections::HashSet<String>,
+) {
+    for stmt in &p.stmts {
+        collect_list_contexts_stmt(stmt, out);
+    }
+}
+
+fn collect_list_contexts_stmt(
+    stmt: &Stmt,
+    out: &mut std::collections::HashSet<String>,
+) {
+    match stmt {
+        Stmt::VarDecl(_, expr, _, _) | Stmt::SetVar(_, expr) => {
+            collect_list_contexts_expr(expr, out);
+        }
+        Stmt::Expr(expr) | Stmt::Return(expr) => collect_list_contexts_expr(expr, out),
+        Stmt::If { cond, then_body, else_body } => {
+            collect_list_contexts_expr(cond, out);
+            for stmt in then_body.iter().chain(else_body) {
+                collect_list_contexts_stmt(stmt, out);
+            }
+        }
+        Stmt::While { cond, body } | Stmt::Repeat { times: cond, body } => {
+            collect_list_contexts_expr(cond, out);
+            for stmt in body {
+                collect_list_contexts_stmt(stmt, out);
+            }
+        }
+        Stmt::For { iter, body, .. } => {
+            collect_list_contexts_expr(iter, out);
+            for stmt in body {
+                collect_list_contexts_stmt(stmt, out);
+            }
+        }
+        Stmt::FuncDef { body, .. } => {
+            for stmt in body {
+                collect_list_contexts_stmt(stmt, out);
+            }
+        }
+        Stmt::Break | Stmt::Continue => {}
+    }
+}
+
+fn collect_list_contexts_expr(
+    expr: &Expr,
+    out: &mut std::collections::HashSet<String>,
+) {
+    match expr {
+        Expr::Call(func, args) => {
+            let list_index = match func.name.as_str() {
+                "value_of_index_from_list"
+                | "add_value_to_list"
+                | "remove_value_from_list" => Some(1),
+                "insert_value_to_list" | "change_value_list_index" => Some(2),
+                _ => None,
+            };
+            if let Some(index) = list_index {
+                if let Some(Expr::Var(name)) = args.get(index) {
+                    out.insert(name.clone());
+                }
+            }
+            for arg in args {
+                collect_list_contexts_expr(arg, out);
+            }
+        }
+        Expr::BinOp(_, lhs, rhs) => {
+            collect_list_contexts_expr(lhs, out);
+            collect_list_contexts_expr(rhs, out);
+        }
+        Expr::UnaryOp(_, inner) => collect_list_contexts_expr(inner, out),
+        Expr::Range(lhs, rhs) => {
+            collect_list_contexts_expr(lhs, out);
+            collect_list_contexts_expr(rhs, out);
+        }
+        Expr::Var(_) | Expr::Int(_) | Expr::Float(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Func(_) => {}
     }
 }
 

@@ -1225,6 +1225,33 @@ fn compile_add_value_to_list() {
     assert!(add["params"][2].is_null());
 }
 
+#[test]
+fn compile_add_value_to_named_list_without_declaration() {
+    let src = r#"
+        fn when_start() {
+            add_value_to_list("apple", fruit);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let fruit = v["variables"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|var| var["name"] == "fruit")
+        .expect("fruit variable");
+    assert_eq!(fruit["variableType"], "list");
+    assert_eq!(fruit["value"], serde_json::json!([]));
+    assert!(fruit["object"].is_null());
+
+    let thread = first_thread(&v["objects"].as_array().unwrap()[0]);
+    let add = thread
+        .iter()
+        .find(|block| block["type"] == "add_value_to_list")
+        .expect("add_value_to_list");
+    assert_eq!(add["params"][1]["name"], "fruit");
+    assert_eq!(add["params"][1]["variableType"], "list");
+}
+
 /// 리스트 항목 추가 statement는 Entry JSON에서 DSL 호출로 deparse되어야 한다.
 #[test]
 fn compile_add_value_to_list_roundtrip() {
