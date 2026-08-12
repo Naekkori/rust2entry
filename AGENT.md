@@ -57,7 +57,10 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
   - 변수 드롭다운 `{ id, name, variableType }` (kind별 분기)
   - BinOp → Entry 산술/비교 기호, 슬롯 `[lhs, op, rhs]` 정렬
   - `generate(program, original)` — 원본 project.json에 `scripts`/`variables` 패치
-  - `collect_var_map` — IR에서 VarMap 빌드
+  - `collect_var_map` — `analyze_variables` 단일 순회 결과로 VarMap 빌드
+    - 변수명/explicit kind/scope/리스트 문맥을 한 번에 분석
+    - 리스트 전용 호출의 리스트 인자는 이름과 무관하게 `VarKind::List`로 추론
+    - 기존 분리형 explicit/scopes/list-context collector 제거
 - `deparse` — Entry project.json `scripts` → IR (역방향, 라운드트립 검증용)
 - `decodegen` — IR → Rust-like DSL (라운드트립 검증용, top-level stmt를 `when_start`로 wrap)
 - `var` — `VarInfo` / `VarKind` / `VarInit` / `VarMap`
