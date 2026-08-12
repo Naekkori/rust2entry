@@ -11,4 +11,5 @@ tar = "0.4"
 serde = { workspace = true }
 serde_json = { workspace = true }
 clap = { workspace = true }
+chrono = { workspace = true }
 entrycore = { path = "../entrycore" }

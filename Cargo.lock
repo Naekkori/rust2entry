@@ -297,6 +297,7 @@ dependencies = [
 name = "entryc"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "clap",
  "entrycore",
  "flate2",
