@@ -6,13 +6,11 @@
 pub mod category;
 pub mod registry;
 use crate::Error::UnmappedBlock;
-use crate::codegen::schema::Param;
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};
 
 pub use category::Category;
 
-use serde::de::value;
 use serde_json::{Value, json};
 
 #[derive(Debug, Clone)]
@@ -1378,11 +1376,19 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             (vec![param_to_value(index), list_variable_param(list)], None)
         }
         Block::AddValueToList { value, list } => (
-            vec![param_to_value(value), list_variable_param(list), Value::Null],
+            vec![
+                param_to_value(value),
+                list_variable_param(list),
+                Value::Null,
+            ],
             None,
         ),
         Block::RemoveValueFromList { index, list } => (
-            vec![param_to_value(index), list_variable_param(list), Value::Null],
+            vec![
+                param_to_value(index),
+                list_variable_param(list),
+                Value::Null,
+            ],
             None,
         ),
         Block::InsertValueToList { value, index, list } => (

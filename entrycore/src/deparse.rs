@@ -1542,13 +1542,13 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         }
         Block::CalcRand { min, max } => {
             let m = expr_from_param(min, vars)?;
-            let M = expr_from_param(max, vars)?;
+            let mx = expr_from_param(max, vars)?;
             Ok(Expr::Call(
                 crate::ir::FuncRef {
                     name: "calc_rand".to_string(),
                     arity: 2,
                 },
-                vec![m, M],
+                vec![m, mx],
             ))
         }
         Block::GetProjectTimerValue {} => Ok(Expr::Call(
