@@ -2,6 +2,9 @@
 
 AI/에이전트 협업용 진행 문서. Readme와 동기화.
 
+> 블록 매핑 현황의 합계는 **내부용 16개 제외 187개** 기준. EntryJS 의 203개 중 시작 13개 (check_* / wildcard_* / register_score / positive_number / negative_number / show_prompt / check_goal_success / check_lecture_goal / check_object_property / check_block_execution / switch_scope / is_answer_submited / check_variable_by_name) + 함수 UI 3개 (functionAddButton / function_name / showFunctionPropsButton) 는 평가/검증용 으로 사용자라 직접 블록 패널에서 사용하지 않음. 흐름의 `repeat_while_true` (Rust native `while` 로 커버) 와 `when_clone_start` (시작 카테고리에 이미 매핑) 도 duplicate 이라 매핑 대상 아님.
+> 2026-01-24 내부용 제외 정책 적용 — 매핑 목표는 187개, 합계 79개 매핑.
+
 ## 진행 상태
 
 | # | 단계 | 상태 | 테스트 |
@@ -127,11 +130,15 @@ fn greet(a: StringParam, b: BoolParam) {
 - **codegen ↔ deparse**: `parse → codegen → deparse → IR'` 구조 보존 (스크립트/변수/연산)
 - **parse ↔ decodegen**: `parse(src) → IR → emit → dsl → parse(dsl) → IR'` 구조 보존 (조건/반복/변수)
 
-## EntryJS 블록 매핑 현황 (203개 중)
+## EntryJS 블록 매핑 현황 (사용자 작성 가능 187개 중, 내부용 16개 제외)
+
+> 내부용 16개 제외: 내부용 시작 13개 (check_*, wildcard_*, register_score, positive_number, negative_number, show_prompt, check_goal_success, check_lecture_goal, check_object_property, check_block_execution, switch_scope, is_answer_submited, check_variable_by_name) + 함수 UI 3개 (functionAddButton, function_name, showFunctionPropsButton). 사용자가 블록 패널에서 쓰는 게 아니라 EntryJS 가 평가/검증 환경에서 자동 끼는 블록들이라 매핑 대상 아님.
+> 
+> 추가 제외: `when_clone_start` (흐름 카테고리에 중복 등재, 시작에서 이미 매핑) / `repeat_while_true` (Rust native `while` 로 커버, 별도 블록 필요 없음). 두 블록은 카탈로그에 나오지만 별도 매핑 작업 필요 없음.
 
 ✅ = 매핑됨. `deparse.rs::block_from_value` 의 매치 arm 기준.
 
-### 시작 (13/26)
+### 시작 (13/13) — 내부용 13개 제외 후 완료
 - ✅ `when_run_button_click` / `when_run` → `WhenStart` (→ `fn when_start()`)
 - ✅ `when_object_click` / `when_click` → `WhenClick` (→ `fn when_click()`)
 - ✅ `when_clone_start` → `WhenCloneStart` (→ `fn when_clone_start()`)
@@ -145,9 +152,9 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `message_cast_wait` → `MessageCastWait` (→ `wait_message("foo");`)
 - ✅ `start_scene` → `StartScene` (→ `start_scene("scene2");`)
 - ✅ `start_neighbor_scene` → `StartNeighborScene` (→ `start_next_scene();` / `start_prev_scene();`)
-- ⬜ 내부용 (이름 없음): `check_object_property`, `check_block_execution`, `switch_scope`, `is_answer_submited`, `check_lecture_goal`, `check_variable_by_name`, `show_prompt`, `check_goal_success`, `positive_number`, `negative_number`, `wildcard_string`, `wildcard_boolean`, `register_score`
+- 제외 (내부용, 매핑 대상 아님): `check_object_property`, `check_block_execution`, `switch_scope`, `is_answer_submited`, `check_lecture_goal`, `check_variable_by_name`, `show_prompt`, `check_goal_success`, `positive_number`, `negative_number`, `wildcard_string`, `wildcard_boolean`, `register_score`
 
-### 흐름 (11/15)
+### 흐름 (11/13) — when_clone_start 중복 외 repeat_while_true 미적용 제외 후 남은 것
 - ✅ `repeat_basic` → `Repeat` (for-range 펼침)
 - ✅ `repeat_while` → `While`
 - ✅ `repeat_inf` / `repeat_forever` → `Forever`
@@ -159,8 +166,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `wait_second` — □ 초 기다리기 (→ `wait_second(secs)`)
 - ✅ `wait_until_true` — □ 이(가) 될 때까지 기다리기 (→ `wait_until_true(cond)`)
 - ✅ `restart_project` — 처음부터 다시 실행하기 (→ `restart_project()`)
-- ⬜ `repeat_while_true` — 별칭 (Rust native `while` 키워드로 커버 — syn 이 `f(args) { body }` 신택스 거부, `block_from_value` 에 명시 arm 없음)
-- ⬜ `when_clone_start` → 이미 시작 `WhenCloneStart` 로 매핑됨
+- 제외 (별도 블록 필요 없음): `repeat_while_true` (Rust native `while` 키워드로 커버), `when_clone_start` (시작 카테고리에 이미 매핑)
 - ⬜ `create_clone` — □ 의 복제본 만들기
 - ⬜ `delete_clone` — 이 복제본 삭제하기
 - ⬜ `remove_all_clones` — 모든 복제본 삭제하기
@@ -296,7 +302,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `is_included_in_list` — 포함 여부 (→ `is_included_in_list(list, value)`)
 - ✅ `show_list` / `hide_list` — 리스트 보이기/숨기기 (→ `show_list(list)` / `hide_list(list)`)
 
-### 함수 (7/14)
+### 함수 (7/11) — UI 버튼 3개 제외
 - ✅ `function_call` → `FuncCall` (빌드 시 `func_<id>` 동적 호출 블록으로 재작성)
 - ✅ `function_create` → `FuncDef`
 - ✅ `function_return` → `Return`
@@ -310,7 +316,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `function_param_boolean` — 값 슬롯
 - ⬜ `function_create_value` — 결괏값 반환 함수 정의
 - ⬜ `set_func_variable` / `get_func_variable` — 함수 변수
-- ⬜ `functionAddButton` / `function_name` / `showFunctionPropsButton` — UI 버튼/라벨
+- 제외 (UI 버튼/라벨, 실제 실행 블록 아님): `functionAddButton`, `function_name`, `showFunctionPropsButton`
 
 ### 데이터분석 (0/18)
 - ⬜ `append_row_to_table` — 테이블에 행 추가
@@ -330,9 +336,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**79/203** 매핑됨 (약 38.9%)
+**79/187** 매핑됨 (약 42.2%, 내부용 16개 제외 기준)
 
-카테고리별 (✅/전체): 시작 13/26, 흐름 11/15, 움직임 0/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 12/26, 변수 19/19 (완료), 함수 7/14, 데이터분석 0/18.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 11/13, 움직임 0/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18.
 
 ## 남은 작업 (TODO)
 
@@ -444,6 +450,6 @@ entrycore/   라이브러리 (parse/block/codegen/deparse/decodegen/var) + lib::
              - ir::ParamKind: String (StringParam) / Bool (BoolParam)
 entryc/      CLI (extract/build subcommand, --rs/--out/--ent-template, --scene, --replace-vars)
 target/      빌드 산출물
-entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 (203개, 79개 매핑)
+entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 (187개 사용자용 중, 79개 매핑; 원본 203개 중 내부용 16개 제외)
 AGENT.md     이 문서
 ```
