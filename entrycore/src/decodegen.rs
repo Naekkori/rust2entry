@@ -23,6 +23,13 @@ pub fn emit(program: &Program) -> Result<String> {
 /// 나머지는 `fn when_start() { ... }` 블록으로 묶어 출력 (Entry 트리거 형태).
 pub fn emit_with_var_map(program: &Program, vars: &VarMap) -> Result<String> {
     let mut out = String::new();
+    // 프로젝트 전역 변수는 트리거 함수 안에 선언하면 안 된다.
+    for v in vars.iter().filter(|v| matches!(v.scope, crate::var::VarScope::Global)) {
+        emit_global_var_decl(&mut out, v);
+    }
+    if vars.iter().any(|v| matches!(v.scope, crate::var::VarScope::Global)) {
+        out.push('\n');
+    }
     let mut trigger_body: Vec<&Stmt> = Vec::new();
     for stmt in &program.stmts {
         match stmt {
@@ -48,7 +55,7 @@ pub fn emit_with_var_map(program: &Program, vars: &VarMap) -> Result<String> {
 /// 트리거 블록 (`fn when_start() { ... }`) 출력.
 fn emit_trigger_block(stmts: &[&Stmt], out: &mut String, vars: &VarMap) -> Result<()> {
     out.push_str("fn when_start() {\n");
-    for v in vars.iter() {
+    for v in vars.iter().filter(|v| should_emit_local_decl(v, vars)) {
         emit_var_decl(out, 1, v);
     }
     for s in stmts {
@@ -56,6 +63,17 @@ fn emit_trigger_block(stmts: &[&Stmt], out: &mut String, vars: &VarMap) -> Resul
     }
     out.push_str("}\n");
     Ok(())
+}
+
+/// Entry의 프로젝트 전역 변수는 어떤 함수 안에서도 `let`으로 만들면 안 된다.
+/// 이름이 같은 전역/로컬 항목이 공존할 때도 전역을 우선한다.
+fn should_emit_local_decl(v: &VarInfo, vars: &VarMap) -> bool {
+    matches!(v.scope, crate::var::VarScope::Local)
+        && !matches!(v.kind, crate::var::VarKind::Timer | crate::var::VarKind::Answer)
+        && !vars.iter().any(|g| {
+            matches!(g.scope, crate::var::VarScope::Global)
+                && g.name.trim() == v.name.trim()
+        })
 }
 
 fn indent_of(level: usize) -> String {
@@ -71,6 +89,25 @@ fn emit_stmt(
     let indent = indent_of(level);
     match stmt {
         Stmt::VarDecl(name, expr, kind, scope) => {
+            // deparse가 스크립트 변수 사용을 표현하기 위해 넣은 VarDecl은
+            // 아래 emit_trigger_block의 VarMap 선언과 중복된다. 특히 한글
+            // 인코딩이 달라지면 이름 비교만으로는 전역 여부를 판정할 수
+            // 없으므로, 프로젝트 변수 맵이 있으면 항상 이 선언을 생략한다.
+            if !vars.is_empty() {
+                return Ok(());
+            }
+            // project.json에서 이미 전역으로 선언된 변수는 트리거 본문에
+            // 다시 let으로 만들지 않는다. (원본 스크립트의 선언 흔적 방지)
+            let is_system = matches!(
+                crate::block::kind_for(name),
+                crate::var::VarKind::Timer | crate::var::VarKind::Answer
+            );
+            let is_global = vars.iter().any(|v| {
+                v.name == *name && matches!(v.scope, crate::ir::VarScope::Global)
+            });
+            if is_system || is_global || matches!(scope, crate::ir::VarScope::Global) {
+                return Ok(());
+            }
             out.push_str(&indent);
             // Global scope 는 top-level `static` 으로 emit.
             // Local scope 는 그대로 `let` 으로 emit.
@@ -116,7 +153,7 @@ fn emit_stmt(
                 });
             }
             out.push_str(") {\n");
-            for v in vars.iter() {
+            for v in vars.iter().filter(|v| should_emit_local_decl(v, vars)) {
                 emit_var_decl(out, level + 1, v);
             }
             for s in body {
@@ -216,6 +253,20 @@ fn emit_var_decl(out: &mut String, level: usize, v: &VarInfo) {
     out.push_str(" = ");
     match &v.init {
         VarInit::Int0 => out.push_str("0"),
+        VarInit::Float0 => out.push_str("0.0"),
+        VarInit::EmptyStr => out.push_str("\"\""),
+        VarInit::False => out.push_str("false"),
+        VarInit::EmptyList => out.push_str("[]"),
+    }
+    out.push_str(";\n");
+}
+
+fn emit_global_var_decl(out: &mut String, v: &VarInfo) {
+    out.push_str("static mut ");
+    out.push_str(&v.name);
+    out.push_str(" = ");
+    match &v.init {
+        VarInit::Int0 => out.push('0'),
         VarInit::Float0 => out.push_str("0.0"),
         VarInit::EmptyStr => out.push_str("\"\""),
         VarInit::False => out.push_str("false"),
