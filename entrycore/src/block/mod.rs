@@ -151,6 +151,12 @@ pub enum Block {
     LengthOfList {
         list: String,
     },
+    ShowList {
+        list: String,
+    },
+    HideList {
+        list: String,
+    },
     IsIncludedInList {
         list: String,
         value: ParamBlock,
@@ -424,6 +430,8 @@ impl Block {
             Block::ChangeValueListIndex { .. } => "change_value_list_index",
             Block::LengthOfList { .. } => "length_of_list",
             Block::IsIncludedInList { .. } => "is_included_in_list",
+            Block::ShowList { .. } => "show_list",
+            Block::HideList { .. } => "hide_list",
         }
     }
 
@@ -499,6 +507,8 @@ impl Block {
             Block::ChangeValueListIndex { .. } => Category::Variable,
             Block::LengthOfList { .. } => Category::Variable,
             Block::IsIncludedInList { .. } => Category::Variable,
+            Block::ShowList { .. } => Category::Variable,
+            Block::HideList { .. } => Category::Variable,
         }
     }
 }
@@ -862,11 +872,29 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         return Ok(Block::LengthOfList { list });
                     }
+                    if fref.name == "show_list" {
+                        if args.len() != 1 {
+                            return Err(UnmappedBlock("show_list needs 1 arg".into()));
+                        }
+                        let list = match &args[0] {
+                            Expr::Var(name) => name.clone(),
+                            _ => return Err(UnmappedBlock("show_list must be variable".into())),
+                        };
+                        return Ok(Block::ShowList { list });
+                    }
+                    if fref.name == "hide_list" {
+                        if args.len() != 1 {
+                            return Err(UnmappedBlock("hide_list needs 1 arg".into()));
+                        }
+                        let list = match &args[0] {
+                            Expr::Var(name) => name.clone(),
+                            _ => return Err(UnmappedBlock("hide_list must be variable".into())),
+                        };
+                        return Ok(Block::HideList { list });
+                    }
                     if fref.name == "is_included_in_list" {
                         if args.len() != 2 {
-                            return Err(UnmappedBlock(
-                                "is_included_in_list needs 2 args".into(),
-                            ));
+                            return Err(UnmappedBlock("is_included_in_list needs 2 args".into()));
                         }
                         let list = match &args[0] {
                             Expr::Var(name) => name.clone(),
@@ -1153,18 +1181,14 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 let list = match &args[0] {
                     Expr::Var(name) => name.clone(),
                     _ => {
-                        return Err(UnmappedBlock(
-                            "length_of_list list must be variable".into(),
-                        ));
+                        return Err(UnmappedBlock("length_of_list list must be variable".into()));
                     }
                 };
                 return Ok(ParamBlock::Sub(Box::new(Block::LengthOfList { list })));
             }
             if fref.name == "is_included_in_list" {
                 if args.len() != 2 {
-                    return Err(UnmappedBlock(
-                        "is_included_in_list needs 2 args".into(),
-                    ));
+                    return Err(UnmappedBlock("is_included_in_list needs 2 args".into()));
                 }
                 let list = match &args[0] {
                     Expr::Var(name) => name.clone(),
@@ -1213,9 +1237,10 @@ pub fn to_value(block: &Block) -> crate::Result<Value> {
 /// `to_value` 내부 헬퍼. (params, Option<statements>) 분리 산출.
 fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Option<Vec<Value>>)> {
     Ok(match block {
-        Block::SetVar { variable, value } => {
-            (vec![variable_param(variable), param_to_value(value), Value::Null], None)
-        }
+        Block::SetVar { variable, value } => (
+            vec![variable_param(variable), param_to_value(value), Value::Null],
+            None,
+        ),
         Block::ChangeVar { variable, value } => (
             vec![variable_param(variable), param_to_value(value), Value::Null],
             None,
@@ -1498,6 +1523,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
+        Block::ShowList { list } => (vec![list_variable_param(list), Value::Null], None),
+        Block::HideList { list } => (vec![list_variable_param(list), Value::Null], None),
     })
 }
 

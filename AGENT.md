@@ -16,7 +16,7 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
 | 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 6/6 |
-| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 166/166 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 170/170 |
 
 ### lib::compile 세부 동작 (현재)
 
@@ -279,7 +279,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `change_hex_to_rgb` — HEX → R/G/B
 - ⬜ `get_boolean_value` — 값 슬롯 (boolean)
 
-### 변수 (17/19)
+### 변수 (19/19)
 - ✅ `set_variable` → `SetVar`
 - ✅ `change_variable` → `ChangeVar`
 - ✅ `get_variable` → `GetVar`
@@ -294,7 +294,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `change_value_list_index` — N번째 값 바꾸기 (→ `change_value_list_index(index, value, list)`)
 - ✅ `length_of_list` — 리스트 길이 (→ `length_of_list(list)`)
 - ✅ `is_included_in_list` — 포함 여부 (→ `is_included_in_list(list, value)`)
-- ⬜ `show_list` / `hide_list` — 리스트 보이기/숨기기
+- ✅ `show_list` / `hide_list` — 리스트 보이기/숨기기 (→ `show_list(list)` / `hide_list(list)`)
 
 ### 함수 (7/14)
 - ✅ `function_call` → `FuncCall` (빌드 시 `func_<id>` 동적 호출 블록으로 재작성)
@@ -330,9 +330,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**76/203** 매핑됨 (약 37.4%)
+**78/203** 매핑됨 (약 38.4%)
 
-카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 12/26, 변수 17/19, 함수 7/14, 데이터분석 0/18.
+카테고리별 (✅/전체): 시작 13/26, 흐름 10/15, 움직임 0/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 12/26, 변수 19/19 (완료), 함수 7/14, 데이터분석 0/18.
 
 ## 남은 작업 (TODO)
 
@@ -384,6 +384,7 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 연산: `calc_operation` (절댓값/제곱/제곱근) → `abs(x)` / `sqrt(x)` / `sin(x)` / ... (12개 함수)
   - [x] 형태: `stretch_scale_size` (□ 를 □ 만큼 늘이기) → `stretch_scale_size("width"|"height", v)`. EntryJS dropdown 값은 대문자 `WIDTH`/`HEIGHT` 라 emit 시 변환 (`dim_to_str`), DSL 신택스는 소문자 (`dim_to_dsl_str` / `str_to_dim`). **형태 카테고리 17/17 완료.**
   - [x] 변수 리스트 보강: `length_of_list` / `is_included_in_list` 매핑. EntryJS 의 text-label 자리 (params[0/2/4]) 는 `Value::Null` 로 emit. length_of_list 는 `[Text, list, Text]` → `[Null, list, Null]`, is_included_in_list 는 `[Text, list, Text, value, Text]` → `[Null, list, Null, value, Null]`. 값 슬롯 블록이라 `SetVar` 내부 value 자리에 그대로 매핑 가능. codegen `analyze_variables` 의 list_context_names 에 두 호출 모두 등록 (list 변수가 자동 `VarKind::List` 로 분류).
+  - [x] 변수 리스트 가시성: `show_list` / `hide_list` 매핑. EntryJS 의 `[DropdownDynamic, Indicator]` 슬롯 자리에 `[list_variable_param, Null]` emit. from_stmt 에 reserved name 매칭 추가 (없으면 `FuncCall` fallback 으로 떨어짐). codegen list_context_names 두 호출 등록. **변수 카테고리 19/19 완료.**
   - [x] **리터럴 정합화 (EntryJS 호환)**:
     - [x] `Angle` 리터럴 (`Block::Angle(f64)` → EntryJS `angle` 타입 ID) — 각도 슬롯
     - [x] `Color` 리터럴 (`Block::Color(String)` → EntryJS `color` 타입 ID) — 색상 슬롯
@@ -414,7 +415,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 166 + parse 26 = 207 통과)
+cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 170 + parse 26 = 211 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -443,6 +444,6 @@ entrycore/   라이브러리 (parse/block/codegen/deparse/decodegen/var) + lib::
              - ir::ParamKind: String (StringParam) / Bool (BoolParam)
 entryc/      CLI (extract/build subcommand, --rs/--out/--ent-template, --scene, --replace-vars)
 target/      빌드 산출물
-entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 (203개, 76개 매핑)
+entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 (203개, 78개 매핑)
 AGENT.md     이 문서
 ```

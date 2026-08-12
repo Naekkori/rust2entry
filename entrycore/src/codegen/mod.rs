@@ -146,7 +146,12 @@ fn analyze_variables(program: &Program) -> VariableAnalysis {
             .explicit_kinds
             .get(name)
             .cloned()
-            .or_else(|| analysis.list_context_names.contains(name).then_some(VarKind::List))
+            .or_else(|| {
+                analysis
+                    .list_context_names
+                    .contains(name)
+                    .then_some(VarKind::List)
+            })
             .unwrap_or_else(|| crate::block::kind_for(name));
         analysis.kinds.insert(name.clone(), kind);
     }
@@ -169,7 +174,11 @@ fn analyze_statements(stmts: &[Stmt], out: &mut VariableAnalysis) {
                 analyze_expr(expr, out);
             }
             Stmt::Expr(expr) | Stmt::Return(expr) => analyze_expr(expr, out),
-            Stmt::If { cond, then_body, else_body } => {
+            Stmt::If {
+                cond,
+                then_body,
+                else_body,
+            } => {
                 analyze_expr(cond, out);
                 analyze_statements(then_body, out);
                 analyze_statements(else_body, out);
@@ -199,10 +208,14 @@ fn analyze_expr(expr: &Expr, out: &mut VariableAnalysis) {
         Expr::Var(name) => push_unique(&mut out.names, name),
         Expr::Call(func, args) => {
             let list_index = match func.name.as_str() {
-                "value_of_index_from_list" | "add_value_to_list" | "remove_value_from_list" => Some(1),
+                "value_of_index_from_list" | "add_value_to_list" | "remove_value_from_list" => {
+                    Some(1)
+                }
                 "insert_value_to_list" | "change_value_list_index" => Some(2),
                 "length_of_list" => Some(0),
                 "is_included_in_list" => Some(0),
+                "show_list" => Some(0),
+                "hide_list" => Some(0),
                 _ => None,
             };
             if let Some(index) = list_index {

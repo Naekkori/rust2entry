@@ -179,6 +179,15 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 Block::HideVar { variable }
             }
         }
+        "show_list" | "hide_list" => {
+            let (list, _name) = variable_slot(&params, 0)?;
+            let list = resolve_var(&list, vars);
+            if type_id == "show_list" {
+                Block::ShowList { list }
+            } else {
+                Block::HideList { list }
+            }
+        }
         "value_of_index_from_list" => {
             let index = param_at(&params, 0, vars)?;
             let (list, _name) = variable_slot(&params, 1)?;
@@ -893,6 +902,27 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::ShowList { list } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef {
+                    name: "show_list".to_string(),
+                    arity: 1,
+                },
+                vec![Expr::Var(list.clone())],
+            )));
+            Ok(())
+        }
+        Block::HideList { list } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef {
+                    name: "hide_list".to_string(),
+                    arity: 1,
+                },
+                vec![Expr::Var(list.clone())],
+            )));
+            Ok(())
+        }
+
         Block::If { cond, body } => {
             let cond = expr_from_param(cond, vars)?;
             let mut then_body = Vec::new();
@@ -1638,6 +1668,8 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         | Block::ChangeVar { .. }
         | Block::ShowVar { .. }
         | Block::HideVar { .. }
+        | Block::HideList { .. }
+        | Block::ShowList { .. }
         | Block::If { .. }
         | Block::IfElse { .. }
         | Block::While { .. }

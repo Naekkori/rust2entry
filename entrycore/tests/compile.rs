@@ -3442,3 +3442,119 @@ fn compile_start_blocks_roundtrip() {
     let script_str = objects[0]["script"].as_str().expect("script str");
     let _ = program_from_script_string_with_vars(script_str, &vars).expect("deparse");
 }
+
+/// `show_list(my_list)` → params = [list_var_dropdown, null], 변수 kind 자동 List.
+#[test]
+fn compile_show_list() {
+    let src = r#"
+        fn when_start() {
+            show_list(my_list);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+
+    // show_list 블록 emit 검증.
+    let show = thread
+        .iter()
+        .find(|b| b["type"] == "show_list")
+        .expect("show_list block");
+    let params = show["params"].as_array().unwrap();
+    assert_eq!(params.len(), 2);
+    assert_eq!(params[0]["name"], "my_list");
+    assert_eq!(params[0]["variableType"], "list");
+    assert!(params[1].is_null());
+
+    // 변수 kind 가 List 로 자동 분류되었는지 검증 (list_context_names 효과).
+    let var = v["variables"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|x| x["name"] == "my_list")
+        .expect("my_list variable");
+    assert_eq!(var["variableType"], "list");
+}
+
+/// 라운드트립.
+#[test]
+fn compile_show_list_roundtrip() {
+    use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"
+        fn when_start() {
+            show_list(my_list);
+        }
+    "#;
+    let p1 = parse(src).expect("parse");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let script_str = objects[0]["script"].as_str().expect("script string");
+    let p2 = program_from_script_string_with_vars(script_str, &vars).expect("deparse");
+
+    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
+        panic!("expected when_start function");
+    };
+    let found = body.iter().find_map(|stmt| match stmt {
+        Stmt::Expr(Expr::Call(fref, _)) if fref.name == "show_list" => Some(fref),
+        _ => None,
+    });
+    assert!(found.is_some(), "expected show_list call");
+}
+
+/// `hide_list(my_list)` → params = [list_var_dropdown, null], 변수 kind 자동 List.
+#[test]
+fn compile_hide_list() {
+    let src = r#"
+        fn when_start() {
+            hide_list(my_list);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+
+    let hide = thread
+        .iter()
+        .find(|b| b["type"] == "hide_list")
+        .expect("hide_list block");
+    let params = hide["params"].as_array().unwrap();
+    assert_eq!(params.len(), 2);
+    assert_eq!(params[0]["name"], "my_list");
+    assert_eq!(params[0]["variableType"], "list");
+    assert!(params[1].is_null());
+}
+
+/// 라운드트립.
+#[test]
+fn compile_hide_list_roundtrip() {
+    use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"
+        fn when_start() {
+            hide_list(my_list);
+        }
+    "#;
+    let p1 = parse(src).expect("parse");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let script_str = objects[0]["script"].as_str().expect("script string");
+    let p2 = program_from_script_string_with_vars(script_str, &vars).expect("deparse");
+
+    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
+        panic!("expected when_start function");
+    };
+    let found = body.iter().find_map(|stmt| match stmt {
+        Stmt::Expr(Expr::Call(fref, _)) if fref.name == "hide_list" => Some(fref),
+        _ => None,
+    });
+    assert!(found.is_some(), "expected hide_list call");
+}
