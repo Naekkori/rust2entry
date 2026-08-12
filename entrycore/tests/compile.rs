@@ -3558,3 +3558,87 @@ fn compile_hide_list_roundtrip() {
     });
     assert!(found.is_some(), "expected hide_list call");
 }
+
+/// `stop_run_all();` → Block::StopAll, params = [null].
+#[test]
+fn compile_stop_run_all() {
+    let src = r#"fn when_start() { stop_run_all(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "stop_run_all")
+        .expect("stop_run_all block");
+    let params = block["params"].as_array().unwrap();
+    assert_eq!(params.len(), 1);
+    assert!(params[0].is_null());
+}
+
+/// 라운드트립.
+#[test]
+fn compile_stop_run_all_roundtrip() {
+    use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { stop_run_all(); }"#;
+    let p1 = parse(src).expect("parse");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let script_str = objects[0]["script"].as_str().expect("script string");
+    let p2 = program_from_script_string_with_vars(script_str, &vars).expect("deparse");
+
+    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
+        panic!("expected when_start function");
+    };
+    let found_call = body.iter().find_map(|stmt| match stmt {
+        Stmt::Expr(Expr::Call(fref, _)) if fref.name == "stop_all" => Some(fref),
+        _ => None,
+    });
+    assert!(found_call.is_some(), "expected stop_all call");
+}
+
+/// `restart_project();` → Block::RestartProject, params = [null].
+#[test]
+fn compile_restart_project() {
+    let src = r#"fn when_start() { restart_project(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "restart_project")
+        .expect("restart_project block");
+    let params = block["params"].as_array().unwrap();
+    assert_eq!(params.len(), 1);
+    assert!(params[0].is_null());
+}
+
+/// 라운드트립.
+#[test]
+fn compile_restart_project_roundtrip() {
+    use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { restart_project(); }"#;
+    let p1 = parse(src).expect("parse");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let script_str = objects[0]["script"].as_str().expect("script string");
+    let p2 = program_from_script_string_with_vars(script_str, &vars).expect("deparse");
+
+    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
+        panic!("expected when_start function");
+    };
+    let found_call = body.iter().find_map(|stmt| match stmt {
+        Stmt::Expr(Expr::Call(fref, _)) if fref.name == "restart_project" => Some(fref),
+        _ => None,
+    });
+    assert!(found_call.is_some(), "expected restart_project call");
+}

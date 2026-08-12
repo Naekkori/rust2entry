@@ -278,6 +278,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         "stop_object" => Block::Break,
         "_continue" => Block::Continue,
         "stop_run_all" => Block::StopAll,
+        "restart_project" => Block::RestartProject,
 
         // 산술/비교/논리
         "calc_basic" => {
@@ -1490,6 +1491,16 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::RestartProject {} => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "restart_project".to_string(),
+                    arity: 0,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -1910,6 +1921,13 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![Expr::Var(list.clone()), value],
             ))
         }
+        Block::RestartProject => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "restart_project".to_string(),
+                arity: 0,
+            },
+            Vec::new(),
+        )),
     }
 }
 

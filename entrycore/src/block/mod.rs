@@ -185,6 +185,7 @@ pub enum Block {
     Break,
     Continue,
     StopAll,
+    RestartProject,
     WaitSeconds {
         time: ParamBlock,
     },
@@ -381,6 +382,7 @@ impl Block {
             Block::Break => "stop_object",
             Block::Continue => "_continue",
             Block::StopAll => "stop_run_all",
+            Block::RestartProject => "restart_project",
             Block::CalcBinOp { .. } => "calc_basic",
             Block::Compare { .. } => "boolean_basic",
             Block::BoolOp { .. } => "boolean_and_or",
@@ -449,7 +451,9 @@ impl Block {
             | Block::HideVar { .. } => Category::Variable,
             Block::If { .. } | Block::IfElse { .. } => Category::Flow,
             Block::While { .. } | Block::Repeat { .. } | Block::Forever { .. } => Category::Flow,
-            Block::Break | Block::Continue | Block::StopAll => Category::Flow,
+            Block::Break | Block::Continue | Block::RestartProject | Block::StopAll => {
+                Category::Flow
+            }
             Block::WhenKeyPressed { .. }
             | Block::WhenMouseClicked
             | Block::WhenMouseReleased
@@ -562,6 +566,18 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         return Ok(Block::WaitUntilTrue {
                             cond: from_expr(arg)?,
                         });
+                    }
+                    if fref.name == "stop_run_all" {
+                        if args.len() != 0 {
+                            return Err(UnmappedBlock("stop_run_all needs 0 args".into()));
+                        }
+                        return Ok(Block::StopAll);
+                    }
+                    if fref.name == "restart_project" {
+                        if args.len() != 0 {
+                            return Err(UnmappedBlock("restart_project needs 0 args".into()));
+                        }
+                        return Ok(Block::RestartProject);
                     }
                     if fref.name == "calc_rand" {
                         if args.len() != 2 {
@@ -1273,7 +1289,9 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             Some(vec![blocks_to_thread(body)?]),
         ),
         Block::Forever { body } => (vec![], Some(vec![blocks_to_thread(body)?])),
-        Block::Break | Block::Continue | Block::StopAll => (vec![], None),
+        Block::Break | Block::Continue => (vec![], None),
+        Block::StopAll => (vec![Value::Null], None),
+        Block::RestartProject => (vec![Value::Null], None),
         Block::CalcBinOp { op, lhs, rhs } => (
             vec![
                 param_to_value(lhs),
