@@ -201,6 +201,8 @@ fn analyze_expr(expr: &Expr, out: &mut VariableAnalysis) {
             let list_index = match func.name.as_str() {
                 "value_of_index_from_list" | "add_value_to_list" | "remove_value_from_list" => Some(1),
                 "insert_value_to_list" | "change_value_list_index" => Some(2),
+                "length_of_list" => Some(0),
+                "is_included_in_list" => Some(0),
                 _ => None,
             };
             if let Some(index) = list_index {

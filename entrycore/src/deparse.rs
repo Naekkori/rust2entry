@@ -215,6 +215,19 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
 
             Block::ChangeValueListIndex { index, value, list }
         }
+        "length_of_list" => {
+            // params = [Text, list, Text] — list dropdown at index 1
+            let (list, _name) = variable_slot(&params, 1)?;
+            let list = resolve_var(&list, vars);
+            Block::LengthOfList { list }
+        }
+        "is_included_in_list" => {
+            // params = [Text, list, Text, value, Text]
+            let (list, _name) = variable_slot(&params, 1)?;
+            let list = resolve_var(&list, vars);
+            let value = param_at(&params, 3, vars)?;
+            Block::IsIncludedInList { list, value }
+        }
         // 흐름
         "if" => {
             let cond = param_at(&params, 0, vars)?;
@@ -1426,6 +1439,27 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::LengthOfList { list } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "length_of_list".to_string(),
+                    arity: 1,
+                },
+                vec![Expr::Var(list.clone())],
+            )));
+            Ok(())
+        }
+        Block::IsIncludedInList { list, value } => {
+            let value = expr_from_param(value, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "is_included_in_list".to_string(),
+                    arity: 2,
+                },
+                vec![Expr::Var(list.clone()), value],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -1825,6 +1859,23 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     arity: 3,
                 },
                 vec![index, value, Expr::Var(list.clone())],
+            ))
+        }
+        Block::LengthOfList { list } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "length_of_list".to_string(),
+                arity: 1,
+            },
+            vec![Expr::Var(list.clone())],
+        )),
+        Block::IsIncludedInList { list, value } => {
+            let value = expr_from_param(value, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "is_included_in_list".to_string(),
+                    arity: 2,
+                },
+                vec![Expr::Var(list.clone()), value],
             ))
         }
     }

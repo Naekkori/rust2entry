@@ -1470,6 +1470,119 @@ fn compile_change_value_list_index_roundtrip() {
     assert!(matches!(&args[2], Expr::Var(name) if name == "list"));
 }
 
+/// `length_of_list(list)` → params[1] dropdown list.
+#[test]
+fn compile_length_of_list() {
+    let src = r#"
+        fn when_start() {
+            let list = "";
+            length_of_list(list);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let len_block = thread
+        .iter()
+        .find(|b| b["type"] == "length_of_list")
+        .expect("length_of_list");
+let params = len_block["params"].as_array().unwrap();
+    assert_eq!(params.len(), 3);
+    assert!(params[0].is_null());
+    assert!(params[2].is_null());
+    assert_eq!(params[1]["name"], "list");
+    assert_eq!(params[1]["variableType"], "list");
+}
+
+/// 라운드트립.
+#[test]
+fn compile_length_of_list_roundtrip() {
+    use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"
+        fn when_start() {
+            let list = "";
+            length_of_list(list);
+        }
+    "#;
+    let p1 = parse(src).expect("parse");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let script = objects[0]["script"].as_str().expect("script string");
+    let p2 = program_from_script_string_with_vars(script, &vars).expect("deparse");
+
+    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
+        panic!("expected when_start function");
+    };
+    let found_call = body.iter().find_map(|stmt| match stmt {
+        Stmt::Expr(Expr::Call(fref, _)) if fref.name == "length_of_list" => Some(fref),
+        _ => None,
+    });
+    assert!(found_call.is_some(), "expected length_of_list call");
+}
+
+/// `is_included_in_list(list, "x")` → params[3] value, params[1] dropdown.
+#[test]
+fn compile_is_included_in_list() {
+    let src = r#"
+        fn when_start() {
+            let list = "";
+            is_included_in_list(list, "x");
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let check_block = thread
+        .iter()
+        .find(|b| b["type"] == "is_included_in_list")
+        .expect("is_included_in_list");
+    let params = check_block["params"].as_array().unwrap();
+    assert_eq!(params.len(), 5);
+    assert!(params[0].is_null());
+    assert_eq!(params[1]["name"], "list");
+    assert_eq!(params[1]["variableType"], "list");
+    assert!(params[2].is_null());
+    assert_eq!(params[3]["type"], "text");
+    assert_eq!(params[3]["params"][0], "x");
+    assert!(params[4].is_null());
+}
+
+/// 라운드트립.
+#[test]
+fn compile_is_included_in_list_roundtrip() {
+    use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"
+        fn when_start() {
+            let list = "";
+            is_included_in_list(list, "x");
+        }
+    "#;
+    let p1 = parse(src).expect("parse");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let script = objects[0]["script"].as_str().expect("script string");
+    let p2 = program_from_script_string_with_vars(script, &vars).expect("deparse");
+
+    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
+        panic!("expected when_start function");
+    };
+    let found_call = body.iter().find_map(|stmt| match stmt {
+        Stmt::Expr(Expr::Call(fref, _)) if fref.name == "is_included_in_list" => Some(fref),
+        _ => None,
+    });
+    assert!(found_call.is_some(), "expected is_included_in_list call");
+}
+
 /// 라운드트립.
 #[test]
 fn compile_change_scale_size_roundtrip() {

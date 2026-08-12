@@ -148,6 +148,13 @@ pub enum Block {
         value: ParamBlock,
         list: String,
     },
+    LengthOfList {
+        list: String,
+    },
+    IsIncludedInList {
+        list: String,
+        value: ParamBlock,
+    },
     // ── 흐름 (제어) ──
     If {
         cond: ParamBlock,
@@ -415,6 +422,8 @@ impl Block {
             Block::RemoveValueFromList { .. } => "remove_value_from_list",
             Block::InsertValueToList { .. } => "insert_value_to_list",
             Block::ChangeValueListIndex { .. } => "change_value_list_index",
+            Block::LengthOfList { .. } => "length_of_list",
+            Block::IsIncludedInList { .. } => "is_included_in_list",
         }
     }
 
@@ -488,6 +497,8 @@ impl Block {
             Block::RemoveValueFromList { .. } => Category::Variable,
             Block::InsertValueToList { .. } => Category::Variable,
             Block::ChangeValueListIndex { .. } => Category::Variable,
+            Block::LengthOfList { .. } => Category::Variable,
+            Block::IsIncludedInList { .. } => Category::Variable,
         }
     }
 }
@@ -837,6 +848,37 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
 
                         return Ok(Block::ChangeValueListIndex { index, value, list });
                     }
+                    if fref.name == "length_of_list" {
+                        if args.len() != 1 {
+                            return Err(UnmappedBlock("length_of_list needs 1 arg".into()));
+                        }
+                        let list = match &args[0] {
+                            Expr::Var(name) => name.clone(),
+                            _ => {
+                                return Err(UnmappedBlock(
+                                    "length_of_list list must be variable".into(),
+                                ));
+                            }
+                        };
+                        return Ok(Block::LengthOfList { list });
+                    }
+                    if fref.name == "is_included_in_list" {
+                        if args.len() != 2 {
+                            return Err(UnmappedBlock(
+                                "is_included_in_list needs 2 args".into(),
+                            ));
+                        }
+                        let list = match &args[0] {
+                            Expr::Var(name) => name.clone(),
+                            _ => {
+                                return Err(UnmappedBlock(
+                                    "is_included_in_list list must be variable".into(),
+                                ));
+                            }
+                        };
+                        let value = from_expr(&args[1])?;
+                        return Ok(Block::IsIncludedInList { list, value });
+                    }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
                         name: fref.name.clone(),
@@ -1104,6 +1146,40 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     list,
                 })));
             }
+            if fref.name == "length_of_list" {
+                if args.len() != 1 {
+                    return Err(UnmappedBlock("length_of_list needs 1 arg".into()));
+                }
+                let list = match &args[0] {
+                    Expr::Var(name) => name.clone(),
+                    _ => {
+                        return Err(UnmappedBlock(
+                            "length_of_list list must be variable".into(),
+                        ));
+                    }
+                };
+                return Ok(ParamBlock::Sub(Box::new(Block::LengthOfList { list })));
+            }
+            if fref.name == "is_included_in_list" {
+                if args.len() != 2 {
+                    return Err(UnmappedBlock(
+                        "is_included_in_list needs 2 args".into(),
+                    ));
+                }
+                let list = match &args[0] {
+                    Expr::Var(name) => name.clone(),
+                    _ => {
+                        return Err(UnmappedBlock(
+                            "is_included_in_list list must be variable".into(),
+                        ));
+                    }
+                };
+                let value = from_expr(&args[1])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::IsIncludedInList {
+                    list,
+                    value,
+                })));
+            }
             let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
             Ok(ParamBlock::Sub(Box::new(Block::FuncCall {
                 name: fref.name.clone(),
@@ -1137,10 +1213,9 @@ pub fn to_value(block: &Block) -> crate::Result<Value> {
 /// `to_value` 내부 헬퍼. (params, Option<statements>) 분리 산출.
 fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Option<Vec<Value>>)> {
     Ok(match block {
-        Block::SetVar { variable, value } => (
-            vec![variable_param(variable), param_to_value(value), Value::Null],
-            None,
-        ),
+        Block::SetVar { variable, value } => {
+            (vec![variable_param(variable), param_to_value(value), Value::Null], None)
+        }
         Block::ChangeVar { variable, value } => (
             vec![variable_param(variable), param_to_value(value), Value::Null],
             None,
@@ -1405,6 +1480,20 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
                 param_to_value(index),
                 param_to_value(value),
                 list_variable_param(list),
+                Value::Null,
+            ],
+            None,
+        ),
+        Block::LengthOfList { list } => (
+            vec![Value::Null, list_variable_param(list), Value::Null],
+            None,
+        ),
+        Block::IsIncludedInList { list, value } => (
+            vec![
+                Value::Null,
+                list_variable_param(list),
+                Value::Null,
+                param_to_value(value),
                 Value::Null,
             ],
             None,
