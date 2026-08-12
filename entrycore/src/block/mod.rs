@@ -6,11 +6,13 @@
 pub mod category;
 pub mod registry;
 use crate::Error::UnmappedBlock;
+use crate::codegen::schema::Param;
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};
 
 pub use category::Category;
 
+use serde::de::value;
 use serde_json::{Value, json};
 
 #[derive(Debug, Clone)]
@@ -136,6 +138,16 @@ pub enum Block {
     },
     RemoveValueFromList {
         index: ParamBlock,
+        list: String,
+    },
+    InsertValueToList {
+        value: ParamBlock,
+        index: ParamBlock,
+        list: String,
+    },
+    ChangeValueListIndex {
+        index: ParamBlock,
+        value: ParamBlock,
         list: String,
     },
     // ── 흐름 (제어) ──
@@ -403,6 +415,8 @@ impl Block {
             Block::ListValueAt { .. } => "value_of_index_from_list",
             Block::AddValueToList { .. } => "add_value_to_list",
             Block::RemoveValueFromList { .. } => "remove_value_from_list",
+            Block::InsertValueToList { .. } => "insert_value_to_list",
+            Block::ChangeValueListIndex { .. } => "change_value_list_index",
         }
     }
 
@@ -474,6 +488,8 @@ impl Block {
             Block::ListValueAt { .. } => Category::Variable,
             Block::AddValueToList { .. } => Category::Variable,
             Block::RemoveValueFromList { .. } => Category::Variable,
+            Block::InsertValueToList { .. } => Category::Variable,
+            Block::ChangeValueListIndex { .. } => Category::Variable,
         }
     }
 }
@@ -791,6 +807,37 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
 
                         return Ok(Block::RemoveValueFromList { index, list });
+                    }
+                    if fref.name == "insert_value_to_list" {
+                        if args.len() != 3 {
+                            return Err(UnmappedBlock("insert_value_to_list needs 3 args".into()));
+                        }
+                        let value = from_expr(&args[0])?;
+                        let index = from_expr(&args[1])?;
+                        let list = match &args[2] {
+                            Expr::Var(name) => name.clone(),
+                            _ => {
+                                return Err(UnmappedBlock(
+                                    "insert_value_to_list list must be variable".into(),
+                                ));
+                            }
+                        };
+                        return Ok(Block::InsertValueToList { value, index, list });
+                    }
+                    if fref.name == "change_value_list_index" {
+                        if args.len() != 3 {
+                            return Err(UnmappedBlock(
+                                "change_vale_list_index needs 3 args".into(),
+                            ));
+                        }
+                        let index = from_expr(&args[0])?;
+                        let value = from_expr(&args[1])?;
+                        let list = match &args[2] {
+                            Expr::Var(name) => name.clone(),
+                            _ => return Err(UnmappedBlock("change_value_list_index".into())),
+                        };
+
+                        return Ok(Block::ChangeValueListIndex { index, value, list });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -1336,6 +1383,24 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         ),
         Block::RemoveValueFromList { index, list } => (
             vec![param_to_value(index), variable_param(list), Value::Null],
+            None,
+        ),
+        Block::InsertValueToList { value, index, list } => (
+            vec![
+                param_to_value(value),
+                param_to_value(index),
+                variable_param(list),
+                Value::Null,
+            ],
+            None,
+        ),
+        Block::ChangeValueListIndex { index, value, list } => (
+            vec![
+                param_to_value(index),
+                param_to_value(value),
+                variable_param(list),
+                Value::Null,
+            ],
             None,
         ),
     })

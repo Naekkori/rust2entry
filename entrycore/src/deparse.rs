@@ -200,7 +200,21 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
 
             Block::RemoveValueFromList { index, list }
         }
+        "insert_value_to_list" => {
+            let value = param_at(&params, 0, vars)?;
+            let index = param_at(&params, 1, vars)?;
+            let (list, _name) = variable_slot(&params, 2)?;
+            let list = resolve_var(&list, vars);
+            Block::InsertValueToList { value, index, list }
+        }
+        "change_value_list_index" => {
+            let index = param_at(&params, 0, vars)?;
+            let value = param_at(&params, 1, vars)?;
+            let (list, _name) = variable_slot(&params, 2)?;
+            let list = resolve_var(&list, vars);
 
+            Block::ChangeValueListIndex { index, value, list }
+        }
         // 흐름
         "if" => {
             let cond = param_at(&params, 0, vars)?;
@@ -1384,6 +1398,34 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::InsertValueToList { value, index, list } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "insert_value_to_list".to_string(),
+                    arity: 3,
+                },
+                vec![
+                    expr_from_param(value, vars)?,
+                    expr_from_param(index, vars)?,
+                    Expr::Var(list.clone()),
+                ],
+            )));
+            Ok(())
+        }
+        Block::ChangeValueListIndex { index, value, list } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "change_value_list_index".to_string(),
+                    arity: 3,
+                },
+                vec![
+                    expr_from_param(index, vars)?,
+                    expr_from_param(value, vars)?,
+                    Expr::Var(list.clone()),
+                ],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -1588,6 +1630,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         | Block::WaitUntilTrue { .. }
         | Block::AddValueToList { .. }
         | Block::RemoveValueFromList { .. }
+        | Block::InsertValueToList { .. }
         | Block::Return { .. } => Err(UnmappedBlock(format!(
             "block used as expr: {}",
             b.type_id()
@@ -1771,6 +1814,17 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     arity: 2,
                 },
                 vec![index, Expr::Var(list.clone())],
+            ))
+        }
+        Block::ChangeValueListIndex { index, value, list } => {
+            let index = expr_from_param(index, vars)?;
+            let value = expr_from_param(value, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "change_value_list_index".to_string(),
+                    arity: 3,
+                },
+                vec![index, value, Expr::Var(list.clone())],
             ))
         }
     }

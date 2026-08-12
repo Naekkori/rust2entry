@@ -1330,6 +1330,119 @@ fn compile_remove_value_from_list_roundtrip() {
     assert!(matches!(&args[1], Expr::Var(name) if name == "list"));
 }
 
+#[test]
+fn compile_insert_value_to_list() {
+    let src = r#"
+        fn when_start() {
+            let list = "";
+            insert_value_to_list("apple", 2, list);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let insert = thread
+        .iter()
+        .find(|b| b["type"] == "insert_value_to_list")
+        .expect("insert_value_to_list");
+    assert_eq!(insert["params"].as_array().unwrap().len(), 4);
+    assert_eq!(insert["params"][0]["type"], "text");
+    assert_eq!(insert["params"][0]["params"][0], "apple");
+    assert_eq!(insert["params"][1]["type"], "number");
+    assert_eq!(insert["params"][1]["params"][0], 2.0);
+    assert_eq!(insert["params"][2]["name"], "list");
+    assert_eq!(insert["params"][2]["variableType"], "list");
+    assert!(insert["params"][3].is_null());
+}
+
+#[test]
+fn compile_insert_value_to_list_roundtrip() {
+    use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"
+        fn when_start() {
+            let list = "";
+            insert_value_to_list("apple", 2, list);
+        }
+    "#;
+    let p1 = parse(src).expect("parse");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let script = objects[0]["script"].as_str().expect("script string");
+    let p2 = program_from_script_string_with_vars(script, &vars).expect("deparse");
+    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else { panic!("expected when_start function") };
+    let Some(Stmt::Expr(Expr::Call(_, args))) = body.iter().find(|stmt| {
+        matches!(stmt, Stmt::Expr(Expr::Call(fref, _)) if fref.name == "insert_value_to_list")
+    }) else { panic!("expected insert_value_to_list call") };
+    assert_eq!(args.len(), 3);
+    assert!(matches!(&args[0], Expr::Str(s) if s == "apple"));
+    assert!(matches!(&args[1], Expr::Int(2) | Expr::Float(2.0)));
+    assert!(matches!(&args[2], Expr::Var(name) if name == "list"));
+}
+
+#[test]
+fn compile_change_value_list_index() {
+    let src = r#"
+        fn when_start() {
+            let list = "";
+            change_value_list_index(2, "apple", list);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let change = thread
+        .iter()
+        .find(|b| b["type"] == "change_value_list_index")
+        .expect("change_value_list_index");
+    assert_eq!(change["params"].as_array().unwrap().len(), 4);
+    assert_eq!(change["params"][0]["type"], "number");
+    assert_eq!(change["params"][0]["params"][0], 2.0);
+    assert_eq!(change["params"][1]["type"], "text");
+    assert_eq!(change["params"][1]["params"][0], "apple");
+    assert_eq!(change["params"][2]["name"], "list");
+    assert_eq!(change["params"][2]["variableType"], "list");
+    assert!(change["params"][3].is_null());
+}
+
+#[test]
+fn compile_change_value_list_index_roundtrip() {
+    use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"
+        fn when_start() {
+            let list = "";
+            change_value_list_index(2, "apple", list);
+        }
+    "#;
+    let p1 = parse(src).expect("parse");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let script = objects[0]["script"].as_str().expect("script string");
+    let p2 = program_from_script_string_with_vars(script, &vars).expect("deparse");
+
+    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
+        panic!("expected when_start function");
+    };
+    let Some(Stmt::Expr(Expr::Call(_, args))) = body.iter().find(|stmt| {
+        matches!(stmt, Stmt::Expr(Expr::Call(fref, _)) if fref.name == "change_value_list_index")
+    }) else {
+        panic!("expected change_value_list_index call");
+    };
+    assert_eq!(args.len(), 3);
+    assert!(matches!(&args[0], Expr::Int(2)) || matches!(&args[0], Expr::Float(n) if *n == 2.0));
+    assert!(matches!(&args[1], Expr::Str(s) if s == "apple"));
+    assert!(matches!(&args[2], Expr::Var(name) if name == "list"));
+}
+
 /// 라운드트립.
 #[test]
 fn compile_change_scale_size_roundtrip() {
