@@ -987,9 +987,6 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             raw,
                         });
                     }
-                    if fref.name == "remove_all_lcones" {
-                        return Ok(Block::RemoveAllClones);
-                    }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
                         name: fref.name.clone(),
