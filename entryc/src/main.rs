@@ -243,40 +243,41 @@ fn run_hw(sourcemap: &Path) -> Result<(), String> {
         report.violations.len()
     ))
 }
+/// 바이너리에 내장된 하드웨어 소스맵 (빌드 시 `hw_sourcemap.json` 을 포함).
+/// `--hw` 나 cwd 의 `hw_sourcemap.json` 이 없으면 이걸 사용한다.
+const EMBEDDED_HW_SOURCEMAP: &str = include_str!("../../hw_sourcemap.json");
 
-/// 하드웨어 소스맵(`hw_sourcemap.json`)을 로드해 전역 인덱스에 설정.
-/// 지정 경로가 없으면 cwd 의 `hw_sourcemap.json` 을 자동 사용. 없으면 hw 미지원으로 진행.
-fn maybe_set_hw_index(hw: Option<&Path>) -> Result<(), String> {
-    let candidate: Option<PathBuf> = match hw {
-        Some(p) => Some(p.to_path_buf()),
-        None => {
-            let def = Path::new("hw_sourcemap.json");
-            if def.exists() {
-                Some(def.to_path_buf())
-            } else {
-                None
-            }
-        }
-    };
-    if let Some(p) = candidate {
-        if p.exists() {
-            let json = fs::read_to_string(&p)
-                .map_err(|e| format!("read hw sourcemap '{}': {e}", p.display()))?;
-            let registry = entrycore::block::registry::BlockRegistry::new();
-            let map = registry
-                .parse_hw_sourcemap(&json)
-                .map_err(|e| format!("parse hw sourcemap: {e}"))?;
-            entrycore::block::registry::set_hw_index(&map);
-            eprintln!(
-                "hw: {} 장치 / {} 블럭 인덱스 로드",
-                map.device_count(),
-                map.block_total()
-            );
-        } else if hw.is_some() {
-            return Err(format!("hw sourcemap '{}' not found", p.display()));
-        }
-    }
+/// 하드웨어 소스맵 JSON 을 파싱해 전역 인덱스에 설정.
+fn load_hw_index(json: &str, source: &str) -> Result<(), String> {
+    let registry = entrycore::block::registry::BlockRegistry::new();
+    let map = registry
+        .parse_hw_sourcemap(json)
+        .map_err(|e| format!("parse hw sourcemap: {e}"))?;
+    entrycore::block::registry::set_hw_index(&map);
+    eprintln!(
+        "hw: {} 장치 / {} 블럭 인덱스 로드 ({source})",
+        map.device_count(),
+        map.block_total()
+    );
     Ok(())
+}
+
+/// 하드웨어 소스맵을 로드해 전역 인덱스에 설정.
+/// 우선순위: ① `--hw` 지정 경로 ② cwd 의 `hw_sourcemap.json` ③ 내장 소스맵(항상 보장).
+fn maybe_set_hw_index(hw: Option<&Path>) -> Result<(), String> {
+    if let Some(p) = hw {
+        let json = fs::read_to_string(p)
+            .map_err(|e| format!("read hw sourcemap '{}': {e}", p.display()))?;
+        return load_hw_index(&json, &p.display().to_string());
+    }
+    let def = Path::new("hw_sourcemap.json");
+    if def.exists() {
+        let json = fs::read_to_string(def)
+            .map_err(|e| format!("read hw sourcemap '{}': {e}", def.display()))?;
+        return load_hw_index(&json, "cwd hw_sourcemap.json");
+    }
+    // 내장 소스맵 fallback — 파일/옵션 없이도 항상 하드웨어 지원.
+    load_hw_index(EMBEDDED_HW_SOURCEMAP, "내장 소스맵")
 }
 
 // .ent -> 임시폴더 언팩 -> 오브젝트별 .rs 생성
