@@ -41,6 +41,19 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 - **`unmapped` 누적**: `from_stmt`/`to_value` 의 `UnmappedBlock` 을 `(Value, Vec<String>)` 의 두 번째 반환에 수집. `main::run_build` 가 eprintln 으로 경고 출력. `push_unmapped` 헬퍼로 dedup.
 - **codegen::generate** 직접 호출은 deprecated — 새 코드는 `lib::compile_with_options(&rs, &base, &options)` 사용.
 
+## 하드웨어 소스맵 (hw_sourcemap) — 2026-08-13
+
+하드웨어 블럭(entryjs 하드웨어 장치, 수천 개)은 하나하나 매핑하지 않고 **소스맵**(`hw_sourcemap.json`)으로 관리한다.
+
+- **생성**: `tool/` (entryjs-sourcemap Node CLI) — `node tool/bin/entryjs-sourcemap.js --src <entryjs> --out hw_sourcemap.json`. 201 장치 / 5,531 블럭, 로드 실패 0건. (로더 보강: case-insensitive 상대 require, entryModuleLoader 스텁, 공유 base 상태 오염 해소)
+- **검증**: `entryc hw --sourcemap hw_sourcemap.json` — 장치/블럭 수 리포트 + Tier-0 스키마 검증(`validate_hw_sourcemap`). 위반 시 nonzero exit.
+- **내장**: `hw_sourcemap.json` 을 entryc 바이너리에 `include_str!` 로 내장. `entryc build`/`extract` 는 ① `--hw` 지정 경로 ② cwd 의 `hw_sourcemap.json` ③ **내장 소스맵** 순으로 로드 (파일/옵션 없이도 항상 동작).
+- **정방향 (.rs→.ent)**: Rust 에서 하드웨어 블럭 id 를 함수명으로 호출 → `pyocoding_serial_set("COM1")` → `Block::Raw` → .ent 하드웨어 블럭 생성 (중첩 getter 포함).
+- **역방향 (.ent→.rs)**: `.ent` 하드웨어 블럭 → `pyocoding_serial_set("COM1")` Rust 호출로 복원 (기존 raw JSON 코멘트 폴백 아님).
+- **손실 없는 라운드트립**: `.ent` 하드웨어 블럭의 원본 params/statements JSON 을 `// @hwraw {json}` 주석으로 .rs 에 보존 → 재빌드 시 원본 .ent 블럭 정확히 재생성.
+- **핵심 구현**: `Block::Raw { type_id, raw }` 동적 variant, `ir::FuncRef.raw`(raw 운반), registry 전역 하드웨어 인덱스(`set_hw_index`/`is_hw_block`), deparse(`block_from_value` 소스맵 가드) / decodegen(raw post-order 누적·@hwraw emit) / parse(@hwraw 큐 복구).
+- **제약 (하드웨어 무관 기존 DSL 갭)**: `v = getter()` (프로젝트 변수에 함수 호출 결과 할당) 는 `convert_expr` 이 `Expr::Assign` 을 처리하지 않아 파싱 실패 — 일반 함수도 동일. 하드웨어 getter 는 `let v = getter()` 형태로 정상.
+
 ## 완료된 모듈
 
 - `parse` — `syn::File` → `ir::Program`
