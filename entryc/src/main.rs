@@ -25,6 +25,9 @@ enum Cmd {
         /// 출력 폴더 (미지정시 .ent 위치/<프로젝트이름>)
         #[arg(long, value_name = "DIR")]
         out: Option<PathBuf>,
+        /// 하드웨어 소스맵 JSON (미지정시 cwd 의 hw_sourcemap.json 자동 사용)
+        #[arg(long, value_name = "FILE")]
+        hw: Option<PathBuf>,
     },
     /// .rs -> .ent 빌드
     Build {
@@ -43,6 +46,9 @@ enum Cmd {
         /// base 의 variables 를 통째 교체 (기본: union by id)
         #[arg(long)]
         replace_variables: bool,
+        /// 하드웨어 소스맵 JSON (미지정시 cwd 의 hw_sourcemap.json 자동 사용)
+        #[arg(long, value_name = "FILE")]
+        hw: Option<PathBuf>,
     },
     /// entryjs 블럭 스키마 덤프 검증 (Tier-0 ATS)
     Validate {
@@ -107,19 +113,21 @@ fn format_error_block(msg: &str) -> String {
 fn run() -> Result<(), String> {
     let cli = Cli::parse();
     match cli.cmd {
-        Cmd::Extract { ent, out } => run_extract(ent, out),
+        Cmd::Extract { ent, out, hw } => run_extract(ent, out, hw.as_deref()),
         Cmd::Build {
             rs,
             ent_template,
             out,
             scene,
             replace_variables,
+            hw,
         } => run_build(
             &rs,
             ent_template.as_deref(),
             &out,
             scene.as_deref(),
             replace_variables,
+            hw.as_deref(),
         ),
         Cmd::Validate { blocks } => run_validate(&blocks),
         Cmd::Hw { sourcemap } => run_hw(&sourcemap),
@@ -236,8 +244,44 @@ fn run_hw(sourcemap: &Path) -> Result<(), String> {
     ))
 }
 
+/// 하드웨어 소스맵(`hw_sourcemap.json`)을 로드해 전역 인덱스에 설정.
+/// 지정 경로가 없으면 cwd 의 `hw_sourcemap.json` 을 자동 사용. 없으면 hw 미지원으로 진행.
+fn maybe_set_hw_index(hw: Option<&Path>) -> Result<(), String> {
+    let candidate: Option<PathBuf> = match hw {
+        Some(p) => Some(p.to_path_buf()),
+        None => {
+            let def = Path::new("hw_sourcemap.json");
+            if def.exists() {
+                Some(def.to_path_buf())
+            } else {
+                None
+            }
+        }
+    };
+    if let Some(p) = candidate {
+        if p.exists() {
+            let json = fs::read_to_string(&p)
+                .map_err(|e| format!("read hw sourcemap '{}': {e}", p.display()))?;
+            let registry = entrycore::block::registry::BlockRegistry::new();
+            let map = registry
+                .parse_hw_sourcemap(&json)
+                .map_err(|e| format!("parse hw sourcemap: {e}"))?;
+            entrycore::block::registry::set_hw_index(&map);
+            eprintln!(
+                "hw: {} 장치 / {} 블럭 인덱스 로드",
+                map.device_count(),
+                map.block_total()
+            );
+        } else if hw.is_some() {
+            return Err(format!("hw sourcemap '{}' not found", p.display()));
+        }
+    }
+    Ok(())
+}
+
 // .ent -> 임시폴더 언팩 -> 오브젝트별 .rs 생성
-fn run_extract(ent: PathBuf, out: Option<PathBuf>) -> Result<(), String> {
+fn run_extract(ent: PathBuf, out: Option<PathBuf>, hw: Option<&Path>) -> Result<(), String> {
+    maybe_set_hw_index(hw)?;
     // 임시폴더 생성
     let temp_dir = unique_temp_dir();
     fs::create_dir_all(&temp_dir).map_err(|e| format!("temp mkdir failed: {e}"))?;
@@ -558,10 +602,12 @@ fn run_build(
     out: &Path,
     scene: Option<&str>,
     replace_variables: bool,
+    hw: Option<&Path>,
 ) -> Result<(), String> {
     if rs_files.is_empty() {
         return Err("no --rs inputs".to_string());
     }
+    maybe_set_hw_index(hw)?;
 
     // base Value 로드 (template 또는 빈 프로젝트)
     let base = match template {
