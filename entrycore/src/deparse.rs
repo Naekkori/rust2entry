@@ -287,6 +287,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 .to_string();
             Block::CreateClone { target }
         }
+        "delete_clone" => Block::DeleteClone,
 
         // 산술/비교/논리
         "calc_basic" => {
@@ -1472,6 +1473,17 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::DeleteClone => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "delete_clone".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
         Block::ListValueAt { index, list } => {
             let index = expr_from_param(index, vars)?;
             stmts.push(Stmt::Expr(Expr::Call(
@@ -2053,6 +2065,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         Block::RestartProject => Ok(Expr::Call(
             ir::FuncRef {
                 name: "restart_project".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
+        Block::DeleteClone => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "delete_clone".to_string(),
                 arity: 0,
                 raw: None,
             },

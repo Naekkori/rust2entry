@@ -1903,6 +1903,48 @@ fn compile_change_object_index_roundtrip() {
     }
 }
 
+/// `delete_clone();` → `delete_clone` 블록, params = [].
+#[test]
+fn compile_delete_clone() {
+    let src = r#"fn when_start() { delete_clone(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "delete_clone");
+    assert_eq!(thread[1]["params"].as_array().unwrap().len(), 0);
+}
+
+/// 라운드트립.
+#[test]
+fn compile_delete_clone_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { delete_clone(); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "delete_clone");
+                    assert_eq!(args.len(), 0);
+                }
+                other => panic!("expected Call(delete_clone), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// `ask_and_wait("이름을 입력")` → `ask_and_wait` 블록, params[0] = text 슬롯.
 #[test]
 fn compile_ask_and_wait() {

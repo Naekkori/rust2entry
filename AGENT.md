@@ -19,7 +19,7 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
 | 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 6/6 |
-| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 178/178 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 180/180 |
 
 ### lib::compile 세부 동작 (현재)
 
@@ -183,7 +183,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `restart_project` — 처음부터 다시 실행하기 (→ `restart_project()`)
 - 제외 (별도 블록 필요 없음): `repeat_while_true` (Rust native `while` 키워드로 커버), `when_clone_start` (시작 카테고리에 이미 매핑)
 - ✅ `create_clone` — □ 의 복제본 만들기 (→ `create_clone()` 로 self, `create_clone("sprite_name")` 로 다른 sprite. `&self` 도 허용)
-- ⬜ `delete_clone` — 이 복제본 삭제하기
+- ✅ `delete_clone` — 이 복제본 삭제하기 (→ `delete_clone()`)
 - ⬜ `remove_all_clones` — 모든 복제본 삭제하기
 
 ### 움직임 (0/19)
@@ -587,15 +587,15 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
+- `a4da298 feat(looks): change_object_index 매핑 (□ 보내기 — 레이어)`
 - `feat(looks): stretch_scale_size 매핑 (□ 를 □ 만큼 늘이기) — 형태 17/17 완료`
 - `a4da298 feat(looks): change_object_index 매핑 (□ 보내기 — 레이어)`
 - `f59d76a docs: AGENT.md 동기화 (중복 제거 + 카운트 갱신)`
 - `3d7b2c3 feat(looks): flip_x / flip_y 매핑 (모양 뒤집기)`
-- `9c805dc feat(looks): reset_scale_size 매핑 + from_expr 누락 일괄 수정`
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 178 + parse 26 = 219 통과)
+cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 180 + parse 26 = 221 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -610,9 +610,9 @@ cargo build                 # 빌드만
 - `block::Dimension` (Width/Height) vs `codegen/schema.rs::Dimension` (picture width/height i64) — 이름 겹침. 현재는 모듈이 달라 컴파일 되지만 codegen 에서 둘 다 쓰면 alias 강제됨. `ScaleAxis` 로 rename 권장 (참조 ~7곳)
 
 **다음 할 일 추천 순서**:
-1. 변수 — 리스트 (삽입/값 추가/삭제/길이) — 4블록, 변수 11/19 → 15/19
+1. 흐름 — `remove_all_clones` (모든 복제본 삭제하기) → 흐름 13/13 완료
 2. 판단 — `is_press_some_key` / `reach_something` (게임 로직 필수)
-3. 움직임 — `move_x` / `move_y` / `locate_xy` (0/19, 가장 큰 미개척 영역)
+3. 움직임 — `move_direction` / `move_x` / `move_y` (0/19, 가장 큰 미개척)
 
 ## 디렉토리
 

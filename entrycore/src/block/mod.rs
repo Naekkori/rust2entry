@@ -5,10 +5,10 @@
 
 pub mod category;
 pub mod registry;
-pub use registry::{BlockRegistry, HwDevice, HwSourcemap, SchemaDump, SchemaReport, Violation};
 use crate::Error::UnmappedBlock;
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};
+pub use registry::{BlockRegistry, HwDevice, HwSourcemap, SchemaDump, SchemaReport, Violation};
 
 pub use category::Category;
 
@@ -197,6 +197,7 @@ pub enum Block {
         question: ParamBlock,
     },
     GetCanvasInputValue {},
+    DeleteClone,
 
     // ── 산술 / 비교 / 논리 ──
     CalcBinOp {
@@ -448,6 +449,7 @@ impl Block {
             Block::HideList { .. } => "hide_list",
             Block::CreateClone { .. } => "create_clone",
             Block::Raw { type_id, .. } => type_id.as_str(),
+            Block::DeleteClone => "delete_clone",
         }
     }
 
@@ -529,6 +531,7 @@ impl Block {
             Block::HideList { .. } => Category::Variable,
             Block::CreateClone { .. } => Category::Flow,
             Block::Raw { .. } => Category::Hardware,
+            Block::DeleteClone => Category::Flow,
         }
     }
 }
@@ -786,6 +789,9 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "reset_scale_size" {
                         return Ok(Block::ResetScaleSize {});
                     }
+                    if fref.name == "delete_clone" {
+                        return Ok(Block::DeleteClone);
+                    }
                     if fref.name == "stretch_scale_size" {
                         if args.len() != 2 {
                             return Err(UnmappedBlock("stretch_scale_size needs 2 args".into()));
@@ -962,6 +968,9 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         return Ok(Block::CreateClone { target });
                     }
+                    if fref.name == "delete_clone" {
+                        return Ok(Block::DeleteClone);
+                    }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
                         let raw = if let Some(r) = &fref.raw {
@@ -971,7 +980,10 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             let params: Vec<Value> = pb.iter().map(param_to_value).collect();
                             json!({ "type": fref.name, "params": params })
                         };
-                        return Ok(Block::Raw { type_id: fref.name.clone(), raw });
+                        return Ok(Block::Raw {
+                            type_id: fref.name.clone(),
+                            raw,
+                        });
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -1195,6 +1207,9 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             }
             if fref.name == "remove_dialog" {
                 return Ok(ParamBlock::Sub(Box::new(Block::RemoveDialog {})));
+            }
+            if fref.name == "delete_clone" {
+                return Ok(ParamBlock::Sub(Box::new(Block::DeleteClone)));
             }
             if fref.name == "flip_x" {
                 return Ok(ParamBlock::Sub(Box::new(Block::FlipX {})));
@@ -1614,6 +1629,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::CreateClone { target } => (vec![Value::String(target.clone()), Value::Null], None),
         // to_value 가 Raw 는 조기 반환하므로 이 arm 은 도달하지 않는다 (완전 매치용).
         Block::Raw { .. } => (vec![], None),
+        Block::DeleteClone => (vec![], None),
     })
 }
 
