@@ -5,6 +5,34 @@ use syn::Expr;
 use crate::Error::UnmappedBlock;
 use crate::Result;
 use crate::ir::{self, Expr as IrExpr};
+use std::collections::VecDeque;
+use std::sync::{Mutex, OnceLock};
+
+/// 소스의 `// @hwraw {...}` 주석에서 추출한 하드웨어 블럭 raw JSON 큐.
+/// decodegen 이 post-order 로 emit 한 순서대로, convert_expr 가 하드웨어 Call 을
+/// 만날 때마다 pop 해 `FuncRef.raw` 에 담는다.
+static RAW_QUEUE: OnceLock<Mutex<VecDeque<serde_json::Value>>> = OnceLock::new();
+fn raw_queue() -> &'static Mutex<VecDeque<serde_json::Value>> {
+    RAW_QUEUE.get_or_init(|| Mutex::new(VecDeque::new()))
+}
+
+/// 소스 텍스트에서 `// @hwraw {json}` 주석을 순서대로 큐에 넣는다.
+pub(crate) fn prepare_raw_map(source: &str) {
+    let mut q = raw_queue().lock().unwrap();
+    q.clear();
+    for line in source.lines() {
+        if let Some(pos) = line.find("// @hwraw ") {
+            let rest = line[pos + "// @hwraw ".len()..].trim();
+            if let Ok(v) = serde_json::from_str::<serde_json::Value>(rest) {
+                q.push_back(v);
+            }
+        }
+    }
+}
+
+fn pop_raw() -> Option<serde_json::Value> {
+    raw_queue().lock().unwrap().pop_front()
+}
 
 pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
     // 엔트리는 자바스크립트 기반으로 돌아가고 있다, 사용자가 넣을수있는건
@@ -68,10 +96,17 @@ pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
                 .into_iter()
                 .map(convert_expr)
                 .collect::<Result<Vec<_>>>()?;
+            // 하드웨어 블럭 호출이면 소스의 `// @hwraw {...}` 주석(raw)을 큐에서 pop.
+            let raw = if crate::block::registry::is_hw_block(&name) {
+                pop_raw()
+            } else {
+                None
+            };
             Ok(IrExpr::Call(
                 ir::FuncRef {
                     name,
                     arity: args.len(),
+                    raw,
                 },
                 args,
             ))

@@ -11,6 +11,14 @@
 use crate::ir::{BinOp, Expr, FuncRef, Program, Stmt, UnaryOp};
 use crate::var::{VarInfo, VarInit, VarMap};
 use crate::Result;
+use std::sync::{Mutex, OnceLock};
+
+/// emit 중 만난 하드웨어 블럭 raw JSON 누적 (post-order 전역 순서).
+/// emit_with_var_map 끝에서 `// @hwraw {...}` 주석 줄로 일괄 출력.
+static RAW_ACC: OnceLock<Mutex<Vec<serde_json::Value>>> = OnceLock::new();
+fn raw_acc() -> &'static Mutex<Vec<serde_json::Value>> {
+    RAW_ACC.get_or_init(|| Mutex::new(Vec::new()))
+}
 
 /// IR Program -> DSL 소스 문자열.
 pub fn emit(program: &Program) -> Result<String> {
@@ -22,6 +30,7 @@ pub fn emit(program: &Program) -> Result<String> {
 /// top-level stmt 중 `FuncDef`는 그대로 함수 정의로 출력,
 /// 나머지는 `fn when_start() { ... }` 블록으로 묶어 출력 (Entry 트리거 형태).
 pub fn emit_with_var_map(program: &Program, vars: &VarMap) -> Result<String> {
+    raw_acc().lock().unwrap().clear();
     let mut out = String::new();
     // 프로젝트 전역 변수는 트리거 함수 안에 선언하면 안 된다.
     for v in vars.iter().filter(|v| matches!(v.scope, crate::var::VarScope::Global)) {
@@ -48,6 +57,14 @@ pub fn emit_with_var_map(program: &Program, vars: &VarMap) -> Result<String> {
     if !trigger_body.is_empty() {
         emit_trigger_block(&trigger_body, &mut out, vars)?;
         out.push('\n');
+    }
+    // 하드웨어 블럭 raw 를 post-order 순으로 주석 줄로 출력 (parse 가 큐로 복구).
+    let raws = std::mem::take(&mut *raw_acc().lock().unwrap());
+    for r in &raws {
+        out.push_str(&format!(
+            "// @hwraw {}\n",
+            serde_json::to_string(r).unwrap_or_default()
+        ));
     }
     Ok(out)
 }
@@ -345,6 +362,10 @@ fn emit_call(fref: &FuncRef, args: &[Expr], out: &mut String) -> Result<()> {
         emit_expr(a, out)?;
     }
     out.push(')');
+    // 하드웨어 블럭 raw: post-order 로 누적 (parse 큐가 같은 순서로 pop).
+    if let Some(r) = &fref.raw {
+        raw_acc().lock().unwrap().push(r.clone());
+    }
     Ok(())
 }
 

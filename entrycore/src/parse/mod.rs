@@ -29,6 +29,7 @@ pub struct TriggerDef {
 
 /// Rust 소스 문자열을 IR Program으로 변환.
 pub fn parse(_source: &str) -> Result<Program> {
+    expr::prepare_raw_map(_source);
     let file: syn::File = syn::parse_str(_source).map_err(map_syn_err)?;
     let mut stmts = Vec::new();
     for item in file.items {
@@ -44,6 +45,7 @@ pub fn parse(_source: &str) -> Result<Program> {
 /// 그룹화에 사용. deparse 라운드트립(extract)과의 호환을 위해 `parse` 는
 /// 평탄화 동작을 유지한다.
 pub fn parse_with_triggers(_source: &str) -> Result<(Program, Vec<TriggerDef>)> {
+    expr::prepare_raw_map(_source);
     let file: syn::File = syn::parse_str(_source).map_err(map_syn_err)?;
     let mut stmts = Vec::new();
     let mut triggers: Vec<TriggerDef> = Vec::new();

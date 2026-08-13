@@ -605,6 +605,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::Return { value }
         }
 
+        // 하드웨어 블럭 (소스맵 인덱스) — 원본 .ent 블럭 JSON 을 raw 로 보존.
+        other if crate::block::registry::is_hw_block(other) => Block::Raw {
+            type_id: other.to_string(),
+            raw: v.clone(),
+        },
         other => return Err(UnmappedBlock(format!("entry block type: {other}"))),
     };
     Ok(block)
@@ -745,6 +750,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "when_start".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -755,6 +761,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "when_click".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -765,6 +772,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "when_clone_start".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -775,6 +783,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "when_message".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![Expr::Str(msg.clone())],
             )));
@@ -785,6 +794,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "when_key_pressed".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![Expr::Str(key_code.clone())],
             )));
@@ -795,6 +805,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "when_mouse_clicked".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -805,6 +816,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "when_mouse_released".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -815,6 +827,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "when_object_released".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -825,6 +838,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "when_scene_start".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -835,6 +849,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "send_message".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![Expr::Str(msg.clone())],
             )));
@@ -845,6 +860,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "wait_message".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![Expr::Str(msg.clone())],
             )));
@@ -855,6 +871,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "start_scene".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![Expr::Str(scene.clone())],
             )));
@@ -869,6 +886,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: name.to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -896,6 +914,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "show_var".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![Expr::Var(variable.clone())],
             )));
@@ -906,6 +925,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "hide_var".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![Expr::Var(variable.clone())],
             )));
@@ -916,6 +936,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "show_list".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![Expr::Var(list.clone())],
             )));
@@ -926,6 +947,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "hide_list".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![Expr::Var(list.clone())],
             )));
@@ -1008,6 +1030,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "stop_all".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1040,6 +1063,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "string_concat".to_string(),
                     arity: args.len(),
+                    raw: None,
                 },
                 args,
             )));
@@ -1052,6 +1076,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: "string_contains".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![h, n],
             )));
@@ -1066,6 +1091,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 crate::ir::FuncRef {
                     name: name.clone(),
                     arity: ir_args.len(),
+                    raw: None,
                 },
                 ir_args,
             )));
@@ -1103,6 +1129,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "wait_second".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![arg],
             )));
@@ -1114,6 +1141,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "wait_until_true".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![arg],
             )));
@@ -1126,6 +1154,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "calc_rand".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![m, mx],
             )));
@@ -1136,6 +1165,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "get_project_timer_value".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1147,6 +1177,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "ask_and_wait".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![q],
             )));
@@ -1157,6 +1188,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "get_canvas_input_value".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1167,6 +1199,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "show".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1177,6 +1210,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "hide".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1193,6 +1227,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: fn_name.to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1204,6 +1239,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: name.to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1215,6 +1251,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: name.to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1231,6 +1268,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "quotient_and_mod".to_string(),
                     arity: 3,
+                    raw: None,
                 },
                 vec![av, bv, Expr::Str(mode_str.to_string())],
             )));
@@ -1243,6 +1281,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: fn_name.to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![e],
             )));
@@ -1258,6 +1297,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: name.to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![arg],
             )));
@@ -1278,6 +1318,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: name.to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![content_arg, time_arg],
             )));
@@ -1288,6 +1329,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "change_to_some_shape".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![Expr::Str(picture.clone())],
             )));
@@ -1298,6 +1340,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "change_to_next_shape".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1309,6 +1352,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "add_effect_amount".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![Expr::Str(effect_to_str(*effect).to_string()), a],
             )));
@@ -1320,6 +1364,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "stretch_scale_size".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![Expr::Str(dim_to_dsl_str(dim).to_string()), v],
             )));
@@ -1330,6 +1375,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "remove_dialog".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1341,6 +1387,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "change_effect_amount".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![Expr::Str(effect_to_str(*effect).to_string()), a],
             )));
@@ -1351,6 +1398,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "erase_all_effects".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1362,6 +1410,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "change_scale_size".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![a],
             )));
@@ -1373,6 +1422,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "set_scale_size".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![a],
             )));
@@ -1383,6 +1433,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "reset_scale_size".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1393,6 +1444,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "flip_x".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1403,6 +1455,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "flip_y".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1413,6 +1466,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "change_object_index".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![Expr::Str(direction.clone())],
             )));
@@ -1424,6 +1478,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "value_of_index_from_list".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![index, Expr::Var(list.clone())],
             )));
@@ -1435,6 +1490,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "add_value_to_list".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![value, Expr::Var(list.clone())],
             )));
@@ -1445,6 +1501,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "remove_value_from_list".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![expr_from_param(index, vars)?, Expr::Var(list.clone())],
             )));
@@ -1455,6 +1512,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "insert_value_to_list".to_string(),
                     arity: 3,
+                    raw: None,
                 },
                 vec![
                     expr_from_param(value, vars)?,
@@ -1469,6 +1527,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "change_value_list_index".to_string(),
                     arity: 3,
+                    raw: None,
                 },
                 vec![
                     expr_from_param(index, vars)?,
@@ -1483,6 +1542,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "length_of_list".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![Expr::Var(list.clone())],
             )));
@@ -1494,6 +1554,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "is_included_in_list".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![Expr::Var(list.clone()), value],
             )));
@@ -1504,6 +1565,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "restart_project".to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             )));
@@ -1519,8 +1581,20 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 ir::FuncRef {
                     name: "create_clone".to_string(),
                     arity: args.len(),
+                    raw: None,
                 },
                 args,
+            )));
+            Ok(())
+        }
+        Block::Raw { type_id, raw } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef {
+                    name: type_id.clone(),
+                    arity: hw_raw_arg_count(raw),
+                    raw: Some(raw.clone()),
+                },
+                hw_raw_args(raw, vars),
             )));
             Ok(())
         }
@@ -1610,6 +1684,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 crate::ir::FuncRef {
                     name: "string_concat".to_string(),
                     arity: args.len(),
+                    raw: None,
                 },
                 args,
             ))
@@ -1621,6 +1696,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 crate::ir::FuncRef {
                     name: "string_contains".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![h, n],
             ))
@@ -1634,6 +1710,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 crate::ir::FuncRef {
                     name: name.clone(),
                     arity: ir_args.len(),
+                    raw: None,
                 },
                 ir_args,
             ))
@@ -1645,6 +1722,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 crate::ir::FuncRef {
                     name: "calc_rand".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![m, mx],
             ))
@@ -1653,6 +1731,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ir::FuncRef {
                 name: "get_project_timer_value".to_string(),
                 arity: 0,
+                raw: None,
             },
             Vec::new(),
         )),
@@ -1662,6 +1741,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ir::FuncRef {
                     name: "ask_and_wait".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![q],
             ))
@@ -1670,6 +1750,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ir::FuncRef {
                 name: "get_canvas_input_value".to_string(),
                 arity: 0,
+                raw: None,
             },
             Vec::new(),
         )),
@@ -1677,6 +1758,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ir::FuncRef {
                 name: "show".to_string(),
                 arity: 0,
+                raw: None,
             },
             Vec::new(),
         )),
@@ -1684,6 +1766,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ir::FuncRef {
                 name: "hide".to_string(),
                 arity: 0,
+                raw: None,
             },
             Vec::new(),
         )),
@@ -1694,6 +1777,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ir::FuncRef {
                     name: fn_name.to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![e],
             ))
@@ -1747,6 +1831,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ir::FuncRef {
                     name: fn_name.to_string(),
                     arity: 0,
+                    raw: None,
                 },
                 Vec::new(),
             ))
@@ -1763,6 +1848,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 crate::ir::FuncRef {
                     name: name.to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![arg],
             ))
@@ -1782,6 +1868,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 crate::ir::FuncRef {
                     name: name.to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![content_arg, time_arg],
             ))
@@ -1797,6 +1884,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ir::FuncRef {
                     name: "quotient_and_mod".to_string(),
                     arity: 3,
+                    raw: None,
                 },
                 vec![av, bv, Expr::Str(mode_str.to_string())],
             ))
@@ -1805,6 +1893,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ir::FuncRef {
                 name: "change_to_some_shape".to_string(),
                 arity: 1,
+                raw: None,
             },
             vec![Expr::Str(picture.clone())],
         )),
@@ -1812,6 +1901,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ir::FuncRef {
                 name: "change_to_next_shape".to_string(),
                 arity: 0,
+                raw: None,
             },
             Vec::new(),
         )),
@@ -1819,6 +1909,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ir::FuncRef {
                 name: "remove_dialog".to_string(),
                 arity: 0,
+                raw: None,
             },
             Vec::new(),
         )),
@@ -1828,6 +1919,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ir::FuncRef {
                     name: "add_effect_amount".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![Expr::Str(effect_to_str(*effect).to_string()), a],
             ))
@@ -1838,6 +1930,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ir::FuncRef {
                     name: "stretch_scale_size".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![Expr::Str(dim_to_dsl_str(dim).to_string()), v],
             ))
@@ -1848,6 +1941,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ir::FuncRef {
                     name: "change_effect_amount".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![Expr::Str(effect_to_str(*effect).to_string()), a],
             ))
@@ -1856,6 +1950,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ir::FuncRef {
                 name: "erase_all_effects".to_string(),
                 arity: 0,
+                raw: None,
             },
             Vec::new(),
         )),
@@ -1865,6 +1960,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ir::FuncRef {
                     name: "change_scale_size".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![a],
             ))
@@ -1875,6 +1971,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ir::FuncRef {
                     name: "set_scale_size".to_string(),
                     arity: 1,
+                    raw: None,
                 },
                 vec![a],
             ))
@@ -1883,6 +1980,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ir::FuncRef {
                 name: "reset_scale_size".to_string(),
                 arity: 0,
+                raw: None,
             },
             Vec::new(),
         )),
@@ -1890,6 +1988,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ir::FuncRef {
                 name: "flip_x".to_string(),
                 arity: 0,
+                raw: None,
             },
             Vec::new(),
         )),
@@ -1897,6 +1996,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ir::FuncRef {
                 name: "flip_y".to_string(),
                 arity: 0,
+                raw: None,
             },
             Vec::new(),
         )),
@@ -1904,6 +2004,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ir::FuncRef {
                 name: "change_object_index".to_string(),
                 arity: 1,
+                raw: None,
             },
             vec![Expr::Str(direction.clone())],
         )),
@@ -1913,6 +2014,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ir::FuncRef {
                     name: "value_of_index_from_list".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![index, Expr::Var(list.clone())],
             ))
@@ -1924,6 +2026,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ir::FuncRef {
                     name: "change_value_list_index".to_string(),
                     arity: 3,
+                    raw: None,
                 },
                 vec![index, value, Expr::Var(list.clone())],
             ))
@@ -1932,6 +2035,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ir::FuncRef {
                 name: "length_of_list".to_string(),
                 arity: 1,
+                raw: None,
             },
             vec![Expr::Var(list.clone())],
         )),
@@ -1941,6 +2045,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ir::FuncRef {
                     name: "is_included_in_list".to_string(),
                     arity: 2,
+                    raw: None,
                 },
                 vec![Expr::Var(list.clone()), value],
             ))
@@ -1949,10 +2054,43 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ir::FuncRef {
                 name: "restart_project".to_string(),
                 arity: 0,
+                raw: None,
             },
             Vec::new(),
         )),
+        Block::Raw { type_id, raw } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: type_id.clone(),
+                arity: hw_raw_arg_count(raw),
+                raw: Some(raw.clone()),
+            },
+            hw_raw_args(raw, vars),
+        )),
     }
+}
+
+/// Block::Raw 의 raw.params 에서 Rust 인자 표현을 best-effort 로 뽑는다.
+/// (정확한 재구성은 @hwraw 주석이 담당하므로, 여기선 읽기 좋은 수준으로만.)
+fn hw_raw_arg_count(raw: &Value) -> usize {
+    raw.get("params")
+        .and_then(|p| p.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0)
+}
+
+/// Block::Raw 의 raw.params 를 IR Expr 인자로 변환 (실패 요소는 건너뜀).
+fn hw_raw_args(raw: &Value, vars: &VarMap) -> Vec<Expr> {
+    let mut out = Vec::new();
+    if let Some(Value::Array(params)) = raw.get("params") {
+        for p in params {
+            if let Ok(pb) = value_to_param(p, vars) {
+                if let Ok(e) = expr_from_param(&pb, vars) {
+                    out.push(e);
+                }
+            }
+        }
+    }
+    out
 }
 
 /// Entry 프로젝트 `script` (JSON 문자열) -> IR `Program`. 변수 없음.
@@ -1993,7 +2131,8 @@ pub fn collect_unmapped_blocks(scripts: &Value, vars: &VarMap) -> Vec<(String, u
     let mut counts: HashMap<String, usize> = HashMap::new();
     walk_blocks(scripts, &mut |block: &Value| {
         if let Some(t) = block.get("type").and_then(|x| x.as_str()) {
-            if block_from_value(block, vars).is_err() {
+            // 하드웨어 블럭은 소스맵 인덱스로 인식되므로 미매핑 집계에서 제외.
+            if !crate::block::registry::is_hw_block(t) && block_from_value(block, vars).is_err() {
                 *counts.entry(t.to_string()).or_insert(0) += 1;
             }
         }
