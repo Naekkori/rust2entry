@@ -198,7 +198,7 @@ pub enum Block {
     },
     GetCanvasInputValue {},
     DeleteClone,
-
+    RemoveAllClones,
     // ── 산술 / 비교 / 논리 ──
     CalcBinOp {
         op: BinOp,
@@ -450,6 +450,7 @@ impl Block {
             Block::CreateClone { .. } => "create_clone",
             Block::Raw { type_id, .. } => type_id.as_str(),
             Block::DeleteClone => "delete_clone",
+            Block::RemoveAllClones => "remove_all_clones",
         }
     }
 
@@ -532,6 +533,7 @@ impl Block {
             Block::CreateClone { .. } => Category::Flow,
             Block::Raw { .. } => Category::Hardware,
             Block::DeleteClone => Category::Flow,
+            Block::RemoveAllClones => Category::Flow,
         }
     }
 }
@@ -792,6 +794,9 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "delete_clone" {
                         return Ok(Block::DeleteClone);
                     }
+                    if fref.name == "remove_all_clones" {
+                        return Ok(Block::RemoveAllClones);
+                    }
                     if fref.name == "stretch_scale_size" {
                         if args.len() != 2 {
                             return Err(UnmappedBlock("stretch_scale_size needs 2 args".into()));
@@ -984,6 +989,9 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             type_id: fref.name.clone(),
                             raw,
                         });
+                    }
+                    if fref.name == "remove_all_lcones" {
+                        return Ok(Block::RemoveAllClones);
                     }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
@@ -1210,6 +1218,12 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             }
             if fref.name == "delete_clone" {
                 return Ok(ParamBlock::Sub(Box::new(Block::DeleteClone)));
+            }
+            if fref.name == "remove_all_clones" {
+                return Ok(ParamBlock::Sub(Box::new(Block::RemoveAllClones)));
+            }
+            if fref.name == "delete_all_clones" {
+                return Ok(ParamBlock::Sub(Box::new(Block::RemoveAllClones)));
             }
             if fref.name == "flip_x" {
                 return Ok(ParamBlock::Sub(Box::new(Block::FlipX {})));
@@ -1630,6 +1644,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         // to_value 가 Raw 는 조기 반환하므로 이 arm 은 도달하지 않는다 (완전 매치용).
         Block::Raw { .. } => (vec![], None),
         Block::DeleteClone => (vec![], None),
+        Block::RemoveAllClones => (vec![], None),
     })
 }
 

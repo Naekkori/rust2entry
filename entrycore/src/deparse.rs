@@ -288,6 +288,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::CreateClone { target }
         }
         "delete_clone" => Block::DeleteClone,
+        "remove_all_clones" => Block::RemoveAllClones,
 
         // 산술/비교/논리
         "calc_basic" => {
@@ -1484,6 +1485,17 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::RemoveAllClones => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "remove_all_clones".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
         Block::ListValueAt { index, list } => {
             let index = expr_from_param(index, vars)?;
             stmts.push(Stmt::Expr(Expr::Call(
@@ -1607,6 +1619,17 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                     raw: Some(raw.clone()),
                 },
                 hw_raw_args(raw, vars),
+            )));
+            Ok(())
+        }
+        Block::RemoveAllClones => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "remove_all_clones".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
             )));
             Ok(())
         }
@@ -2085,6 +2108,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 raw: Some(raw.clone()),
             },
             hw_raw_args(raw, vars),
+        )),
+        Block::RemoveAllClones => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "remove_all_clones".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
         )),
     }
 }
