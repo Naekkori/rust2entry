@@ -5,6 +5,7 @@
 
 pub mod category;
 pub mod registry;
+pub use registry::{BlockRegistry, SchemaDump, SchemaReport, Violation};
 use crate::Error::UnmappedBlock;
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};

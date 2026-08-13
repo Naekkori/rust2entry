@@ -44,6 +44,12 @@ enum Cmd {
         #[arg(long)]
         replace_variables: bool,
     },
+    /// entryjs 블럭 스키마 덤프 검증 (Tier-0 ATS)
+    Validate {
+        /// entryjs 스키마 덤프 JSON (dump_schema.js 산출물)
+        #[arg(long, value_name = "FILE", required = true)]
+        blocks: PathBuf,
+    },
 }
 fn main() {
     if let Err(e) = run() {
@@ -109,7 +115,52 @@ fn run() -> Result<(), String> {
             scene.as_deref(),
             replace_variables,
         ),
+        Cmd::Validate { blocks } => run_validate(&blocks),
     }
+}
+
+/// entryjs 블럭 스키마 덤프를 읽어 Tier-0 스키마 검증을 실행하고 리포트를 출력.
+/// 위반이 있으면 nonzero exit 코드로 종료.
+fn run_validate(blocks: &Path) -> Result<(), String> {
+    let json = fs::read_to_string(blocks)
+        .map_err(|e| format!("failed to read schema dump '{}': {e}", blocks.display()))?;
+    let registry = entrycore::block::registry::BlockRegistry::new();
+    let report = registry
+        .validate_json(&json)
+        .map_err(|e| format!("failed to parse schema dump: {e}"))?;
+
+    println!("entryjs 블럭 스키마 검증 (Tier-0 ATS)");
+    println!("  검증 블럭 수   : {}", report.total_blocks);
+    println!("  위반 총계       : {}", report.violations.len());
+    if report.is_clean() {
+        println!("  결과            : PASS");
+        return Ok(());
+    }
+
+    // 체크별 요약
+    println!("  체크별 위반    :");
+    for (check, n) in report.counts_by_check() {
+        println!("    - {check:<22} {n}");
+    }
+    // 위반 상세 (체크별, 파일별 그룹핑해 최대 60줄)
+    println!("  위반 상세      :");
+    let mut shown = 0usize;
+    for v in &report.violations {
+        if shown >= 60 {
+            println!("    ... (나머지 {}건 생략)", report.violations.len() - shown);
+            break;
+        }
+        println!(
+            "    [{check}] {group}/{block} ({file}): {detail}",
+            check = v.check,
+            group = v.group,
+            block = v.block,
+            file = v.file,
+            detail = v.detail
+        );
+        shown += 1;
+    }
+    Err(format!("schema validation failed: {} violations", report.violations.len()))
 }
 
 // .ent -> 임시폴더 언팩 -> 오브젝트별 .rs 생성
