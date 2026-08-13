@@ -2,8 +2,8 @@
 
 AI/에이전트 협업용 진행 문서. Readme와 동기화.
 
-> 블록 매핑 현황의 합계는 **내부용 16개 제외 187개** 기준. EntryJS 의 203개 중 시작 13개 (check_* / wildcard_* / register_score / positive_number / negative_number / show_prompt / check_goal_success / check_lecture_goal / check_object_property / check_block_execution / switch_scope / is_answer_submited / check_variable_by_name) + 함수 UI 3개 (functionAddButton / function_name / showFunctionPropsButton) 는 평가/검증용 으로 사용자라 직접 블록 패널에서 사용하지 않음. 흐름의 `repeat_while_true` (Rust native `while` 로 커버) 와 `when_clone_start` (시작 카테고리에 이미 매핑) 도 duplicate 이라 매핑 대상 아님.
-> 2026-01-24 내부용 제외 정책 적용 — 매핑 목표는 187개, 합계 79개 매핑.
+> 블록 매핑 현황의 합계는 **기본 187 + AI 105 + 확장 42 = 334개** 목표. EntryJS 의 350개 중 시작 13개 (check_* / wildcard_* / register_score / positive_number / negative_number / show_prompt / check_goal_success / check_lecture_goal / check_object_property / check_block_execution / switch_scope / is_answer_submited / check_variable_by_name) + 함수 UI 3개 (functionAddButton / function_name / showFunctionPropsButton) 는 평가/검증용 으로 사용자라 직접 블록 패널에서 사용하지 않음. 흐름의 `repeat_while_true` (Rust native `while` 로 커버) 와 `when_clone_start` (시작 카테고리에 이미 매핑) 도 duplicate 이라 매핑 대상 아님.
+> 2026-08-13 AI/확장 목표 추가 — 기본 187 + AI 105 + 확장 42 = 334개, 기본 매핑 합계 80.
 
 ## 진행 상태
 
@@ -143,7 +143,9 @@ fn greet(a: StringParam, b: BoolParam) {
 - **codegen ↔ deparse**: `parse → codegen → deparse → IR'` 구조 보존 (스크립트/변수/연산)
 - **parse ↔ decodegen**: `parse(src) → IR → emit → dsl → parse(dsl) → IR'` 구조 보존 (조건/반복/변수)
 
-## EntryJS 블록 매핑 현황 (사용자 작성 가능 187개 중, 내부용 16개 제외)
+## EntryJS 블록 매핑 현황 (사용자 작성 가능 334개 중, 내부용 16개 제외)
+
+> **2026-08-13 갱신**: v3.md 도입 — AI(105) + 확장(42) 추가. 목표 187 → 334.
 
 > 내부용 16개 제외: 내부용 시작 13개 (check_*, wildcard_*, register_score, positive_number, negative_number, show_prompt, check_goal_success, check_lecture_goal, check_object_property, check_block_execution, switch_scope, is_answer_submited, check_variable_by_name) + 함수 UI 3개 (functionAddButton, function_name, showFunctionPropsButton). 사용자가 블록 패널에서 쓰는 게 아니라 EntryJS 가 평가/검증 환경에서 자동 끼는 블록들이라 매핑 대상 아님.
 > 
@@ -347,11 +349,170 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `set_value_from_cell` / `get_value_from_cell` — 셀 값
 - ⬜ `get_value_v_lookup` — VLOOKUP
 
+### 인공지능 (AI) 학습 (0/26) — 7 파일 공유 (cluster / decisiontree / knn / logistic_regression / regression / svm / learning)
+| 블럭 ID | 블럭 이름 |
+|---|---|
+| get_predict_1 | □ □ 의 분류 결과 |
+| get_predict_2 | □ □ □ □ 의 분류 결과 |
+| get_predict_3 | □ □ □ □ □ □ 의 분류 결과 |
+| get_predict_4 | □ □ □ □ □ □ □ □ 의 분류 결과 |
+| get_predict_5 | □ □ □ □ □ □ □ □ □ □ 의 분류 결과 |
+| get_predict_6 | □ □ □ □ □ □ □ □ □ □ □ □ 의 분류 결과 |
+| is_result_1 | □ □ 의 분류 결과가 □ 인가? |
+| is_result_2 | □ □ □ □ 의 분류 결과가 □ 인가? |
+| is_result_3 | □ □ □ □ □ □ 의 분류 결과가 □ 인가? |
+| is_result_4 | □ □ □ □ □ □ □ □ 의 분류 결과가 □ 인가? |
+| is_result_5 | □ □ □ □ □ □ □ □ □ □ 의 분류 결과가 □ 인가? |
+| is_result_6 | □ □ □ □ □ □ □ □ □ □ □ □ 의 분류 결과가 □ 인가? |
+| learning_title_image | □ |
+| learning_title_speech | □ |
+| learning_title_text | □ |
+| insert_data_for_test | 학습한 모델로 분류하기 □ |
+| video_capture_for_image_test | 비디오 화면을 학습한 모델로 분류 □ □ |
+| insert_text_block_for_test | □ 을(를) 학습한 모델로 분류하기 □ |
+| test_result | 분류 결과 |
+| accuracy_of_result | □에 대한 신뢰도 |
+| is_group | 분류 결과가 □ 인가? |
+| retrain_model | 모델 다시 학습하기 □ |
+| model_is_trained | 모델이 학습되었는가? |
+| set_train_visible | 모델 □ □ |
+| set_train_chart | 모델 차트 창 □ □ |
+| get_result_info | 모델의 □ |
+
+### 인공지능 (AI) 활용 (0/79) — 9 파일 누적 (audio / face_landmarker / gesture_recognition / media_pipe / object_detector / pose_landmarker / translate / tts / video)
+| 블럭 ID | 블럭 이름 |
+|---|---|
+| audio_title | □ |
+| check_microphone | 마이크가 연결되었는가? |
+| get_microphone_volume | 마이크 소리 크기 |
+| speech_to_text_title | □ |
+| speech_to_text_convert | □ 음성 인식하기 □ |
+| timed_speech_to_text_convert | □ 초 동안 □ 음성 인식하기 □ |
+| set_visible_speech_to_text | 인식한 음성 □ □ |
+| speech_to_text_get_value | 음성을 문자로 바꾼 값 |
+| face_landmarker_title | □ |
+| when_face_landmarker | □ 얼굴을 인식했을 때 |
+| face_landmarker | 얼굴 인식 □ □ |
+| draw_detected_face | 인식한 얼굴 □ □ |
+| check_detected_face | 얼굴을 인식했는가? |
+| count_detected_face | 인식한 얼굴의 수 |
+| locate_to_face | □ 번째의 얼굴의 □ (으)로 이동하기 □ |
+| locate_time_to_face | □ 초 동안 □ 번째의 얼굴의 □ (으)로 이동하기 □ |
+| check_detected_gender | □ 번째 얼굴의 성별이 □ 인가? |
+| check_compare_age | □ 번째 얼굴의 나이 □ □ 인가? |
+| check_detected_emotion | □ 번째 얼굴의 감정이 □ 인가? |
+| axis_detected_face | □ 번째 얼굴의 □ 의 □ 좌표 |
+| get_detected_face_value | □ 번째 얼굴의 □ |
+| hand_detection_title | □ |
+| when_hand_detection | □ 손을 인식했을 때 |
+| hand_detection | 손 인식 □ □ |
+| draw_detected_hand | 인식한 손 □ □ |
+| check_detected_hand | 손을 인식했는가? |
+| count_detected_hand | 인식한 손의 수 |
+| locate_to_hand | □ 번째 손의 □ □ (으)로 이동하기 □ |
+| locate_time_to_hand | □ 초 동안 □ 번째 손의 □ □ (으)로 이동하기 □ |
+| axis_detected_hand | □ 번째 손의 □ □ 의 □ 좌표 |
+| is_which_hand | □ 번째 손이 □ 인가? |
+| get_which_hand | □ 번째 손 |
+| is_which_gesture | □ 번째 손의 모양이 □ 인가? |
+| get_which_gesture | □ 번째 손의 모양 |
+| media_pipe_title | □ |
+| media_pipe_video_screen | 비디오 화면 □ □ |
+| media_pipe_switch_camera | □ 카메라로 바꾸기 □ |
+| check_connected_camera | 카메라가 연결되었는가? |
+| media_pipe_flip_camera | 비디오 화면 □ 뒤집기 □ |
+| media_pipe_set_opacity_camera | 비디오 투명도 효과를 □ 으로 정하기 □ |
+| media_pipe_motion_value | □ 에서 감지한 □ 값 |
+| object_detector_title | □ |
+| when_object_detector | □ 사물을 인식했을 때 |
+| object_detector | 사물 인식 □ □ |
+| draw_detected_object | 인식한 사물 □ □ |
+| check_detected_object | 사물을 인식했는가? |
+| count_detected_object | 인식한 사물의 수 |
+| is_detected_among_objects | 사물 중 □ 을(를) 인식했는가? |
+| pose_landmarker_title | □ |
+| when_pose_landmarker | □ 사람을 인식했을 때 |
+| pose_landmarker | 사람 인식 □ □ |
+| draw_detected_pose | 인식한 사람 □ □ |
+| check_detected_pose | 사람을 인식했는가? |
+| count_detected_pose | 인식한 사람의 수 |
+| locate_to_pose | □ 번째의 사람의 □ (으)로 이동하기 □ |
+| locate_time_to_pose | □ 초 동안 □ 번째의 사람의 □ (으)로 이동하기 □ |
+| axis_detected_pose | □ 번째 사람의 □ 의 □ 좌표 |
+| translate_title | □ |
+| get_translated_string | □ □ 을(를) □(으)로 번역한 값 |
+| check_language | □의 언어 |
+| tts_title | □ |
+| read_text | □ 읽어주기 □ |
+| read_text_wait_with_block | □ 읽어주고 기다리기 □ |
+| set_tts_property | □ 목소리를 □ 속도 □ 음높이로 설정하기 □ |
+| video_title | □ |
+| video_change_cam | □ 카메라로 바꾸기 □ |
+| video_check_webcam | 비디오가 연결되었는가? |
+| video_draw_webcam | 비디오 화면 □ □ |
+| video_set_camera_opacity_option | 비디오 투명도 효과를 □ 으로 정하기 □ |
+| video_flip_camera | 비디오 화면 □ 뒤집기 □ |
+| video_toggle_model | □ 인식 □ □ |
+| video_toggle_ind | 인식된 □ □ □ |
+| video_number_detect | 인식된 □ 의 수 |
+| video_object_detected | 사물 중 □ (이)가 인식되었는가? |
+| video_is_model_loaded | □ 인식이 되었는가? |
+| video_detected_face_info | □ 번째 얼굴의 □ |
+| video_motion_value | □ 에서 감지한 □ 값 |
+| video_face_part_coord | □ 번째 얼굴의 □ 의 □ 좌표 |
+| video_body_part_coord | □ 번째 사람의 □ 의 □ 좌표 |
+
+### 확장 (교과) (0/42) — 6 파일 누적 (behaviorconduct_disaster / behaviorconduct_lifesafety / disasterAlert / emergencyActionGuidelines / festival / weather)
+| 블럭 ID | 블럭 이름 |
+|---|---|
+| behaviorConductDisaster_title | □ |
+| count_disaster_behavior | □ □ 해야할 행동요령 수 |
+| get_disaster_behavior | 자연재난□ □ 해야할 행동요령 □ 번째 항목 |
+| behaviorConductLifeSafety_title | □ |
+| count_lifeSafety_behavior | □ 에서 □ 방법의 수 |
+| get_lifeSafety_behavior | □ 에서 □ 방법 □ 번째 항목 |
+| disaster_alert_title | (이름 없음) |
+| count_disaster_alert | (이름 없음) |
+| get_disaster_alert | (이름 없음) |
+| check_disaster_alert | (이름 없음) |
+| emergencyActionGuidelines_title | (이름 없음) |
+| count_disaster_guideline | 자연재난 □ □ 의 행동요령 수 |
+| get_disaster_guideline | 자연재난 □ □ 의 행동요령 □ 번째 항목 |
+| count_social_disaster_guideline | 사회재난 □ □ 의 행동요령 수 |
+| get_social_disaster_guideline | 사회재난 □ □ 의 행동요령 □ 번째 항목 |
+| count_safety_accident_guideline | 생활안전 □ □ 의 행동요령 수 |
+| get_safety_accident_guideline | 생활안전 □ □ 의 행동요령 □ 번째 항목 |
+| festival_title | □ |
+| count_festival | □ □ 행사의 수 |
+| get_festival_info | □ □ 행사 □ 번째 항목의 □ |
+| weather_title | □ |
+| check_city_weather | □ □ □의 날씨가 □인가? |
+| check_city_finedust | 현재 □ □ 의 미세먼지 등급이 □인가? |
+| get_city_weather_data | □ □ □ 의 □ |
+| get_current_city_weather_data | 현재 □ □ 의 □ |
+| get_today_city_temperature | 오늘 □ □의 □시 기온 |
+| check_weather | □ □ 의 날씨가 □인가? |
+| check_finedust | 현재 □ 의 미세먼지 등급이 □인가? |
+| get_weather_data | □ □ 의 □ |
+| get_current_weather_data | 현재 □ 의 □ |
+| get_today_temperature | 오늘 □의 □시 기온 |
+| get_cur_weather | 현재 □의 날씨 |
+| get_cur_wind | 현재 □의 풍향 |
+| get_cur_weather_data | 현재 □의 □ |
+| check_cur_weather | 현재 □의 날씨가 □인가? |
+| check_cur_finddust | 현재 □의 미세먼지 등급이 □인가? |
+| get_day_weather | □ □의 날씨 |
+| get_day_weather_data | □ □의 □ |
+| check_day_weather | □ □의 날씨가 □ 인가? |
+| get_time_weather | □의 □시 날씨 |
+| get_time_weather_data | □의 □시 □ |
+| check_time_weather | □의 □시 날씨가 □ 인가? |
+
 ### 합계
 
-**80/187** 매핑됨 (약 42.8%, 내부용 16개 제외 기준)
+**80/334** 매핑됨 (약 23.9%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 12/13, 움직임 0/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 12/13, 움직임 0/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
