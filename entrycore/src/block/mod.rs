@@ -973,9 +973,6 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         return Ok(Block::CreateClone { target });
                     }
-                    if fref.name == "delete_clone" {
-                        return Ok(Block::DeleteClone);
-                    }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
                         let raw = if let Some(r) = &fref.raw {
@@ -1220,9 +1217,6 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 return Ok(ParamBlock::Sub(Box::new(Block::DeleteClone)));
             }
             if fref.name == "remove_all_clones" {
-                return Ok(ParamBlock::Sub(Box::new(Block::RemoveAllClones)));
-            }
-            if fref.name == "delete_all_clones" {
                 return Ok(ParamBlock::Sub(Box::new(Block::RemoveAllClones)));
             }
             if fref.name == "flip_x" {
