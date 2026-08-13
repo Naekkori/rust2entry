@@ -303,6 +303,10 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let rhs = param_at(&params, 2, vars)?;
             Block::Compare { op, lhs, rhs }
         }
+        "is_press_some_key" => {
+            let key = params.get(0).and_then(Value::as_str).unwrap_or("space").to_string();
+            Block::IsPressSomeKey { key }
+        }
         "boolean_and_or" => {
             let lhs = param_at(&params, 0, vars)?;
             let op = op_at(&params, 1)?;
@@ -1622,14 +1626,14 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
-        Block::RemoveAllClones => {
+        Block::IsPressSomeKey { key } => {
             stmts.push(Stmt::Expr(Expr::Call(
                 ir::FuncRef {
-                    name: "remove_all_clones".to_string(),
-                    arity: 0,
+                    name: "is_press_some_key".to_string(),
+                    arity: 1,
                     raw: None,
                 },
-                Vec::new(),
+                vec![Expr::Str(key.clone())],
             )));
             Ok(())
         }
@@ -2116,6 +2120,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 raw: None,
             },
             Vec::new(),
+        )),
+        Block::IsPressSomeKey { key } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "is_press_some_key".to_string(),
+                arity: 1,
+                raw: None,
+            },
+            vec![Expr::Str(key.clone())],
         )),
     }
 }

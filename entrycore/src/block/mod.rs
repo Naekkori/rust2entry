@@ -199,6 +199,10 @@ pub enum Block {
     GetCanvasInputValue {},
     DeleteClone,
     RemoveAllClones,
+    // --- 판단 ---
+    IsPressSomeKey {
+        key: String,
+    },
     // ── 산술 / 비교 / 논리 ──
     CalcBinOp {
         op: BinOp,
@@ -451,6 +455,7 @@ impl Block {
             Block::Raw { type_id, .. } => type_id.as_str(),
             Block::DeleteClone => "delete_clone",
             Block::RemoveAllClones => "remove_all_clones",
+            Block::IsPressSomeKey { .. } => "is_press_some_key",
         }
     }
 
@@ -534,6 +539,7 @@ impl Block {
             Block::Raw { .. } => Category::Hardware,
             Block::DeleteClone => Category::Flow,
             Block::RemoveAllClones => Category::Flow,
+            Block::IsPressSomeKey { .. } => Category::Judgment,
         }
     }
 }
@@ -973,6 +979,20 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         return Ok(Block::CreateClone { target });
                     }
+                    if fref.name == "is_press_some_key" {
+                        let arg = args
+                            .first()
+                            .ok_or_else(|| UnmappedBlock("is_press_some_key needs arg".into()))?;
+                        let key = match arg {
+                            Expr::Str(s) => s.clone(),
+                            _ => {
+                                return Err(UnmappedBlock(
+                                    "is_press_some_key arg must be string".into(),
+                                ));
+                            }
+                        };
+                        return Ok(Block::IsPressSomeKey { key });
+                    }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
                         let raw = if let Some(r) = &fref.raw {
@@ -1289,6 +1309,16 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     list,
                     value,
                 })));
+            }
+            if fref.name == "is_press_some_key" {
+                let arg = args
+                    .first()
+                    .ok_or_else(|| UnmappedBlock("is_press_some_key needs arg".into()))?;
+                let key = match arg {
+                    Expr::Str(s) => s.clone(),
+                    _ => return Err(UnmappedBlock("is_press_some_key arg must be string".into())),
+                };
+                return Ok(ParamBlock::Sub(Box::new(Block::IsPressSomeKey { key })));
             }
             // 하드웨어 getter 블럭 (소스맵 인덱스) — 값으로 사용.
             if crate::block::registry::is_hw_block(&fref.name) {
@@ -1636,6 +1666,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::Raw { .. } => (vec![], None),
         Block::DeleteClone => (vec![], None),
         Block::RemoveAllClones => (vec![], None),
+        Block::IsPressSomeKey { key } => (vec![Value::String(key.clone()), Value::Null], None),
     })
 }
 

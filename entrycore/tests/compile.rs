@@ -1987,6 +1987,70 @@ fn compile_remove_all_clones_roundtrip() {
     }
 }
 
+/// `is_press_some_key("space");` → stmt-level 호출.
+#[test]
+fn compile_is_press_some_key() {
+    let src = r#"fn when_start() { is_press_some_key("space"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "is_press_some_key");
+    assert_eq!(thread[1]["params"][0].as_str(), Some("space"));
+}
+
+/// `if is_press_some_key("space") { ... }` → 값 슬롯으로 사용.
+#[test]
+fn compile_is_press_some_key_in_cond() {
+    let src = r#"
+        fn when_start() {
+            if is_press_some_key("space") {
+                let x = 1;
+            }
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    // when_run + if
+    assert_eq!(thread[1]["type"], "if");
+    // if 블록의 cond 슬롯 = is_press_some_key
+    let cond = &thread[1]["params"][0];
+    assert_eq!(cond["type"], "is_press_some_key");
+    assert_eq!(cond["params"][0].as_str(), Some("space"));
+}
+
+/// 라운드트립.
+#[test]
+fn compile_is_press_some_key_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { is_press_some_key("space"); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "is_press_some_key");
+                    assert_eq!(args.len(), 1);
+                    assert!(matches!(&args[0], Expr::Str(s) if s == "space"));
+                }
+                other => panic!("expected Call(is_press_some_key), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// `ask_and_wait("이름을 입력")` → `ask_and_wait` 블록, params[0] = text 슬롯.
 #[test]
 fn compile_ask_and_wait() {
