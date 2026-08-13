@@ -309,6 +309,14 @@ pub enum Block {
     CreateClone {
         target: String,
     },
+
+    /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
+    /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
+    /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
+    Raw {
+        type_id: String,
+        raw: Value,
+    },
 }
 
 /// 블록 파라미터 슬롯.
@@ -358,7 +366,7 @@ fn reserved_start_call_to_block(
 
 impl Block {
     /// Entry 블록 ID (type 문자열).
-    pub fn type_id(&self) -> &'static str {
+    pub fn type_id(&self) -> &str {
         match self {
             Block::WhenStart => "when_run",
             Block::WhenClick => "when_click",
@@ -439,6 +447,7 @@ impl Block {
             Block::ShowList { .. } => "show_list",
             Block::HideList { .. } => "hide_list",
             Block::CreateClone { .. } => "create_clone",
+            Block::Raw { type_id, .. } => type_id.as_str(),
         }
     }
 
@@ -519,6 +528,7 @@ impl Block {
             Block::ShowList { .. } => Category::Variable,
             Block::HideList { .. } => Category::Variable,
             Block::CreateClone { .. } => Category::Flow,
+            Block::Raw { .. } => Category::Hardware,
         }
     }
 }
@@ -952,6 +962,17 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         return Ok(Block::CreateClone { target });
                     }
+                    // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
+                    if crate::block::registry::is_hw_block(&fref.name) {
+                        let raw = if let Some(r) = &fref.raw {
+                            r.clone()
+                        } else {
+                            let pb = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
+                            let params: Vec<Value> = pb.iter().map(param_to_value).collect();
+                            json!({ "type": fref.name, "params": params })
+                        };
+                        return Ok(Block::Raw { type_id: fref.name.clone(), raw });
+                    }
                     let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
                     Ok(Block::FuncCall {
                         name: fref.name.clone(),
@@ -1249,6 +1270,20 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     value,
                 })));
             }
+            // 하드웨어 getter 블럭 (소스맵 인덱스) — 값으로 사용.
+            if crate::block::registry::is_hw_block(&fref.name) {
+                let raw = if let Some(r) = &fref.raw {
+                    r.clone()
+                } else {
+                    let pb = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
+                    let params: Vec<Value> = pb.iter().map(param_to_value).collect();
+                    json!({ "type": fref.name, "params": params })
+                };
+                return Ok(ParamBlock::Sub(Box::new(Block::Raw {
+                    type_id: fref.name.clone(),
+                    raw,
+                })));
+            }
             let args = args.iter().map(from_expr).collect::<Result<Vec<_>>>()?;
             Ok(ParamBlock::Sub(Box::new(Block::FuncCall {
                 name: fref.name.clone(),
@@ -1268,6 +1303,10 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
 /// Entry project.json 형식: `{type, params, statements?}`.
 /// `statements[N]`은 본문 thread 배열 (없으면 키 생략).
 pub fn to_value(block: &Block) -> crate::Result<Value> {
+    // 하드웨어 블럭은 원본 .ent JSON 을 그대로 반환 (손실 없는 왕복).
+    if let Block::Raw { raw, .. } = block {
+        return Ok(raw.clone());
+    }
     let type_id = block.type_id();
     let (params, statements) = build_params_and_statements(block)?;
     let mut obj = serde_json::Map::new();
@@ -1573,6 +1612,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::ShowList { list } => (vec![list_variable_param(list), Value::Null], None),
         Block::HideList { list } => (vec![list_variable_param(list), Value::Null], None),
         Block::CreateClone { target } => (vec![Value::String(target.clone()), Value::Null], None),
+        // to_value 가 Raw 는 조기 반환하므로 이 arm 은 도달하지 않는다 (완전 매치용).
+        Block::Raw { .. } => (vec![], None),
     })
 }
 

@@ -29,6 +29,8 @@ pub enum Category {
     Pen,
     /// 정의 (함수).
     Define,
+    /// 하드웨어 (소스맵 기반 동적 블럭).
+    Hardware,
     /// 미분류.
     #[default]
     Unknown,

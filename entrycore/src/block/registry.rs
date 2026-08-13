@@ -12,6 +12,7 @@
 use crate::Result;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 스키마 덤프 (entryjs `dump_schema.js` 산출물의 역직렬화 타입)
@@ -129,6 +130,58 @@ impl HwSourcemap {
         self.devices.iter().map(|d| d.blocks.len()).sum()
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 전역 하드웨어 블럭 인덱스 (build/extract 파이프라인 주입용)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// 전역 하드웨어 블럭 인덱스: type_id -> BlockSchema.
+/// CLI(`entryc`)가 run_build / run_extract 시작 시 `set_hw_index` 로 설정한다.
+/// 정방향 `from_stmt`/`from_expr` 와 역방향 `block_from_value` 가 이 인덱스로
+/// 하드웨어 블럭을 인식해 `Block::Raw` 로 처리한다.
+static HW_INDEX: OnceLock<Mutex<Option<HashMap<String, BlockSchema>>>> = OnceLock::new();
+
+fn hw_index_lock() -> &'static Mutex<Option<HashMap<String, BlockSchema>>> {
+    HW_INDEX.get_or_init(|| Mutex::new(None))
+}
+
+/// 하드웨어 소스맵에서 type_id -> BlockSchema flat 인덱스를 세팅한다.
+/// (모든 장치의 `blocks` 를 평탄화.)
+pub fn set_hw_index(map: &HwSourcemap) {
+    let mut g = hw_index_lock().lock().unwrap();
+    *g = Some(flatten_hw_index(map));
+}
+
+/// 전역 인덱스를 비운다 (테스트 정리용).
+pub fn clear_hw_index() {
+    *hw_index_lock().lock().unwrap() = None;
+}
+
+/// id 가 하드웨어 블럭 type_id 인지 (인덱스에 있으면 true).
+pub fn is_hw_block(id: &str) -> bool {
+    hw_schema(id).is_some()
+}
+
+/// 하드웨어 블럭 스키마 조회 (인덱스에 있으면 해당 BlockSchema 클론).
+pub fn hw_schema(id: &str) -> Option<BlockSchema> {
+    hw_index_lock()
+        .lock()
+        .unwrap()
+        .as_ref()
+        .and_then(|m| m.get(id))
+        .cloned()
+}
+
+fn flatten_hw_index(map: &HwSourcemap) -> HashMap<String, BlockSchema> {
+    let mut out = HashMap::new();
+    for d in &map.devices {
+        for (id, b) in &d.blocks {
+            out.insert(id.clone(), b.clone());
+        }
+    }
+    out
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 검증 결과 타입

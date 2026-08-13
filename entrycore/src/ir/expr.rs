@@ -37,6 +37,11 @@ pub enum Expr {
 pub struct FuncRef {
     pub name: String,
     pub arity: usize,
+    /// 하드웨어 블럭의 원본 .ent 블럭 JSON (손실 없는 왕복용). 일반 함수는 None.
+    /// deparse(역방향)가 채우고, decodegen이 `// @hwraw {...}` 주석으로 emit하며,
+    /// parse(정방향)가 이 주석을 복구해 from_stmt 가 Block::Raw 로 되살린다.
+    #[serde(default)]
+    pub raw: Option<serde_json::Value>,
 }
 
 /// 이항 연산 종류.
