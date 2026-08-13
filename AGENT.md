@@ -169,7 +169,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `start_neighbor_scene` → `StartNeighborScene` (→ `start_next_scene();` / `start_prev_scene();`)
 - 제외 (내부용, 매핑 대상 아님): `check_object_property`, `check_block_execution`, `switch_scope`, `is_answer_submited`, `check_lecture_goal`, `check_variable_by_name`, `show_prompt`, `check_goal_success`, `positive_number`, `negative_number`, `wildcard_string`, `wildcard_boolean`, `register_score`
 
-### 흐름 (12/13) — when_clone_start 중복 외 repeat_while_true 미적용 제외 후 남은 것
+### 흐름 (14/14) — when_clone_start 중복 외 repeat_while_true 미적용
 - ✅ `repeat_basic` → `Repeat` (for-range 펼침)
 - ✅ `repeat_while` → `While`
 - ✅ `repeat_inf` / `repeat_forever` → `Forever`
@@ -510,9 +510,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**80/334** 매핑됨 (약 23.9%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**82/334** 매핑됨 (약 24.6%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 12/13, 움직임 0/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 0/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 3/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -587,11 +587,11 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
+- `31fe77c refactor(flow): delete_clone/remove_all_clones 중복 arm 정리`
+- `fba3ca1 feat(flow): remove_all_clones 매핑 (모든 복제본 삭제하기) → 흐름 13/13 완료`
 - `a147f70 feat(flow): delete_clone 매핑 (이 복제본 삭제하기)`
 - `feat(looks): stretch_scale_size 매핑 (□ 를 □ 만큼 늘이기) — 형태 17/17 완료`
 - `a4da298 feat(looks): change_object_index 매핑 (□ 보내기 — 레이어)`
-- `f59d76a docs: AGENT.md 동기화 (중복 제거 + 카운트 갱신)`
-- `3d7b2c3 feat(looks): flip_x / flip_y 매핑 (모양 뒤집기)`
 
 **빌드/테스트 명령**:
 ```
