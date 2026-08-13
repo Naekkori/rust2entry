@@ -1,0 +1,14 @@
+{
+  "name": "entryjs-sourcemap",
+  "version": "0.1.0",
+  "description": "entryjs 하드웨어 블럭 스키마를 hw_sourcemap.json으로 추출하는 CLI 도구",
+  "license": "MIT",
+  "private": true,
+  "main": "src/index.js",
+  "bin": {
+    "entryjs-sourcemap": "bin/entryjs-sourcemap.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
