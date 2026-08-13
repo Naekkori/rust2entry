@@ -50,6 +50,12 @@ enum Cmd {
         #[arg(long, value_name = "FILE", required = true)]
         blocks: PathBuf,
     },
+    /// 하드웨어 소스맵 리포트 + 스키마 검증 (Tier-0 ATS)
+    Hw {
+        /// 하드웨어 소스맵 JSON (`hw_sourcemap.json` 산출물)
+        #[arg(long, value_name = "FILE", required = true)]
+        sourcemap: PathBuf,
+    },
 }
 fn main() {
     if let Err(e) = run() {
@@ -116,6 +122,7 @@ fn run() -> Result<(), String> {
             replace_variables,
         ),
         Cmd::Validate { blocks } => run_validate(&blocks),
+        Cmd::Hw { sourcemap } => run_hw(&sourcemap),
     }
 }
 
@@ -161,6 +168,72 @@ fn run_validate(blocks: &Path) -> Result<(), String> {
         shown += 1;
     }
     Err(format!("schema validation failed: {} violations", report.violations.len()))
+}
+
+/// 하드웨어 소스맵(`hw_sourcemap.json`)을 읽어 장치 수·블럭 수·로드/실패·장치별 블럭 수를
+/// 리포트하고, 장치별 블럭을 기존 `validate_schema` 경로(`validate_hw_sourcemap`)로 검증한다.
+/// 위반이 있으면 nonzero exit 코드로 종료. (`run_validate` 패턴 준수)
+fn run_hw(sourcemap: &Path) -> Result<(), String> {
+    let json = fs::read_to_string(sourcemap)
+        .map_err(|e| format!("failed to read hw sourcemap '{}': {e}", sourcemap.display()))?;
+    let registry = entrycore::block::registry::BlockRegistry::new();
+    let map = registry
+        .parse_hw_sourcemap(&json)
+        .map_err(|e| format!("failed to parse hw sourcemap: {e}"))?;
+
+    // ── 장치 수 · 블럭 수 · 로드/실패 · 장치별 블럭 수 리포트 ──
+    println!("하드웨어 소스맵 리포트");
+    println!("  장치 수      : {}", map.device_count());
+    println!(
+        "  블럭 총계    : {} (devices 블럭 합계: {})",
+        map.block_total(),
+        map.block_count()
+    );
+    println!("  로드/실패    : {} / {}", map.loaded(), map.failed());
+    println!("  장치별 블럭  :");
+    for d in &map.devices {
+        println!(
+            "    - {:<28} {:<6} ({})",
+            d.name,
+            format!("{}개", d.blocks.len()),
+            d.file
+        );
+    }
+
+    // ── 스키마 검증 (기존 validate_schema 경로 재사용) ──
+    let report = registry.validate_hw_sourcemap(&map);
+    println!("  검증 블럭 수 : {}", report.total_blocks);
+    println!("  위반 총계    : {}", report.violations.len());
+    if report.is_clean() {
+        println!("  결과         : PASS");
+        return Ok(());
+    }
+
+    println!("  체크별 위반  :");
+    for (check, n) in report.counts_by_check() {
+        println!("    - {check:<22} {n}");
+    }
+    println!("  위반 상세    :");
+    let mut shown = 0usize;
+    for v in &report.violations {
+        if shown >= 60 {
+            println!("    ... (나머지 {}건 생략)", report.violations.len() - shown);
+            break;
+        }
+        println!(
+            "    [{check}] {group}/{block} ({file}): {detail}",
+            check = v.check,
+            group = v.group,
+            block = v.block,
+            file = v.file,
+            detail = v.detail
+        );
+        shown += 1;
+    }
+    Err(format!(
+        "hw sourcemap validation failed: {} violations",
+        report.violations.len()
+    ))
 }
 
 // .ent -> 임시폴더 언팩 -> 오브젝트별 .rs 생성
