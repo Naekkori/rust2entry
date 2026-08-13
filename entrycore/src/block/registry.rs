@@ -45,7 +45,7 @@ pub struct SchemaGroup {
 }
 
 /// 개별 블럭의 스키마 필드 (entryjs block 정의에서 추출한 부분집합).
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct BlockSchema {
     #[serde(default)]
     pub skeleton: Option<String>,
@@ -64,6 +64,70 @@ pub struct BlockSchema {
     pub params: Option<Vec<Option<String>>>,
     #[serde(rename = "paramCount", default)]
     pub param_count: usize,
+}
+
+/// 하드웨어 소스맵 덤프 (`hw_sourcemap.json` 산출물) 루트.
+///
+/// `{ generated, source, deviceCount, blockTotal, loaded, failed, devices: [...] }`.
+/// 각 장치의 `blocks` 는 `SchemaGroup.blocks` 와 동일한 `BlockSchema` 형식이므로
+/// 기존 `validate_schema` 경로를 그대로 재사용해 장치별 블럭을 검증할 수 있다.
+#[derive(Debug, Deserialize)]
+pub struct HwSourcemap {
+    #[serde(default)]
+    pub generated: String,
+    #[serde(default)]
+    pub source: String,
+    #[serde(rename = "deviceCount", default)]
+    pub device_count: usize,
+    #[serde(rename = "blockTotal", default)]
+    pub block_total: usize,
+    #[serde(default)]
+    pub loaded: usize,
+    #[serde(default)]
+    pub failed: usize,
+    #[serde(default)]
+    pub devices: Vec<HwDevice>,
+}
+
+/// 하나의 하드웨어 장치(= 원천 파일)와 그 안의 블럭들.
+#[derive(Debug, Deserialize)]
+pub struct HwDevice {
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub file: String,
+    #[serde(rename = "blockCount", default)]
+    pub block_count: usize,
+    /// 장치별 블럭. `SchemaGroup.blocks` 와 동일한 `BlockSchema` 부분집합.
+    pub blocks: HashMap<String, BlockSchema>,
+}
+
+impl HwSourcemap {
+    /// 장치 수 (`devices` 배열 길이).
+    pub fn device_count(&self) -> usize {
+        self.device_count
+    }
+
+    /// 소스맵 메타데이터의 총 블럭 수 (`blockTotal`).
+    pub fn block_total(&self) -> usize {
+        self.block_total
+    }
+
+    /// 로드 성공 블럭 수 (`loaded`).
+    pub fn loaded(&self) -> usize {
+        self.loaded
+    }
+
+    /// 로드 실패 블럭 수 (`failed`).
+    pub fn failed(&self) -> usize {
+        self.failed
+    }
+
+    /// 실제 `devices[].blocks` 를 모두 순회해 센 블럭 수 합계.
+    /// 메타데이터(`blockTotal`)와 달리 파싱된 실제 블럭 수다.
+    pub fn block_count(&self) -> usize {
+        self.devices.iter().map(|d| d.blocks.len()).sum()
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -232,5 +296,41 @@ impl BlockRegistry {
     pub fn validate_json(&self, json: &str) -> Result<SchemaReport> {
         let dump: SchemaDump = serde_json::from_str(json)?;
         Ok(self.validate_schema(&dump))
+    }
+
+    /// 하드웨어 소스맵 JSON 문자열을 파싱한다.
+    pub fn parse_hw_sourcemap(&self, json: &str) -> Result<HwSourcemap> {
+        Ok(serde_json::from_str(json)?)
+    }
+
+    /// 하드웨어 소스맵의 장치별 블럭을 **기존 `validate_schema` 경로**로 순회해
+    /// `SchemaReport` 를 낸다. 장치 하나를 `SchemaGroup`(name/file/blocks) 으로
+    /// 투영해 검증 로직을 완전히 재사용하므로, 장치 블럭도 기본·AI·확장 블럭과
+    /// 동일한 구조 불변식을 적용받는다.
+    pub fn validate_hw_sourcemap(&self, map: &HwSourcemap) -> SchemaReport {
+        // 장치를 SchemaGroup 으로 투영: group=name, file=file, count=blockCount.
+        let dump = SchemaDump {
+            generated: map.generated.clone(),
+            source: map.source.clone(),
+            total: map.block_total,
+            group_count: map.device_count,
+            groups: map
+                .devices
+                .iter()
+                .map(|d| SchemaGroup {
+                    group: d.name.clone(),
+                    file: d.file.clone(),
+                    count: d.block_count,
+                    blocks: d.blocks.clone(),
+                })
+                .collect(),
+        };
+        self.validate_schema(&dump)
+    }
+
+    /// 하드웨어 소스맵 JSON 문자열을 파싱한 뒤 `validate_hw_sourcemap` 로 검증.
+    pub fn validate_hw_sourcemap_json(&self, json: &str) -> Result<SchemaReport> {
+        let map = self.parse_hw_sourcemap(json)?;
+        Ok(self.validate_hw_sourcemap(&map))
     }
 }
