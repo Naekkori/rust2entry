@@ -203,6 +203,9 @@ pub enum Block {
     IsPressSomeKey {
         key: String,
     },
+    ReachSomeThing {
+        target: String,
+    },
     // ── 산술 / 비교 / 논리 ──
     CalcBinOp {
         op: BinOp,
@@ -456,6 +459,7 @@ impl Block {
             Block::DeleteClone => "delete_clone",
             Block::RemoveAllClones => "remove_all_clones",
             Block::IsPressSomeKey { .. } => "is_press_some_key",
+            Block::ReachSomeThing { .. } => "reach_something",
         }
     }
 
@@ -540,6 +544,7 @@ impl Block {
             Block::DeleteClone => Category::Flow,
             Block::RemoveAllClones => Category::Flow,
             Block::IsPressSomeKey { .. } => Category::Judgment,
+            Block::ReachSomeThing { .. } => Category::Judgment,
         }
     }
 }
@@ -993,6 +998,21 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         return Ok(Block::IsPressSomeKey { key });
                     }
+                    if fref.name == "reach_something" {
+                        let target = if let Some(arg) = args.first() {
+                            match arg {
+                                Expr::Str(s) => s.clone(),
+                                _ => {
+                                    return Err(UnmappedBlock(
+                                        "reach_something arg must be string".into(),
+                                    ));
+                                }
+                            }
+                        } else {
+                            "self".to_string()
+                        };
+                        return Ok(Block::ReachSomeThing { target });
+                    }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
                         let raw = if let Some(r) = &fref.raw {
@@ -1319,6 +1339,19 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     _ => return Err(UnmappedBlock("is_press_some_key arg must be string".into())),
                 };
                 return Ok(ParamBlock::Sub(Box::new(Block::IsPressSomeKey { key })));
+            }
+            if fref.name == "reach_something" {
+                let target = if let Some(arg) = args.first() {
+                    match arg {
+                        Expr::Str(s) => s.clone(),
+                        _ => {
+                            return Err(UnmappedBlock("reach_something arg must be string".into()));
+                        }
+                    }
+                } else {
+                    "self".to_string()
+                };
+                return Ok(ParamBlock::Sub(Box::new(Block::ReachSomeThing { target })));
             }
             // 하드웨어 getter 블럭 (소스맵 인덱스) — 값으로 사용.
             if crate::block::registry::is_hw_block(&fref.name) {
@@ -1667,6 +1700,9 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::DeleteClone => (vec![], None),
         Block::RemoveAllClones => (vec![], None),
         Block::IsPressSomeKey { key } => (vec![Value::String(key.clone()), Value::Null], None),
+        Block::ReachSomeThing { target } => {
+            (vec![Value::String(target.clone()), Value::Null], None)
+        }
     })
 }
 

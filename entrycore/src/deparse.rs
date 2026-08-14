@@ -307,6 +307,10 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let key = params.get(0).and_then(Value::as_str).unwrap_or("space").to_string();
             Block::IsPressSomeKey { key }
         }
+        "reach_something" => {
+            let target = params.get(0).and_then(Value::as_str).unwrap_or("self").to_string();
+            Block::ReachSomeThing { target }
+        }
         "boolean_and_or" => {
             let lhs = param_at(&params, 0, vars)?;
             let op = op_at(&params, 1)?;
@@ -1637,6 +1641,17 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::ReachSomeThing { target } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "reach_something".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![Expr::Str(target.clone())],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2128,6 +2143,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 raw: None,
             },
             vec![Expr::Str(key.clone())],
+        )),
+        Block::ReachSomeThing { target } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "reach_something".to_string(),
+                arity: 1,
+                raw: None,
+            },
+            vec![Expr::Str(target.clone())],
         )),
     }
 }
