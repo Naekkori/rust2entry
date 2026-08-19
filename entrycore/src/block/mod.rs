@@ -323,7 +323,7 @@ pub enum Block {
         direction: String,
         amount: ParamBlock,
     },
-
+    BounceWall,
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -467,6 +467,7 @@ impl Block {
             Block::RemoveAllClones => "remove_all_clones",
             Block::IsPressSomeKey { .. } => "is_press_some_key",
             Block::ReachSomeThing { .. } => "reach_something",
+            Block::BounceWall => "bounce_wall",
         }
     }
 
@@ -553,6 +554,7 @@ impl Block {
             Block::RemoveAllClones => Category::Flow,
             Block::IsPressSomeKey { .. } => Category::Judgment,
             Block::ReachSomeThing { .. } => Category::Judgment,
+            Block::BounceWall => Category::Movement,
         }
     }
 }
@@ -992,13 +994,23 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         return Ok(Block::CreateClone { target });
                     }
+                    if fref.name == "bounce_wall" {
+                        if args.len() > 0 {
+                            return Err(UnmappedBlock("bounce_wall needs no args".into()));
+                        }
+                        return Ok(Block::BounceWall);
+                    }
                     if fref.name == "move_direction" {
                         if args.len() != 2 {
                             return Err(UnmappedBlock("move_direction needs 2 args".into()));
                         }
                         let direction = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(UnmappedBlock("move_direction direction must be string".into())),
+                            _ => {
+                                return Err(UnmappedBlock(
+                                    "move_direction direction must be string".into(),
+                                ));
+                            }
                         };
                         let amount = from_expr(&args[1])?;
                         return Ok(Block::MoveDirection { direction, amount });
@@ -1252,6 +1264,9 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     amount: from_expr(arg)?,
                 })));
             }
+            if fref.name == "bounce_wall" {
+                return Ok(ParamBlock::Sub(Box::new(Block::BounceWall)));
+            }
             if fref.name == "set_scale_size" {
                 let arg = args
                     .first()
@@ -1269,10 +1284,17 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 }
                 let direction = match &args[0] {
                     Expr::Str(s) => s.clone(),
-                    _ => return Err(UnmappedBlock("move_direction direction must be string".into())),
+                    _ => {
+                        return Err(UnmappedBlock(
+                            "move_direction direction must be string".into(),
+                        ));
+                    }
                 };
                 let amount = from_expr(&args[1])?;
-                return Ok(ParamBlock::Sub(Box::new(Block::MoveDirection { direction, amount })));
+                return Ok(ParamBlock::Sub(Box::new(Block::MoveDirection {
+                    direction,
+                    amount,
+                })));
             }
             if fref.name == "erase_all_effects" {
                 return Ok(ParamBlock::Sub(Box::new(Block::EraseAllEffects {})));
@@ -1726,7 +1748,11 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::HideList { list } => (vec![list_variable_param(list), Value::Null], None),
         Block::CreateClone { target } => (vec![Value::String(target.clone()), Value::Null], None),
         Block::MoveDirection { direction, amount } => (
-            vec![Value::String(direction.clone()), param_to_value(amount), Value::Null],
+            vec![
+                Value::String(direction.clone()),
+                param_to_value(amount),
+                Value::Null,
+            ],
             None,
         ),
         // to_value 가 Raw 는 조기 반환하므로 이 arm 은 도달하지 않는다 (완전 매치용).
@@ -1737,6 +1763,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::ReachSomeThing { target } => {
             (vec![Value::String(target.clone()), Value::Null], None)
         }
+        Block::BounceWall => (vec![], None),
     })
 }
 

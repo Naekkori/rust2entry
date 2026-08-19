@@ -288,12 +288,17 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::CreateClone { target }
         }
         "move_direction" => {
-            let direction = params.get(0).and_then(Value::as_str).unwrap_or("forward").to_string();
+            let direction = params
+                .get(0)
+                .and_then(Value::as_str)
+                .unwrap_or("forward")
+                .to_string();
             let amount = param_at(&params, 1, vars)?;
             Block::MoveDirection { direction, amount }
         }
         "delete_clone" => Block::DeleteClone,
         "remove_all_clones" => Block::RemoveAllClones,
+        "bounce_wall" => Block::BounceWall,
 
         // 산술/비교/논리
         "calc_basic" => {
@@ -309,11 +314,19 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::Compare { op, lhs, rhs }
         }
         "is_press_some_key" => {
-            let key = params.get(0).and_then(Value::as_str).unwrap_or("space").to_string();
+            let key = params
+                .get(0)
+                .and_then(Value::as_str)
+                .unwrap_or("space")
+                .to_string();
             Block::IsPressSomeKey { key }
         }
         "reach_something" => {
-            let target = params.get(0).and_then(Value::as_str).unwrap_or("self").to_string();
+            let target = params
+                .get(0)
+                .and_then(Value::as_str)
+                .unwrap_or("self")
+                .to_string();
             Block::ReachSomeThing { target }
         }
         "boolean_and_or" => {
@@ -1669,6 +1682,17 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::BounceWall => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "bounce_wall".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2169,6 +2193,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 raw: None,
             },
             vec![Expr::Str(target.clone())],
+        )),
+        Block::BounceWall => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "bounce_wall".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
         )),
     }
 }
