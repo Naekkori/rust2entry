@@ -318,6 +318,12 @@ pub enum Block {
         target: String,
     },
 
+    // --- 움직임 ---
+    MoveDirection {
+        direction: String,
+        amount: ParamBlock,
+    },
+
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -455,6 +461,7 @@ impl Block {
             Block::ShowList { .. } => "show_list",
             Block::HideList { .. } => "hide_list",
             Block::CreateClone { .. } => "create_clone",
+            Block::MoveDirection { .. } => "move_direction",
             Block::Raw { type_id, .. } => type_id.as_str(),
             Block::DeleteClone => "delete_clone",
             Block::RemoveAllClones => "remove_all_clones",
@@ -540,6 +547,7 @@ impl Block {
             Block::ShowList { .. } => Category::Variable,
             Block::HideList { .. } => Category::Variable,
             Block::CreateClone { .. } => Category::Flow,
+            Block::MoveDirection { .. } => Category::Movement,
             Block::Raw { .. } => Category::Hardware,
             Block::DeleteClone => Category::Flow,
             Block::RemoveAllClones => Category::Flow,
@@ -984,6 +992,17 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         return Ok(Block::CreateClone { target });
                     }
+                    if fref.name == "move_direction" {
+                        if args.len() != 2 {
+                            return Err(UnmappedBlock("move_direction needs 2 args".into()));
+                        }
+                        let direction = match &args[0] {
+                            Expr::Str(s) => s.clone(),
+                            _ => return Err(UnmappedBlock("move_direction direction must be string".into())),
+                        };
+                        let amount = from_expr(&args[1])?;
+                        return Ok(Block::MoveDirection { direction, amount });
+                    }
                     if fref.name == "is_press_some_key" {
                         let arg = args
                             .first()
@@ -1243,6 +1262,17 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             }
             if fref.name == "reset_scale_size" {
                 return Ok(ParamBlock::Sub(Box::new(Block::ResetScaleSize {})));
+            }
+            if fref.name == "move_direction" {
+                if args.len() != 2 {
+                    return Err(UnmappedBlock("move_direction needs 2 args".into()));
+                }
+                let direction = match &args[0] {
+                    Expr::Str(s) => s.clone(),
+                    _ => return Err(UnmappedBlock("move_direction direction must be string".into())),
+                };
+                let amount = from_expr(&args[1])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::MoveDirection { direction, amount })));
             }
             if fref.name == "erase_all_effects" {
                 return Ok(ParamBlock::Sub(Box::new(Block::EraseAllEffects {})));
@@ -1695,6 +1725,10 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::ShowList { list } => (vec![list_variable_param(list), Value::Null], None),
         Block::HideList { list } => (vec![list_variable_param(list), Value::Null], None),
         Block::CreateClone { target } => (vec![Value::String(target.clone()), Value::Null], None),
+        Block::MoveDirection { direction, amount } => (
+            vec![Value::String(direction.clone()), param_to_value(amount), Value::Null],
+            None,
+        ),
         // to_value 가 Raw 는 조기 반환하므로 이 arm 은 도달하지 않는다 (완전 매치용).
         Block::Raw { .. } => (vec![], None),
         Block::DeleteClone => (vec![], None),

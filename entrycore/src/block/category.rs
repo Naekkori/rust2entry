@@ -23,6 +23,8 @@ pub enum Category {
     Start,
     /// 외형 / 스프라이트.
     Looks,
+    /// 움직임.
+    Movement,
     /// 소리.
     Sound,
     /// 펜.

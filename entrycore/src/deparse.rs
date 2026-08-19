@@ -287,6 +287,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 .to_string();
             Block::CreateClone { target }
         }
+        "move_direction" => {
+            let direction = params.get(0).and_then(Value::as_str).unwrap_or("forward").to_string();
+            let amount = param_at(&params, 1, vars)?;
+            Block::MoveDirection { direction, amount }
+        }
         "delete_clone" => Block::DeleteClone,
         "remove_all_clones" => Block::RemoveAllClones,
 
@@ -1619,6 +1624,18 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::MoveDirection { direction, amount } => {
+            let a = expr_from_param(amount, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "move_direction".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![Expr::Str(direction.clone()), a],
+            )));
+            Ok(())
+        }
         Block::Raw { type_id, raw } => {
             stmts.push(Stmt::Expr(Expr::Call(
                 crate::ir::FuncRef {
@@ -1841,6 +1858,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         | Block::ShowVar { .. }
         | Block::HideVar { .. }
         | Block::CreateClone { .. }
+        | Block::MoveDirection { .. }
         | Block::HideList { .. }
         | Block::ShowList { .. }
         | Block::If { .. }

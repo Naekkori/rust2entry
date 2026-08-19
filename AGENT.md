@@ -19,7 +19,7 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 | 8 | 변수 kind (Timer/Answer/List) 인식 | ✅ | in 3 |
 | 9 | `entryc extract` — `.ent` → `.rs` | ✅ | - |
 | 10 | `entryc build` — `.rs` → `.ent` (+ `--scene` 플래그) | ✅ | 6/6 |
-| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 188/188 |
+| 11 | `lib::compile` — 전체 조립 (object 매칭, thread 분리, functions/messages emit, Entry 형식) | ✅ | 191/191 |
 
 ### lib::compile 세부 동작 (현재)
 
@@ -187,7 +187,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `remove_all_clones` — 모든 복제본 삭제하기 (→ `remove_all_clones()`)
 
 ### 움직임 (0/19)
-- ⬜ `move_direction` — 이동 방향으로 □ 만큼 움직이기
+- ✅ `move_direction` — 이동 방향으로 □ 만큼 움직이기 (→ `move_direction("forward", 10.0)`)
 - ⬜ `bounce_wall` — 화면 끝에 닿으면 튕기기
 - ⬜ `move_x` / `move_y` — x/y 좌표를 □ 만큼 바꾸기
 - ⬜ `move_xy_time` — □ 초 동안 x:□ y:□ 만큼 움직이기
@@ -510,9 +510,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**84/334** 매핑됨 (약 25.1%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**85/334** 매핑됨 (약 25.4%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 0/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 5/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 1/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 5/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -587,15 +587,15 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
+- `630e157 feat(judge): reach_something 매핑 (□ 에 닿았는가?)`
 - `0f39a53 feat(judge): is_press_some_key 매핑 (키 눌렸는가?)`
 - `af984d8 docs: AGENT.md 흐름 카테고리 카운트 갱신 (12/13 -> 14/14)`
 - `31fe77c refactor(flow): delete_clone/remove_all_clones 중복 arm 정리`
 - `fba3ca1 feat(flow): remove_all_clones 매핑 (모든 복제본 삭제하기) → 흐름 13/13 완료`
-- `a147f70 feat(flow): delete_clone 매핑 (이 복제본 삭제하기)`
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 188 + parse 26 = 229 통과)
+cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 191 + parse 26 = 232 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -610,9 +610,9 @@ cargo build                 # 빌드만
 - `block::Dimension` (Width/Height) vs `codegen/schema.rs::Dimension` (picture width/height i64) — 이름 겹침. 현재는 모듈이 달라 컴파일 되지만 codegen 에서 둘 다 쓰면 alias 강제됨. `ScaleAxis` 로 rename 권장 (참조 ~7곳)
 
 **다음 할 일 추천 순서**:
-1. 움직임 — `move_direction` / `move_x` / `move_y` (0/19, 가장 큰 미개척)
-2. 판단 — `is_clicked` / `is_object_clicked`
-3. 연산 — `coordinate_mouse` / `coordinate_object`
+1. 움직임 — `move_x` / `move_y` (좌표 바꾸기, 단순)
+2. 움직임 — `bounce_wall` / `rotate_relative` (이동/회전)
+3. 판단 — `is_clicked` / `is_object_clicked`
 
 ## 디렉토리
 
