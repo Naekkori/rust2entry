@@ -333,6 +333,10 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let y = param_at(&params, 2, vars)?;
             Block::LocateXyTime { duration, x, y }
         }
+        "locate" => {
+            let target = param_at(&params, 0, vars)?;
+            Block::Locate { target }
+        }
         "rotate_relative" => {
             let angle = param_at(&params, 0, vars)?;
             Block::RotateRelative { angle }
@@ -1871,6 +1875,18 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::Locate { target } => {
+            let target = expr_from_param(target, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "locate".into(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![target],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2498,6 +2514,17 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![d_param, x_param, y_param],
+            ))
+        }
+        Block::Locate { target } => {
+            let target_param = expr_from_param(target, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "locate".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![target_param],
             ))
         }
     }

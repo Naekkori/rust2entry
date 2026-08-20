@@ -6,6 +6,7 @@
 pub mod category;
 pub mod registry;
 use crate::Error::UnmappedBlock;
+use crate::codegen::schema::Param;
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};
 pub use registry::{BlockRegistry, HwDevice, HwSourcemap, SchemaDump, SchemaReport, Violation};
@@ -358,6 +359,13 @@ pub enum Block {
         x: ParamBlock,
         y: ParamBlock,
     },
+    Locate {
+        target: ParamBlock,
+    },
+    LocateObjectTime {
+        duration: ParamBlock,
+        target: ParamBlock,
+    },
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -513,6 +521,7 @@ impl Block {
             Block::LocateY { .. } => "locate_y",
             Block::LocateXY { .. } => "locate_xy",
             Block::LocateXyTime { .. } => "locate_xy_time",
+            Block::Locate { .. } => "locate",
         }
     }
 
@@ -611,6 +620,7 @@ impl Block {
             Block::LocateY { .. } => Category::Movement,
             Block::LocateXY { .. } => Category::Movement,
             Block::LocateXyTime { .. } => Category::Movement,
+            Block::Locate { .. } => Category::Movement,
         }
     }
 }
@@ -1129,6 +1139,13 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         let x = from_expr(&args[1])?;
                         let y = from_expr(&args[2])?;
                         return Ok(Block::LocateXyTime { duration, x, y });
+                    }
+                    if fref.name == "locate" {
+                        if args.len() != 1 {
+                            return Err(UnmappedBlock("locate needs 1 args".into()));
+                        }
+                        let target = from_expr(&args[0])?;
+                        return Ok(Block::Locate { target });
                     }
                     if fref.name == "bounce_wall" {
                         if args.len() > 0 {
@@ -1955,6 +1972,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
+        Block::Locate { target } => (vec![param_to_value(target), Value::Null], None),
     })
 }
 
