@@ -1847,6 +1847,90 @@ fn compile_flip_y_roundtrip() {
     }
 }
 
+/// `is_clicked();` → `is_clicked` 블록, params = [].
+#[test]
+fn compile_is_clicked() {
+    let src = r#"fn when_start() { is_clicked(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "is_clicked");
+    assert_eq!(thread[1]["params"].as_array().unwrap().len(), 0);
+}
+
+/// 라운드트립.
+#[test]
+fn compile_is_clicked_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { is_clicked(); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "is_clicked");
+                    assert_eq!(args.len(), 0);
+                }
+                other => panic!("expected Call(is_clicked), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `is_object_clicked();` → `is_object_clicked` 블록, params = [].
+#[test]
+fn compile_is_object_clicked() {
+    let src = r#"fn when_start() { is_object_clicked(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "is_object_clicked");
+    assert_eq!(thread[1]["params"].as_array().unwrap().len(), 0);
+}
+
+/// 라운드트립.
+#[test]
+fn compile_is_object_clicked_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { is_object_clicked(); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "is_object_clicked");
+                    assert_eq!(args.len(), 0);
+                }
+                other => panic!("expected Call(is_object_clicked), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 // ── ask_and_wait ──
 
 /// `change_object_index("front");` → `change_object_index`, params[0] = "front".

@@ -337,6 +337,8 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 .to_string();
             Block::IsPressSomeKey { key }
         }
+        "is_clicked" => Block::IsClicked,
+        "is_object_clicked" => Block::IsObjectClicked,
         "reach_something" => {
             let target = params
                 .get(0)
@@ -1757,6 +1759,28 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::IsClicked => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "is_clicked".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::IsObjectClicked => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "is_object_clicked".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2310,6 +2334,22 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![a_param],
             ))
         }
+        Block::IsClicked => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "is_clicked".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
+        Block::IsObjectClicked => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "is_object_clicked".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
     }
 }
 

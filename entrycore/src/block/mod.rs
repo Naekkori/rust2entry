@@ -206,6 +206,8 @@ pub enum Block {
     ReachSomeThing {
         target: String,
     },
+    IsClicked,
+    IsObjectClicked,
     // ── 산술 / 비교 / 논리 ──
     CalcBinOp {
         op: BinOp,
@@ -484,6 +486,8 @@ impl Block {
             Block::MoveY { .. } => "move_y",
             Block::RotateRelative { .. } => "rotate_relative",
             Block::DirectionRelative { .. } => "direction_relative",
+            Block::IsClicked => "is_clicked",
+            Block::IsObjectClicked => "is_object_clicked",
         }
     }
 
@@ -575,6 +579,8 @@ impl Block {
             Block::MoveY { .. } => Category::Movement,
             Block::RotateRelative { .. } => Category::Movement,
             Block::DirectionRelative { .. } => Category::Movement,
+            Block::IsClicked => Category::Judgment,
+            Block::IsObjectClicked => Category::Judgment,
         }
     }
 }
@@ -991,6 +997,18 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         let value = from_expr(&args[1])?;
                         return Ok(Block::IsIncludedInList { list, value });
                     }
+                    if fref.name == "is_clicked" {
+                        if args.len() > 0 {
+                            return Err(UnmappedBlock("is_clicked needs no args".into()));
+                        }
+                        return Ok(Block::IsClicked);
+                    }
+                    if fref.name == "is_object_clicked" {
+                        if args.len() > 0 {
+                            return Err(UnmappedBlock("is_object_clicked needs no args".into()));
+                        }
+                        return Ok(Block::IsObjectClicked);
+                    }
                     if fref.name == "create_clone" {
                         let target = match &args.len() {
                             0 => "self".to_string(),
@@ -1077,6 +1095,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         return Ok(Block::IsPressSomeKey { key });
                     }
+
                     if fref.name == "reach_something" {
                         let target = if let Some(arg) = args.first() {
                             match arg {
@@ -1839,6 +1858,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::MoveY { amount } => (vec![param_to_value(amount), Value::Null], None),
         Block::RotateRelative { angle } => (vec![param_to_value(angle), Value::Null], None),
         Block::DirectionRelative { angle } => (vec![param_to_value(angle), Value::Null], None),
+        Block::IsClicked => (vec![], None),
+        Block::IsObjectClicked => (vec![], None),
     })
 }
 
