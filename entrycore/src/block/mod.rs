@@ -349,6 +349,10 @@ pub enum Block {
     LocateY {
         y: ParamBlock,
     },
+    LocateXY {
+        x: ParamBlock,
+        y: ParamBlock,
+    },
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -502,6 +506,7 @@ impl Block {
             Block::MoveXyTime { .. } => "move_xy_time",
             Block::LocateX { .. } => "locate_x",
             Block::LocateY { .. } => "locate_y",
+            Block::LocateXY { .. } => "locate_xy",
         }
     }
 
@@ -598,6 +603,7 @@ impl Block {
             Block::MoveXyTime { .. } => Category::Movement,
             Block::LocateX { .. } => Category::Movement,
             Block::LocateY { .. } => Category::Movement,
+            Block::LocateXY { .. } => Category::Movement,
         }
     }
 }
@@ -1099,6 +1105,14 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         }
                         let y = from_expr(&args[0])?;
                         return Ok(Block::LocateY { y });
+                    }
+                    if fref.name == "locate_xy" {
+                        if args.len() != 2 {
+                            return Err(UnmappedBlock("locate_xy needs 2 args".into()));
+                        }
+                        let x = from_expr(&args[0])?;
+                        let y = from_expr(&args[1])?;
+                        return Ok(Block::LocateXY { x, y });
                     }
                     if fref.name == "bounce_wall" {
                         if args.len() > 0 {
@@ -1912,6 +1926,10 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         ),
         Block::LocateX { x } => (vec![param_to_value(x), Value::Null], None),
         Block::LocateY { y } => (vec![param_to_value(y), Value::Null], None),
+        Block::LocateXY { x, y } => (
+            vec![param_to_value(x), param_to_value(y), Value::Null],
+            None,
+        ),
     })
 }
 

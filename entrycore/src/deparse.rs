@@ -322,6 +322,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let y = param_at(&params, 0, vars)?;
             Block::LocateY { y }
         }
+        "locate_xy" => {
+            let x = param_at(&params, 0, vars)?;
+            let y = param_at(&params, 1, vars)?;
+            Block::LocateXY { x, y }
+        }
         "rotate_relative" => {
             let angle = param_at(&params, 0, vars)?;
             Block::RotateRelative { angle }
@@ -1833,6 +1838,19 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::LocateXY { x, y } => {
+            let x = expr_from_param(x, vars)?;
+            let y = expr_from_param(y, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "locate_xy".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![x, y],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2435,6 +2453,18 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![y_param],
+            ))
+        }
+        Block::LocateXY { x, y } => {
+            let x_param = expr_from_param(x, vars)?;
+            let y_param = expr_from_param(y, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "locate_xy".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![x_param, y_param],
             ))
         }
     }
