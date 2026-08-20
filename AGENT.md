@@ -190,6 +190,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `move_direction` — 이동 방향으로 □ 만큼 움직이기 (→ `move_direction("forward", 10.0)`)
 - ✅ `bounce_wall` — 화면 끝에 닿으면 튕기기 (→ `bounce_wall()`)
 - ✅ `move_x` / `move_y` — x/y 좌표를 □ 만큼 바꾸기 (→ `move_x(10.0)` / `move_y(5.0)`)
+- ✅ `rotate_relative` / `direction_relative` — 방향/이동방향을 □ 만큼 회전하기 (→ `rotate_relative(45.0)` / `direction_relative(90.0)`)
 - ⬜ `move_xy_time` — □ 초 동안 x:□ y:□ 만큼 움직이기
 - ⬜ `locate_x` / `locate_y` / `locate_xy` — x/y/x,y 위치로 이동하기
 - ⬜ `locate_xy_time` — □ 초 동안 x:□ y:□ 위치로 이동하기
@@ -510,9 +511,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**88/334** 매핑됨 (약 26.3%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**90/334** 매핑됨 (약 26.9%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 4/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 5/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 6/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 5/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -587,6 +588,7 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
+- `e41a0d7a feat(movement): rotate_relative, direction_relative 매핑 + 오타fix + deparse 누락 fix`
 - `63f4ebcc feat(movement): bounce_wall 매핑 (화면 끝에 닿으면 튕기기)`
 - `630e157 feat(judge): reach_something 매핑 (□ 에 닿았는가?)`
 - `0f39a53 feat(judge): is_press_some_key 매핑 (키 눌렸는가?)`
@@ -611,9 +613,9 @@ cargo build                 # 빌드만
 - `block::Dimension` (Width/Height) vs `codegen/schema.rs::Dimension` (picture width/height i64) — 이름 겹침. 현재는 모듈이 달라 컴파일 되지만 codegen 에서 둘 다 쓰면 alias 강제됨. `ScaleAxis` 로 rename 권장 (참조 ~7곳)
 
 **다음 할 일 추천 순서**:
-1. 움직임 — `rotate_relative` / `direction_relative` (회전, 단순)
-2. 판단 — `is_clicked` / `is_object_clicked`
-3. 움직임 — `move_xy_time` (시간 포함 이동)
+1. 판단 — `is_clicked` / `is_object_clicked`
+2. 움직임 — `move_xy_time` (시간 포함 이동)
+3. 움직임 — `locate_x` / `locate_y` / `locate_xy` (위치 이동)
 
 ## 디렉토리
 
