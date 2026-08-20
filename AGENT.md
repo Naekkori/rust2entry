@@ -192,7 +192,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `move_x` / `move_y` — x/y 좌표를 □ 만큼 바꾸기 (→ `move_x(10.0)` / `move_y(5.0)`)
 - ✅ `rotate_relative` / `direction_relative` — 방향/이동방향을 □ 만큼 회전하기 (→ `rotate_relative(45.0)` / `direction_relative(90.0)`)
 - ✅ `move_xy_time` — □ 초 동안 x:□ y:□ 만큼 움직이기 (→ `move_xy_time(1.0, 10.0, 5.0)`)
-- ✅ `locate_x` / `locate_y` — x/y 위치로 이동하기 (→ `locate_x(100.0)` / `locate_y(-50.0)`)
+- ✅ `locate_x` / `locate_y` / `locate_xy` — x/y/x,y 위치로 이동하기 (→ `locate_x(100.0)` / `locate_y(-50.0)` / `locate_xy(100.0, -50.0)`)
 - ⬜ `locate_xy_time` — □ 초 동안 x:□ y:□ 위치로 이동하기
 - ⬜ `locate` — □ 위치로 이동하기
 - ⬜ `locate_object_time` — □ 초 동안 □ 위치로 이동하기
