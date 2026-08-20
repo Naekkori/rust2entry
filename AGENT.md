@@ -259,8 +259,8 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `boolean_basic` / `boolean_basic_operator` → `Compare`
 - ✅ `boolean_and_or` → `BoolOp`
 - ✅ `calc_unary` (boolean_not) → `UnaryOp`
-- ⬜ `is_clicked` — 클릭했는가?
-- ⬜ `is_object_clicked` — 오브젝트 클릭했는가?
+- ✅ `is_clicked` — 클릭했는가? (→ `is_clicked()`)
+- ✅ `is_object_clicked` — 오브젝트 클릭했는가? (→ `is_object_clicked()`)
 - ✅ `is_press_some_key` — 키 눌렸는가? (→ `is_press_some_key("space")`)
 - ✅ `reach_something` — □ 에 닿았는가? (→ `reach_something("enemy")` / `reach_something()` self)
 - ⬜ `is_type` — 타입 체크 (숫자/문자/리스트)
@@ -511,9 +511,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**90/334** 매핑됨 (약 26.9%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**92/334** 매핑됨 (약 27.5%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 6/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 5/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 6/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 7/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -613,9 +613,9 @@ cargo build                 # 빌드만
 - `block::Dimension` (Width/Height) vs `codegen/schema.rs::Dimension` (picture width/height i64) — 이름 겹침. 현재는 모듈이 달라 컴파일 되지만 codegen 에서 둘 다 쓰면 alias 강제됨. `ScaleAxis` 로 rename 권장 (참조 ~7곳)
 
 **다음 할 일 추천 순서**:
-1. 판단 — `is_clicked` / `is_object_clicked`
-2. 움직임 — `move_xy_time` (시간 포함 이동)
-3. 움직임 — `locate_x` / `locate_y` / `locate_xy` (위치 이동)
+1. 움직임 — `move_xy_time` (시간 포함 이동)
+2. 움직임 — `locate_x` / `locate_y` / `locate_xy` (위치 이동)
+3. 움직임 — `locate_xy_time` (시간 포함 위치 이동)
 
 ## 디렉토리
 
