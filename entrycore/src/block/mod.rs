@@ -343,6 +343,12 @@ pub enum Block {
         dx: ParamBlock,
         dy: ParamBlock,
     },
+    LocateX {
+        x: ParamBlock,
+    },
+    LocateY {
+        y: ParamBlock,
+    },
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -494,6 +500,8 @@ impl Block {
             Block::IsClicked => "is_clicked",
             Block::IsObjectClicked => "is_object_clicked",
             Block::MoveXyTime { .. } => "move_xy_time",
+            Block::LocateX { .. } => "locate_x",
+            Block::LocateY { .. } => "locate_y",
         }
     }
 
@@ -588,6 +596,8 @@ impl Block {
             Block::IsClicked => Category::Judgment,
             Block::IsObjectClicked => Category::Judgment,
             Block::MoveXyTime { .. } => Category::Movement,
+            Block::LocateX { .. } => Category::Movement,
+            Block::LocateY { .. } => Category::Movement,
         }
     }
 }
@@ -1075,6 +1085,20 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         let dx = from_expr(&args[1])?;
                         let dy = from_expr(&args[2])?;
                         return Ok(Block::MoveXyTime { duration, dx, dy });
+                    }
+                    if fref.name == "locate_x" {
+                        if args.len() != 1 {
+                            return Err(UnmappedBlock("locate_x needs 1 arg".into()));
+                        }
+                        let x = from_expr(&args[0])?;
+                        return Ok(Block::LocateX { x });
+                    }
+                    if fref.name == "locate_y" {
+                        if args.len() != 1 {
+                            return Err(UnmappedBlock("locate_y needs 1 arg".into()));
+                        }
+                        let y = from_expr(&args[0])?;
+                        return Ok(Block::LocateY { y });
                     }
                     if fref.name == "bounce_wall" {
                         if args.len() > 0 {
@@ -1885,6 +1909,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
+        Block::LocateX { x } => (vec![param_to_value(x), Value::Null], None),
+        Block::LocateY { y } => (vec![param_to_value(y), Value::Null], None),
     })
 }
 

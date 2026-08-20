@@ -2514,6 +2514,92 @@ fn compile_move_xy_time_roundtrip() {
     }
 }
 
+/// `locate_x(100.0)` → `locate_x` 블록.
+#[test]
+fn compile_locate_x() {
+    let src = r#"fn when_start() { locate_x(100.0); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "locate_x");
+    let params = thread[1]["params"].as_array().unwrap();
+    assert_eq!(params.len(), 2);
+}
+
+#[test]
+fn compile_locate_x_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { locate_x(100.0); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "locate_x");
+                    assert_eq!(args.len(), 1);
+                    assert!(matches!(&args[0], Expr::Float(n) if (n - 100.0).abs() < f64::EPSILON));
+                }
+                other => panic!("expected Call(locate_x), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `locate_y(-50.0)` → `locate_y` 블록.
+#[test]
+fn compile_locate_y() {
+    let src = r#"fn when_start() { locate_y(50.0); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "locate_y");
+    let params = thread[1]["params"].as_array().unwrap();
+    assert_eq!(params.len(), 2);
+}
+
+#[test]
+fn compile_locate_y_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { locate_y(50.0); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "locate_y");
+                    assert_eq!(args.len(), 1);
+                    assert!(matches!(&args[0], Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON));
+                }
+                other => panic!("expected Call(locate_y), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// `ask_and_wait("이름을 입력")` → `ask_and_wait` 블록, params[0] = text 슬롯.
 #[test]
 fn compile_ask_and_wait() {

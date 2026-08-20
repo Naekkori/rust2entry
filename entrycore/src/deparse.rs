@@ -314,6 +314,14 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let dy = param_at(&params, 2, vars)?;
             Block::MoveXyTime { duration, dx, dy }
         }
+        "locate_x" => {
+            let x = param_at(&params, 0, vars)?;
+            Block::LocateX { x }
+        }
+        "locate_y" => {
+            let y = param_at(&params, 0, vars)?;
+            Block::LocateY { y }
+        }
         "rotate_relative" => {
             let angle = param_at(&params, 0, vars)?;
             Block::RotateRelative { angle }
@@ -1801,6 +1809,30 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::LocateX { x } => {
+            let x = expr_from_param(x, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "locate_x".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![x],
+            )));
+            Ok(())
+        }
+        Block::LocateY { y } => {
+            let y = expr_from_param(y, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "locate_y".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![y],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2381,6 +2413,28 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![d_param, dx_param, dy_param],
+            ))
+        }
+        Block::LocateX { x } => {
+            let x_param = expr_from_param(x, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "locate_x".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![x_param],
+            ))
+        }
+        Block::LocateY { y } => {
+            let y_param = expr_from_param(y, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "locate_y".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![y_param],
             ))
         }
     }
