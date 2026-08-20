@@ -2560,7 +2560,7 @@ fn compile_locate_x_roundtrip() {
 /// `locate_y(-50.0)` → `locate_y` 블록.
 #[test]
 fn compile_locate_y() {
-    let src = r#"fn when_start() { locate_y(50.0); }"#;
+    let src = r#"fn when_start() { locate_y(-50.0); }"#;
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
@@ -2573,10 +2573,10 @@ fn compile_locate_y() {
 fn compile_locate_y_roundtrip() {
     use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
-    use entrycore::ir::{Expr, Stmt};
+    use entrycore::ir::{Expr, Stmt, UnaryOp};
     use entrycore::parse::parse;
 
-    let src = r#"fn when_start() { locate_y(50.0); }"#;
+    let src = r#"fn when_start() { locate_y(-50.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let vars = collect_var_map(&p1);
@@ -2591,7 +2591,7 @@ fn compile_locate_y_roundtrip() {
                 Stmt::Expr(Expr::Call(fref, args)) => {
                     assert_eq!(fref.name, "locate_y");
                     assert_eq!(args.len(), 1);
-                    assert!(matches!(&args[0], Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON));
+                    assert!(matches!(&args[0], Expr::UnaryOp(UnaryOp::Neg, inner) if matches!(**inner, Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON)));
                 }
                 other => panic!("expected Call(locate_y), got {other:?}"),
             }

@@ -1651,11 +1651,12 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         ),
         Block::UnaryOp { op, expr } => (
             vec![
+                param_to_value(expr),
                 Value::String(match op {
                     UnaryOp::Neg => "-".into(),
                     UnaryOp::Not => "!".into(),
                 }),
-                param_to_value(expr),
+                Value::Null,
             ],
             None,
         ),
