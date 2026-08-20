@@ -330,6 +330,12 @@ pub enum Block {
     MoveY {
         amount: ParamBlock,
     },
+    RotateRelative {
+        angle: ParamBlock,
+    },
+    DirectionRelative {
+        angle: ParamBlock,
+    },
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -476,6 +482,8 @@ impl Block {
             Block::BounceWall => "bounce_wall",
             Block::MoveX { .. } => "move_x",
             Block::MoveY { .. } => "move_y",
+            Block::RotateRelative { .. } => "rotate_relative",
+            Block::DirectionRelative { .. } => "direction_relative",
         }
     }
 
@@ -565,6 +573,8 @@ impl Block {
             Block::BounceWall => Category::Movement,
             Block::MoveX { .. } => Category::Movement,
             Block::MoveY { .. } => Category::Movement,
+            Block::RotateRelative { .. } => Category::Movement,
+            Block::DirectionRelative { .. } => Category::Movement,
         }
     }
 }
@@ -1018,6 +1028,20 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         let amount = from_expr(&args[0])?;
                         return Ok(Block::MoveY { amount });
                     }
+                    if fref.name == "rotate_relative" {
+                        if args.len() != 1 {
+                            return Err(UnmappedBlock("rotate_relative needs 1 arg".into()));
+                        }
+                        let angle = from_expr(&args[0])?;
+                        return Ok(Block::RotateRelative { angle });
+                    }
+                    if fref.name == "direction_relative" {
+                        if args.len() != 1 {
+                            return Err(UnmappedBlock("direction_relative needs 1 arg".into()));
+                        }
+                        let angle = from_expr(&args[0])?;
+                        return Ok(Block::DirectionRelative { angle });
+                    }
                     if fref.name == "bounce_wall" {
                         if args.len() > 0 {
                             return Err(UnmappedBlock("bounce_wall needs no args".into()));
@@ -1332,6 +1356,15 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 return Ok(ParamBlock::Sub(Box::new(Block::MoveDirection {
                     direction,
                     amount,
+                })));
+            }
+            if fref.name == "direction_relative" {
+                if args.len() != 1 {
+                    return Err(UnmappedBlock("direction_relative needs 1 arg".into()));
+                }
+                let angle = from_expr(&args[0])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::DirectionRelative {
+                    angle,
                 })));
             }
             if fref.name == "erase_all_effects" {
@@ -1804,6 +1837,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::BounceWall => (vec![], None),
         Block::MoveX { amount } => (vec![param_to_value(amount), Value::Null], None),
         Block::MoveY { amount } => (vec![param_to_value(amount), Value::Null], None),
+        Block::RotateRelative { angle } => (vec![param_to_value(angle), Value::Null], None),
+        Block::DirectionRelative { angle } => (vec![param_to_value(angle), Value::Null], None),
     })
 }
 

@@ -304,6 +304,14 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let amount = param_at(&params, 0, vars)?;
             Block::MoveY { amount }
         }
+        "direction_relative" => {
+            let angle = param_at(&params, 0, vars)?;
+            Block::DirectionRelative { angle }
+        }
+        "rotate_relative" => {
+            let angle = param_at(&params, 0, vars)?;
+            Block::RotateRelative { angle }
+        }
         "delete_clone" => Block::DeleteClone,
         "remove_all_clones" => Block::RemoveAllClones,
         "bounce_wall" => Block::BounceWall,
@@ -1725,6 +1733,30 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::RotateRelative { angle } => {
+            let arg = expr_from_param(angle, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "rotate_relative".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![arg],
+            )));
+            Ok(())
+        }
+        Block::DirectionRelative { angle } => {
+            let arg = expr_from_param(angle, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "direction_relative".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![arg],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2250,6 +2282,28 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             Ok(Expr::Call(
                 ir::FuncRef {
                     name: "move_y".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![a_param],
+            ))
+        }
+        Block::RotateRelative { angle } => {
+            let a_param = expr_from_param(angle, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "rotate_relative".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![a_param],
+            ))
+        }
+        Block::DirectionRelative { angle } => {
+            let a_param = expr_from_param(angle, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "direction_relative".to_string(),
                     arity: 1,
                     raw: None,
                 },
