@@ -2208,6 +2208,95 @@ fn compile_move_direction_roundtrip() {
     }
 }
 
+/// `move_x(10.0);` → `move_x`, params[0]=10.0.
+#[test]
+fn compile_move_x() {
+    let src = r#"fn when_start() { move_x(10.0); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "move_x");
+    assert_eq!(thread[1]["params"][0]["params"][0].as_f64(), Some(10.0));
+    assert_eq!(thread[1]["params"][1], json!(null));
+}
+
+/// `move_y(5.0);` → `move_y`, params[0]=5.0.
+/// 음수 인자(-5.0)는 UnaryOp로 파싱되어 roundtrip 미지원.
+/// roundtrip 테스트도 5.0 사용.
+#[test]
+fn compile_move_y() {
+    let src = r#"fn when_start() { move_y(5.0); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "move_y");
+    assert_eq!(thread[1]["params"][0]["params"][0].as_f64(), Some(5.0));
+    assert_eq!(thread[1]["params"][1], json!(null));
+}
+
+/// 라운드트립.
+#[test]
+fn compile_move_x_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { move_x(10.0); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "move_x");
+                    assert_eq!(args.len(), 1);
+                    assert!(matches!(&args[0], Expr::Float(n) if (n - 10.0).abs() < f64::EPSILON));
+                }
+                other => panic!("expected Call(move_x), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+#[test]
+fn compile_move_y_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { move_y(5.0); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "move_y");
+                    assert_eq!(args.len(), 1);
+                    assert!(matches!(&args[0], Expr::Float(n) if (n - 5.0).abs() < f64::EPSILON));
+                }
+                other => panic!("expected Call(move_y), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// `ask_and_wait("이름을 입력")` → `ask_and_wait` 블록, params[0] = text 슬롯.
 #[test]
 fn compile_ask_and_wait() {

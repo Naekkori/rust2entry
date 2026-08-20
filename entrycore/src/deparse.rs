@@ -296,6 +296,14 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let amount = param_at(&params, 1, vars)?;
             Block::MoveDirection { direction, amount }
         }
+        "move_x" => {
+            let amount = param_at(&params, 0, vars)?;
+            Block::MoveX { amount }
+        }
+        "move_y" => {
+            let amount = param_at(&params, 0, vars)?;
+            Block::MoveY { amount }
+        }
         "delete_clone" => Block::DeleteClone,
         "remove_all_clones" => Block::RemoveAllClones,
         "bounce_wall" => Block::BounceWall,
@@ -1693,6 +1701,30 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::MoveX { amount } => {
+            let arg = expr_from_param(amount, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "move_x".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![arg],
+            )));
+            Ok(())
+        }
+        Block::MoveY { amount } => {
+            let arg = expr_from_param(amount, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "move_y".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![arg],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2202,6 +2234,28 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             Vec::new(),
         )),
+        Block::MoveX { amount } => {
+            let a_param = expr_from_param(amount, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "move_x".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![a_param],
+            ))
+        }
+        Block::MoveY { amount } => {
+            let a_param = expr_from_param(amount, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "move_y".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![a_param],
+            ))
+        }
     }
 }
 

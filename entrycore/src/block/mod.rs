@@ -324,6 +324,12 @@ pub enum Block {
         amount: ParamBlock,
     },
     BounceWall,
+    MoveX {
+        amount: ParamBlock,
+    },
+    MoveY {
+        amount: ParamBlock,
+    },
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -468,6 +474,8 @@ impl Block {
             Block::IsPressSomeKey { .. } => "is_press_some_key",
             Block::ReachSomeThing { .. } => "reach_something",
             Block::BounceWall => "bounce_wall",
+            Block::MoveX { .. } => "move_x",
+            Block::MoveY { .. } => "move_y",
         }
     }
 
@@ -555,6 +563,8 @@ impl Block {
             Block::IsPressSomeKey { .. } => Category::Judgment,
             Block::ReachSomeThing { .. } => Category::Judgment,
             Block::BounceWall => Category::Movement,
+            Block::MoveX { .. } => Category::Movement,
+            Block::MoveY { .. } => Category::Movement,
         }
     }
 }
@@ -994,6 +1004,20 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         return Ok(Block::CreateClone { target });
                     }
+                    if fref.name == "move_x" {
+                        if args.len() != 1 {
+                            return Err(UnmappedBlock("move_x needs 1 arg".into()));
+                        }
+                        let amount = from_expr(&args[0])?;
+                        return Ok(Block::MoveX { amount });
+                    }
+                    if fref.name == "move_y" {
+                        if args.len() != 1 {
+                            return Err(UnmappedBlock("move_y needs 1 arg".into()));
+                        }
+                        let amount = from_expr(&args[0])?;
+                        return Ok(Block::MoveY { amount });
+                    }
                     if fref.name == "bounce_wall" {
                         if args.len() > 0 {
                             return Err(UnmappedBlock("bounce_wall needs no args".into()));
@@ -1263,6 +1287,20 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 return Ok(ParamBlock::Sub(Box::new(Block::ChangeScaleSize {
                     amount: from_expr(arg)?,
                 })));
+            }
+            if fref.name == "move_x" {
+                if args.len() != 1 {
+                    return Err(UnmappedBlock("move_x needs 1 arg".into()));
+                }
+                let amount = from_expr(&args[0])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::MoveX { amount })));
+            }
+            if fref.name == "move_y" {
+                if args.len() != 1 {
+                    return Err(UnmappedBlock("move_y needs 1 arg".into()));
+                }
+                let amount = from_expr(&args[0])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::MoveY { amount })));
             }
             if fref.name == "bounce_wall" {
                 return Ok(ParamBlock::Sub(Box::new(Block::BounceWall)));
@@ -1764,6 +1802,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             (vec![Value::String(target.clone()), Value::Null], None)
         }
         Block::BounceWall => (vec![], None),
+        Block::MoveX { amount } => (vec![param_to_value(amount), Value::Null], None),
+        Block::MoveY { amount } => (vec![param_to_value(amount), Value::Null], None),
     })
 }
 
