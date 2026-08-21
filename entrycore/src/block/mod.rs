@@ -6,7 +6,6 @@
 pub mod category;
 pub mod registry;
 use crate::Error::UnmappedBlock;
-use crate::codegen::schema::Param;
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};
 pub use registry::{BlockRegistry, HwDevice, HwSourcemap, SchemaDump, SchemaReport, Violation};
@@ -366,6 +365,23 @@ pub enum Block {
         duration: ParamBlock,
         target: ParamBlock,
     },
+    RotateByTime {
+        duration: ParamBlock,
+        angle: ParamBlock,
+    },
+    DirectionRelativeDuration {
+        duration: ParamBlock,
+        amount: ParamBlock,
+    },
+    RotateAbsolute {
+        angle: ParamBlock,
+    },
+    DirectionAbsolute {
+        angle: ParamBlock,
+    },
+    SeeAngleObject {
+        target: ParamBlock,
+    },
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -523,6 +539,11 @@ impl Block {
             Block::LocateXyTime { .. } => "locate_xy_time",
             Block::Locate { .. } => "locate",
             Block::LocateObjectTime { .. } => "locate_object_time",
+            Block::RotateByTime { .. } => "rotate_by_time",
+            Block::DirectionRelativeDuration { .. } => "direction_relative_duration",
+            Block::RotateAbsolute { .. } => "rotate_absolute",
+            Block::DirectionAbsolute { .. } => "direction_absolute",
+            Block::SeeAngleObject { .. } => "see_angle_object",
         }
     }
 
@@ -623,6 +644,11 @@ impl Block {
             Block::LocateXyTime { .. } => Category::Movement,
             Block::Locate { .. } => Category::Movement,
             Block::LocateObjectTime { .. } => Category::Movement,
+            Block::RotateByTime { .. } => Category::Movement,
+            Block::DirectionRelativeDuration { .. } => Category::Movement,
+            Block::RotateAbsolute { .. } => Category::Movement,
+            Block::DirectionAbsolute { .. } => Category::Movement,
+            Block::SeeAngleObject { .. } => Category::Movement,
         }
     }
 }
@@ -1156,6 +1182,45 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         }
                         let target = from_expr(&args[0])?;
                         return Ok(Block::Locate { target });
+                    }
+                    if fref.name == "rotate_by_time" {
+                        if args.len() != 2 {
+                            return Err(UnmappedBlock("rotate_by_time needs 2 args".into()));
+                        }
+                        let duration = from_expr(&args[0])?;
+                        let angle = from_expr(&args[1])?;
+                        return Ok(Block::RotateByTime { duration, angle });
+                    }
+                    if fref.name == "direction_relative_duration" {
+                        if args.len() != 2 {
+                            return Err(UnmappedBlock(
+                                "direction_relative_duration needs 2 args".into(),
+                            ));
+                        }
+                        let duration = from_expr(&args[0])?;
+                        let amount = from_expr(&args[1])?;
+                        return Ok(Block::DirectionRelativeDuration { duration, amount });
+                    }
+                    if fref.name == "rotate_absolute" {
+                        if args.len() != 1 {
+                            return Err(UnmappedBlock("rotate_absolute needs 1 arg".into()));
+                        }
+                        let angle = from_expr(&args[0])?;
+                        return Ok(Block::RotateAbsolute { angle });
+                    }
+                    if fref.name == "direction_absolute" {
+                        if args.len() != 1 {
+                            return Err(UnmappedBlock("direction_absolute needs 1 arg".into()));
+                        }
+                        let angle = from_expr(&args[0])?;
+                        return Ok(Block::DirectionAbsolute { angle });
+                    }
+                    if fref.name == "see_angle_object" {
+                        if args.len() != 1 {
+                            return Err(UnmappedBlock("see_angle_object needs 1 arg".into()));
+                        }
+                        let target = from_expr(&args[0])?;
+                        return Ok(Block::SeeAngleObject { target });
                     }
                     if fref.name == "bounce_wall" {
                         if args.len() > 0 {
@@ -1991,6 +2056,22 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             None,
         ),
         Block::Locate { target } => (vec![param_to_value(target), Value::Null], None),
+        Block::RotateByTime { duration, angle } => (
+            vec![param_to_value(duration), param_to_value(angle), Value::Null],
+            None,
+        ),
+
+        Block::DirectionRelativeDuration { duration, amount } => (
+            vec![
+                param_to_value(duration),
+                param_to_value(amount),
+                Value::Null,
+            ],
+            None,
+        ),
+        Block::RotateAbsolute { angle } => (vec![param_to_value(angle), Value::Null], None),
+        Block::DirectionAbsolute { angle } => (vec![param_to_value(angle), Value::Null], None),
+        Block::SeeAngleObject { target } => (vec![param_to_value(target), Value::Null], None),
     })
 }
 

@@ -351,6 +351,18 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let angle = param_at(&params, 1, vars)?;
             Block::RotateByTime { duration, angle }
         }
+        "rotate_absolute" => {
+            let angle = param_at(&params, 0, vars)?;
+            Block::RotateAbsolute { angle }
+        }
+        "direction_absolute" => {
+            let angle = param_at(&params, 0, vars)?;
+            Block::DirectionAbsolute { angle }
+        }
+        "see_angle_object" => {
+            let target = param_at(&params, 0, vars)?;
+            Block::SeeAngleObject { target }
+        }
         "direction_relative_duration" => {
             let duration = param_at(&params, 0, vars)?;
             let amount = param_at(&params, 1, vars)?;
@@ -1941,6 +1953,42 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::RotateAbsolute { angle } => {
+            let a = expr_from_param(angle, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "rotate_absolute".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![a],
+            )));
+            Ok(())
+        }
+        Block::DirectionAbsolute { angle } => {
+            let a = expr_from_param(angle, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "direction_absolute".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![a],
+            )));
+            Ok(())
+        }
+        Block::SeeAngleObject { target } => {
+            let t = expr_from_param(target, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "see_angle_object".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![t],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2615,6 +2663,39 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![duration_param, target_amount],
+            ))
+        }
+        Block::RotateAbsolute { angle } => {
+            let angle_param = expr_from_param(angle, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "rotate_absolute".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![angle_param],
+            ))
+        }
+        Block::DirectionAbsolute { angle } => {
+            let angle_param = expr_from_param(angle, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "direction_absolute".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![angle_param],
+            ))
+        }
+        Block::SeeAngleObject { target } => {
+            let target_param = expr_from_param(target, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "see_angle_object".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![target_param],
             ))
         }
     }
