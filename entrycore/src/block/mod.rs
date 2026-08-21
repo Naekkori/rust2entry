@@ -522,6 +522,7 @@ impl Block {
             Block::LocateXY { .. } => "locate_xy",
             Block::LocateXyTime { .. } => "locate_xy_time",
             Block::Locate { .. } => "locate",
+            Block::LocateObjectTime { .. } => "locate_object_time",
         }
     }
 
@@ -621,6 +622,7 @@ impl Block {
             Block::LocateXY { .. } => Category::Movement,
             Block::LocateXyTime { .. } => Category::Movement,
             Block::Locate { .. } => Category::Movement,
+            Block::LocateObjectTime { .. } => Category::Movement,
         }
     }
 }
@@ -1139,6 +1141,14 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         let x = from_expr(&args[1])?;
                         let y = from_expr(&args[2])?;
                         return Ok(Block::LocateXyTime { duration, x, y });
+                    }
+                    if fref.name == "locate_object_time" {
+                        if args.len() != 2 {
+                            return Err(UnmappedBlock("locate_object_time needs 2 args".into()));
+                        }
+                        let duration = from_expr(&args[0])?;
+                        let target = from_expr(&args[1])?;
+                        return Ok(Block::LocateObjectTime { duration, target });
                     }
                     if fref.name == "locate" {
                         if args.len() != 1 {
@@ -1968,6 +1978,14 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
                 param_to_value(duration),
                 param_to_value(x),
                 param_to_value(y),
+                Value::Null,
+            ],
+            None,
+        ),
+        Block::LocateObjectTime { duration, target } => (
+            vec![
+                param_to_value(duration),
+                param_to_value(target),
                 Value::Null,
             ],
             None,

@@ -337,6 +337,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let target = param_at(&params, 0, vars)?;
             Block::Locate { target }
         }
+        "locate_object_time" => {
+            let duration = param_at(&params, 0, vars)?;
+            let target = param_at(&params, 1, vars)?;
+            Block::LocateObjectTime { duration, target }
+        }
         "rotate_relative" => {
             let angle = param_at(&params, 0, vars)?;
             Block::RotateRelative { angle }
@@ -1875,6 +1880,19 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::LocateObjectTime { duration, target } => {
+            let duration = expr_from_param(duration, vars)?;
+            let target = expr_from_param(target, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "locate_object_time".into(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![duration, target],
+            )));
+            Ok(())
+        }
         Block::Locate { target } => {
             let target = expr_from_param(target, vars)?;
             stmts.push(Stmt::Expr(Expr::Call(
@@ -2514,6 +2532,18 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![d_param, x_param, y_param],
+            ))
+        }
+        Block::LocateObjectTime { duration, target } => {
+            let d_param = expr_from_param(duration, vars)?;
+            let target_param = expr_from_param(target, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "locate_object_time".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![d_param, target_param],
             ))
         }
         Block::Locate { target } => {

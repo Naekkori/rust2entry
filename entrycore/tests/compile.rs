@@ -2689,6 +2689,50 @@ fn compile_locate_xy_time_roundtrip() {
     }
 }
 
+/// `locate_object_time(1.0, "mouse")` → `locate_object_time` 블록, params = [시간, 대상, null].
+#[test]
+fn compile_locate_object_time() {
+    let src = r#"fn when_start() { locate_object_time(1.0, "mouse"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "locate_object_time");
+    let params = thread[1]["params"].as_array().unwrap();
+    assert_eq!(params.len(), 3); // 2 args + trailing null
+}
+
+#[test]
+fn compile_locate_object_time_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { locate_object_time(1.0, "mouse"); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "locate_object_time");
+                    assert_eq!(args.len(), 2);
+                    assert!(matches!(&args[0], Expr::Float(n) if (n - 1.0).abs() < f64::EPSILON));
+                    assert!(matches!(&args[1], Expr::Str(s) if s == "mouse"));
+                }
+                other => panic!("expected Call(locate_object_time), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// `locate("mouse")` → `locate` 블록, params = [target, null].
 #[test]
 fn compile_locate() {
