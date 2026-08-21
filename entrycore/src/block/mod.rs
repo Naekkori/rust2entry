@@ -319,7 +319,8 @@ pub enum Block {
     CreateClone {
         target: String,
     },
-
+    // ---   붓   ---
+    BrushStamp,
     // --- 움직임 ---
     MoveDirection {
         direction: String,
@@ -549,6 +550,7 @@ impl Block {
             Block::DirectionAbsolute { .. } => "direction_absolute",
             Block::SeeAngleObject { .. } => "see_angle_object",
             Block::MoveToAngle { .. } => "move_to_angle",
+            Block::BrushStamp => "brush_stamp",
         }
     }
 
@@ -655,6 +657,7 @@ impl Block {
             Block::DirectionAbsolute { .. } => Category::Movement,
             Block::SeeAngleObject { .. } => Category::Movement,
             Block::MoveToAngle { .. } => Category::Movement,
+            Block::BrushStamp => todo!(),
         }
     }
 }
