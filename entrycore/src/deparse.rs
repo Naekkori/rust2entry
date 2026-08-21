@@ -363,6 +363,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let target = param_at(&params, 0, vars)?;
             Block::SeeAngleObject { target }
         }
+        "move_to_angle" => {
+            let angle = param_at(&params, 0, vars)?;
+            let distance = param_at(&params, 1, vars)?;
+            Block::MoveToAngle { angle, distance }
+        }
         "direction_relative_duration" => {
             let duration = param_at(&params, 0, vars)?;
             let amount = param_at(&params, 1, vars)?;
@@ -1989,6 +1994,19 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::MoveToAngle { angle, distance } => {
+            let a = expr_from_param(angle, vars)?;
+            let d = expr_from_param(distance, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "move_to_angle".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![a, d],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2696,6 +2714,18 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![target_param],
+            ))
+        }
+        Block::MoveToAngle { angle, distance } => {
+            let angle_param = expr_from_param(angle, vars)?;
+            let distance_param = expr_from_param(distance, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "move_to_angle".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![angle_param, distance_param],
             ))
         }
     }

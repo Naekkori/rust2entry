@@ -382,6 +382,10 @@ pub enum Block {
     SeeAngleObject {
         target: ParamBlock,
     },
+    MoveToAngle {
+        angle: ParamBlock,
+        distance: ParamBlock,
+    },
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -544,6 +548,7 @@ impl Block {
             Block::RotateAbsolute { .. } => "rotate_absolute",
             Block::DirectionAbsolute { .. } => "direction_absolute",
             Block::SeeAngleObject { .. } => "see_angle_object",
+            Block::MoveToAngle { .. } => "move_to_angle",
         }
     }
 
@@ -649,6 +654,7 @@ impl Block {
             Block::RotateAbsolute { .. } => Category::Movement,
             Block::DirectionAbsolute { .. } => Category::Movement,
             Block::SeeAngleObject { .. } => Category::Movement,
+            Block::MoveToAngle { .. } => Category::Movement,
         }
     }
 }
@@ -1221,6 +1227,14 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         }
                         let target = from_expr(&args[0])?;
                         return Ok(Block::SeeAngleObject { target });
+                    }
+                    if fref.name == "move_to_angle" {
+                        if args.len() != 2 {
+                            return Err(UnmappedBlock("move_to_angle needs 2 args".into()));
+                        }
+                        let angle = from_expr(&args[0])?;
+                        let distance = from_expr(&args[1])?;
+                        return Ok(Block::MoveToAngle { angle, distance });
                     }
                     if fref.name == "bounce_wall" {
                         if args.len() > 0 {
@@ -2072,6 +2086,10 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::RotateAbsolute { angle } => (vec![param_to_value(angle), Value::Null], None),
         Block::DirectionAbsolute { angle } => (vec![param_to_value(angle), Value::Null], None),
         Block::SeeAngleObject { target } => (vec![param_to_value(target), Value::Null], None),
+        Block::MoveToAngle { angle, distance } => (
+            vec![param_to_value(angle), param_to_value(distance), Value::Null],
+            None,
+        ),
     })
 }
 

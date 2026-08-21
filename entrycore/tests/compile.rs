@@ -2597,6 +2597,50 @@ fn compile_see_angle_object_roundtrip() {
     }
 }
 
+/// `move_to_angle(45.0, 10.0)` → `move_to_angle` 블록, params = [각도, 거리, null].
+#[test]
+fn compile_move_to_angle() {
+    let src = r#"fn when_start() { move_to_angle(45.0, 10.0); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "move_to_angle");
+    let params = thread[1]["params"].as_array().unwrap();
+    assert_eq!(params.len(), 3); // 2 args + trailing null
+}
+
+#[test]
+fn compile_move_to_angle_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { move_to_angle(45.0, 10.0); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "move_to_angle");
+                    assert_eq!(args.len(), 2);
+                    assert!(matches!(&args[0], Expr::Float(n) if (n - 45.0).abs() < f64::EPSILON));
+                    assert!(matches!(&args[1], Expr::Float(n) if (n - 10.0).abs() < f64::EPSILON));
+                }
+                other => panic!("expected Call(move_to_angle), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// `move_xy_time(1.0, 10.0, 5.0)` → `move_xy_time` 블록, params = [시간, x, y].
 #[test]
 fn compile_move_xy_time() {
