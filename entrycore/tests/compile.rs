@@ -2468,6 +2468,92 @@ fn compile_direction_relative_roundtrip() {
     }
 }
 
+/// `rotate_absolute(90.0)` → `rotate_absolute` 블록, params = [각도, null].
+#[test]
+fn compile_rotate_absolute() {
+    let src = r#"fn when_start() { rotate_absolute(90.0); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "rotate_absolute");
+    let params = thread[1]["params"].as_array().unwrap();
+    assert_eq!(params.len(), 2); // 1 arg + trailing null
+}
+
+#[test]
+fn compile_rotate_absolute_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { rotate_absolute(90.0); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "rotate_absolute");
+                    assert_eq!(args.len(), 1);
+                    assert!(matches!(&args[0], Expr::Float(n) if (n - 90.0).abs() < f64::EPSILON));
+                }
+                other => panic!("expected Call(rotate_absolute), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `direction_absolute(45.0)` → `direction_absolute` 블록, params = [방향, null].
+#[test]
+fn compile_direction_absolute() {
+    let src = r#"fn when_start() { direction_absolute(45.0); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "direction_absolute");
+    let params = thread[1]["params"].as_array().unwrap();
+    assert_eq!(params.len(), 2); // 1 arg + trailing null
+}
+
+#[test]
+fn compile_direction_absolute_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { direction_absolute(45.0); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "direction_absolute");
+                    assert_eq!(args.len(), 1);
+                    assert!(matches!(&args[0], Expr::Float(n) if (n - 45.0).abs() < f64::EPSILON));
+                }
+                other => panic!("expected Call(direction_absolute), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// `move_xy_time(1.0, 10.0, 5.0)` → `move_xy_time` 블록, params = [시간, x, y].
 #[test]
 fn compile_move_xy_time() {

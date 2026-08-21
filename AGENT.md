@@ -186,7 +186,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `delete_clone` — 이 복제본 삭제하기 (→ `delete_clone()`)
 - ✅ `remove_all_clones` — 모든 복제본 삭제하기 (→ `remove_all_clones()`)
 
-### 움직임 (14/19)
+### 움직임 (16/19)
 - ✅ `locate_xy_time` — □ 초 동안 x:□ y:□ 위치로 이동하기 (→ `locate_xy_time(1.0, 100.0, -50.0)`)
 - ✅ `move_direction` — 이동 방향으로 □ 만큼 움직이기 (→ `move_direction("forward", 10.0)`)
 - ✅ `bounce_wall` — 화면 끝에 닿으면 튕기기 (→ `bounce_wall()`)
@@ -197,7 +197,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `locate` — □ 위치로 이동하기 (→ `locate("mouse")` / `locate("Sprite1")`)
 - ✅ `locate_object_time` — □ 초 동안 □ 위치로 이동하기 (→ `locate_object_time(1.0, "mouse")` / `locate_object_time(2.0, "Sprite1")`)
 - ✅ `rotate_by_time` / `direction_relative_duration` — □ 초 동안 회전 (→ `rotate_by_time(1.0, 45.0)` / `direction_relative_duration(1.0, 90.0)`)
-- ⬜ `rotate_absolute` / `direction_absolute` — 방향/이동방향을 □ (으)로 정하기
+- ✅ `rotate_absolute` / `direction_absolute` — 방향/이동방향을 □ (으)로 정하기 (→ `rotate_absolute(90.0)` / `direction_absolute(45.0)`)
 - ⬜ `see_angle_object` — □ 쪽 바라보기
 - ⬜ `move_to_angle` — □ 방향으로 □ 만큼 움직이기
 
@@ -349,6 +349,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `set_value_from_cell` / `get_value_from_cell` — 셀 값
 - ⬜ `get_value_v_lookup` — VLOOKUP
 
+## 아래는 추후 작업할 예정 너무 분량이 많아서 이건 나중에 할거 <br> 기본블록 만 있어도 컨텐츠 제작에 문제없음.
 ### 인공지능 (AI) 학습 (0/26) — 7 파일 공유 (cluster / decisiontree / knn / logistic_regression / regression / svm / learning)
 | 블럭 ID | 블럭 이름 |
 |---|---|
@@ -510,9 +511,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**100/334** 매핑됨 (약 29.9%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**102/334** 매핑됨 (약 30.5%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 14/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 7/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 16/19, 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 7/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -616,7 +617,7 @@ cargo build                 # 빌드만
 - `block::Dimension` (Width/Height) vs `codegen/schema.rs::Dimension` (picture width/height i64) — 이름 겹침. 현재는 모듈이 달라 컴파일 되지만 codegen 에서 둘 다 쓰면 alias 강제됨. `ScaleAxis` 로 rename 권장 (참조 ~7곳)
 
 **다음 할 일 추천 순서**:
-1. 움직임 — `rotate_absolute` / `direction_absolute` (방향/이동방향을 □ (으)로 정하기)
+1. 움직임 — `see_angle_object` (□ 쪽 바라보기)
 
 ## 디렉토리
 
