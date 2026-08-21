@@ -346,6 +346,16 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let angle = param_at(&params, 0, vars)?;
             Block::RotateRelative { angle }
         }
+        "rotate_by_time" => {
+            let duration = param_at(&params, 0, vars)?;
+            let angle = param_at(&params, 1, vars)?;
+            Block::RotateByTime { duration, angle }
+        }
+        "direction_relative_duration" => {
+            let duration = param_at(&params, 0, vars)?;
+            let amount = param_at(&params, 1, vars)?;
+            Block::DirectionRelativeDuration { duration, amount }
+        }
         "delete_clone" => Block::DeleteClone,
         "remove_all_clones" => Block::RemoveAllClones,
         "bounce_wall" => Block::BounceWall,
@@ -1821,7 +1831,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             let dy = expr_from_param(dy, vars)?;
             stmts.push(Stmt::Expr(Expr::Call(
                 ir::FuncRef {
-                    name: "move_xy_time".into(),
+                    name: "move_xy_time".to_string(),
                     arity: 3,
                     raw: None,
                 },
@@ -1872,7 +1882,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             let y = expr_from_param(y, vars)?;
             stmts.push(Stmt::Expr(Expr::Call(
                 ir::FuncRef {
-                    name: "locate_xy_time".into(),
+                    name: "locate_xy_time".to_string(),
                     arity: 3,
                     raw: None,
                 },
@@ -1885,7 +1895,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             let target = expr_from_param(target, vars)?;
             stmts.push(Stmt::Expr(Expr::Call(
                 ir::FuncRef {
-                    name: "locate_object_time".into(),
+                    name: "locate_object_time".to_string(),
                     arity: 2,
                     raw: None,
                 },
@@ -1897,11 +1907,37 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             let target = expr_from_param(target, vars)?;
             stmts.push(Stmt::Expr(Expr::Call(
                 ir::FuncRef {
-                    name: "locate".into(),
+                    name: "locate".to_string(),
                     arity: 1,
                     raw: None,
                 },
                 vec![target],
+            )));
+            Ok(())
+        }
+        Block::RotateByTime { duration, angle } => {
+            let d = expr_from_param(duration, vars)?;
+            let a = expr_from_param(angle, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "rotate_by_time".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![d, a],
+            )));
+            Ok(())
+        }
+        Block::DirectionRelativeDuration { duration, amount } => {
+            let d = expr_from_param(duration, vars)?;
+            let a = expr_from_param(amount, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "direction_relative_duration".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![d, a],
             )));
             Ok(())
         }
@@ -2555,6 +2591,30 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![target_param],
+            ))
+        }
+        Block::RotateByTime { duration, angle } => {
+            let duration_param = expr_from_param(duration, vars)?;
+            let target_angle = expr_from_param(angle, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "rotate_by_time".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![duration_param, target_angle],
+            ))
+        }
+        Block::DirectionRelativeDuration { duration, amount } => {
+            let duration_param = expr_from_param(duration, vars)?;
+            let target_amount = expr_from_param(amount, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "direction_relative_duration".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![duration_param, target_amount],
             ))
         }
     }
