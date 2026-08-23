@@ -374,6 +374,12 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         "stop_drawing" => Block::StopDrawing,
         "start_fill" => Block::StartFill,
         "stop_fill" => Block::StopFill,
+        "set_color" => {
+            let r = param_at(&params, 0, vars)?;
+            let g = param_at(&params, 1, vars)?;
+            let b = param_at(&params, 2, vars)?;
+            Block::SetColor { r, g, b }
+        }
         "direction_relative_duration" => {
             let duration = param_at(&params, 0, vars)?;
             let amount = param_at(&params, 1, vars)?;
@@ -2068,6 +2074,20 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::SetColor { r, g, b } => {
+            let red = expr_from_param(r, vars)?;
+            let green = expr_from_param(g, vars)?;
+            let blue = expr_from_param(b, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "set_color".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![red, green, blue],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2829,6 +2849,19 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             Vec::new(),
         )),
+        Block::SetColor { r, g, b } => {
+            let r = expr_from_param(r, vars)?;
+            let g = expr_from_param(g, vars)?;
+            let b = expr_from_param(b, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "set_color".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![r, g, b],
+            ))
+        }
     }
 }
 

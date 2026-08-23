@@ -2851,6 +2851,51 @@ fn compile_stop_fill_roundtrip() {
     }
 }
 
+/// `set_color(50.0, 100.0, 0.0)` → `set_color` 블록, params = [r, g, b].
+#[test]
+fn compile_set_color() {
+    let src = r#"fn when_start() { set_color(50.0, 100.0, 0.0); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "set_color");
+    let params = thread[1]["params"].as_array().unwrap();
+    assert_eq!(params.len(), 3); // 3 args (trailing null X)
+}
+
+#[test]
+fn compile_set_color_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { set_color(50.0, 100.0, 0.0); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "set_color");
+                    assert_eq!(args.len(), 3);
+                    assert!(matches!(&args[0], Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON));
+                    assert!(matches!(&args[1], Expr::Float(n) if (n - 100.0).abs() < f64::EPSILON));
+                    assert!(matches!(&args[2], Expr::Float(n) if (n - 0.0).abs() < f64::EPSILON));
+                }
+                other => panic!("expected Call(set_color), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// `move_xy_time(1.0, 10.0, 5.0)` → `move_xy_time` 블록, params = [시간, x, y].
 #[test]
 fn compile_move_xy_time() {
