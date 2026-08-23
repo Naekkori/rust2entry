@@ -2,7 +2,7 @@
 
 use syn::Expr;
 
-use crate::Error::UnmappedBlock;
+use crate::Error::ParseUnsupported;
 use crate::Result;
 use crate::ir::{self, Expr as IrExpr};
 use std::collections::VecDeque;
@@ -42,18 +42,18 @@ pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
             syn::Lit::Int(i) => {
                 let n = i
                     .base10_parse()
-                    .map_err(|e| UnmappedBlock(format!("int parse: {e}")))?;
+                    .map_err(|e| ParseUnsupported(format!("int parse: {e}")))?;
                 Ok(IrExpr::Int(n))
             }
             syn::Lit::Float(f) => {
                 let v = f
                     .base10_parse()
-                    .map_err(|e| UnmappedBlock(format!("float parse {e}")))?;
+                    .map_err(|e| ParseUnsupported(format!("float parse {e}")))?;
                 Ok(IrExpr::Float(v))
             }
             syn::Lit::Str(s) => Ok(IrExpr::Str(s.value())),
             syn::Lit::Bool(b) => Ok(IrExpr::Bool(b.value())),
-            _ => Err(UnmappedBlock("lit".into())),
+            _ => Err(ParseUnsupported("lit".into())),
         },
         Expr::Binary(b) => {
             let op = match b.op {
@@ -70,7 +70,7 @@ pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
                 syn::BinOp::Ne(_) => ir::BinOp::Ne,
                 syn::BinOp::Ge(_) => ir::BinOp::Ge,
                 syn::BinOp::Gt(_) => ir::BinOp::Gt,
-                _ => return Err(UnmappedBlock("binop".into())),
+                _ => return Err(ParseUnsupported("binop".into())),
             };
             Ok(IrExpr::BinOp(
                 op,
@@ -82,14 +82,14 @@ pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
             let op = match u.op {
                 syn::UnOp::Not(_) => ir::UnaryOp::Not,
                 syn::UnOp::Neg(_) => ir::UnaryOp::Neg,
-                _ => return Err(UnmappedBlock("unop".into())),
+                _ => return Err(ParseUnsupported("unop".into())),
             };
             Ok(IrExpr::UnaryOp(op, Box::new(convert_expr(*u.expr)?)))
         }
         Expr::Call(c) => {
             let name = match &*c.func {
                 Expr::Path(p) => path_to_name(&p.path)?,
-                _ => return Err(UnmappedBlock("call func".into())),
+                _ => return Err(ParseUnsupported("call func".into())),
             };
             let args = c
                 .args
@@ -120,11 +120,11 @@ pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
             let start = r
                 .start
                 .as_deref()
-                .ok_or_else(|| UnmappedBlock("range start".into()))?;
+                .ok_or_else(|| ParseUnsupported("range start".into()))?;
             let end = r
                 .end
                 .as_deref()
-                .ok_or_else(|| UnmappedBlock("range end".into()))?;
+                .ok_or_else(|| ParseUnsupported("range end".into()))?;
 
             Ok(IrExpr::Range(
                 Box::new(convert_expr(start.clone())?),
@@ -132,7 +132,7 @@ pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
             ))
         }
         Expr::Reference(r) => convert_expr(*r.expr),
-        _ => Err(UnmappedBlock("expr".into())),
+        _ => Err(ParseUnsupported("expr".into())),
     }
 }
 
@@ -140,5 +140,5 @@ fn path_to_name(path: &syn::Path) -> Result<String> {
     path.segments
         .last()
         .map(|s| s.ident.to_string())
-        .ok_or_else(|| UnmappedBlock("empty path".into()))
+        .ok_or_else(|| ParseUnsupported("empty path".into()))
 }

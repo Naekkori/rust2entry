@@ -2,7 +2,7 @@
 
 use syn::Stmt as SynStmt;
 
-use crate::Error::UnmappedBlock;
+use crate::Error::ParseUnsupported;
 use crate::Result;
 use crate::ir::{Expr, Stmt as IrStmt};
 use crate::parse::{convert_block, convert_expr};
@@ -20,7 +20,7 @@ fn type_to_kind(ty: &syn::Type) -> Result<Option<VarKind>> {
     Ok(Some(match last.to_string().as_str() {
         "CloudVar" | "cloud" => VarKind::Cloud,
         "RealtimeVar" | "RealTimeVar" | "realtime" | "realTime" => VarKind::RealTime,
-        other => return Err(UnmappedBlock(format!("unknown var type: {other}"))),
+        other => return Err(ParseUnsupported(format!("unknown var type: {other}"))),
     }))
 }
 
@@ -34,13 +34,13 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                     let ident = match pt.pat.as_ref() {
                         syn::Pat::Ident(pi) => pi.ident.to_string(),
                         _ => {
-                            return Err(UnmappedBlock("destructuring pattern".into()));
+                            return Err(ParseUnsupported("destructuring pattern".into()));
                         }
                     };
                     let k = type_to_kind(&pt.ty)?;
                     (ident, k)
                 }
-                _ => return Err(UnmappedBlock("destructuring pattern".into())),
+                _ => return Err(ParseUnsupported("destructuring pattern".into())),
             };
             // 초기값
             let init = match local.init {
@@ -81,7 +81,7 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                                 convert_stmt(syn::Stmt::Expr(*else_expr, None), &mut v)?;
                                 v
                             },
-                            _ => return Err(UnmappedBlock("else branch".into())),
+                            _ => return Err(ParseUnsupported("else branch".into())),
                         }
                     } else {
                         Vec::new()
@@ -100,7 +100,7 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                 syn::Expr::ForLoop(f)=>{
                     let var = match &*f.pat {
                         syn::Pat::Ident(pi)=>pi.ident.to_string(),
-                        _=> return Err(UnmappedBlock("for pat".into()))
+                        _=> return Err(ParseUnsupported("for pat".into()))
                     };
                     let iter = convert_expr(*f.expr)?;
                     let body = convert_block(Some(f.body))?;
@@ -111,7 +111,7 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                 }
             }
         }
-        _ => return Err(UnmappedBlock("stmt".into())),
+        _ => return Err(ParseUnsupported("stmt".into())),
     }
     Ok(())
 }

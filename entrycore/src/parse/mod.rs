@@ -7,7 +7,7 @@ mod stmt;
 
 use syn::Item;
 
-use crate::Error::UnmappedBlock;
+use crate::Error::ParseUnsupported;
 use crate::ir::{Program, Stmt as IrStmt};
 use crate::{Error, Result};
 
@@ -91,7 +91,7 @@ fn convert_item(
             // Rust 신택스 그대로 사용. EntryJS variables[].object = null.
             let name = s.ident.to_string();
             if name.is_empty() {
-                return Err(UnmappedBlock("static name".into()));
+                return Err(ParseUnsupported("static name".into()));
             }
             // syn 3.x 에서 `static` 의 초기값은 `Box<Expr>` (필수).
             let init = crate::parse::convert_expr(*s.expr)?;
@@ -118,8 +118,8 @@ fn convert_item(
             ));
             Ok(())
         }
-        Item::Const(_) => Err(UnmappedBlock("const".into())),
-        _ => Err(UnmappedBlock("item".into())),
+        Item::Const(_) => Err(ParseUnsupported("const".into())),
+        _ => Err(ParseUnsupported("item".into())),
     }
 }
 

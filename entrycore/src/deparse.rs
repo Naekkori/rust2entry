@@ -6,7 +6,7 @@
 
 use std::vec;
 
-use crate::Error::UnmappedBlock;
+use crate::Error::{SyntaxError, UnmappedBlock};
 use crate::block::{
     Block, DialogMode, Dimension, EffectType, MathOperation, ParamBlock, QamMethod, dim_to_dsl_str,
     effect_to_str,
@@ -437,7 +437,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 "-" => UnaryOp::Neg,
                 "!" => UnaryOp::Not,
                 other => {
-                    return Err(UnmappedBlock(format!("calc_unary op: {other}")));
+                    return Err(SyntaxError(format!("calc_unary op: {other}")));
                 }
             };
             Block::UnaryOp { op, expr }
@@ -848,7 +848,7 @@ fn op_at(params: &Value, idx: usize) -> Result<BinOp> {
         ">=" | "GREATER_OR_EQUAL" => BinOp::Ge,
         "&&" | "AND" => BinOp::And,
         "||" | "OR" => BinOp::Or,
-        other => return Err(UnmappedBlock(format!("op: {other}"))),
+        other => return Err(SyntaxError(format!("op: {other}"))),
     })
 }
 
