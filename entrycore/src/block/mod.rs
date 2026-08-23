@@ -5,7 +5,7 @@
 
 pub mod category;
 pub mod registry;
-use crate::Error::UnmappedBlock;
+use crate::Error::{SyntaxError, UnmappedBlock};
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};
 pub use registry::{BlockRegistry, HwDevice, HwSourcemap, SchemaDump, SchemaReport, Violation};
@@ -321,6 +321,8 @@ pub enum Block {
     },
     // ---   붓   ---
     BrushStamp,
+    StartDrawing,
+    StopDrawing,
     // --- 움직임 ---
     MoveDirection {
         direction: String,
@@ -551,6 +553,8 @@ impl Block {
             Block::SeeAngleObject { .. } => "see_angle_object",
             Block::MoveToAngle { .. } => "move_to_angle",
             Block::BrushStamp => "brush_stamp",
+            Block::StartDrawing => "start_drawing",
+            Block::StopDrawing => "stop_drawing",
         }
     }
 
@@ -658,6 +662,8 @@ impl Block {
             Block::SeeAngleObject { .. } => Category::Movement,
             Block::MoveToAngle { .. } => Category::Movement,
             Block::BrushStamp => Category::Pen,
+            Block::StartDrawing => Category::Pen,
+            Block::StopDrawing => Category::Pen,
         }
     }
 }
@@ -699,7 +705,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "wait_second" {
                         let arg = args
                             .first()
-                            .ok_or_else(|| UnmappedBlock("wait_second needs arg".into()))?;
+                            .ok_or_else(|| SyntaxError("wait_second needs arg".into()))?;
                         return Ok(Block::WaitSeconds {
                             time: from_expr(arg)?,
                         });
@@ -707,26 +713,26 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "wait_until_true" {
                         let arg = args
                             .first()
-                            .ok_or_else(|| UnmappedBlock("wait_until_true needs arg".into()))?;
+                            .ok_or_else(|| SyntaxError("wait_until_true needs arg".into()))?;
                         return Ok(Block::WaitUntilTrue {
                             cond: from_expr(arg)?,
                         });
                     }
                     if fref.name == "stop_run_all" {
                         if args.len() != 0 {
-                            return Err(UnmappedBlock("stop_run_all needs 0 args".into()));
+                            return Err(SyntaxError("stop_run_all needs 0 args".into()));
                         }
                         return Ok(Block::StopAll);
                     }
                     if fref.name == "restart_project" {
                         if args.len() != 0 {
-                            return Err(UnmappedBlock("restart_project needs 0 args".into()));
+                            return Err(SyntaxError("restart_project needs 0 args".into()));
                         }
                         return Ok(Block::RestartProject);
                     }
                     if fref.name == "calc_rand" {
                         if args.len() != 2 {
-                            return Err(UnmappedBlock("calc_rand needs 2 args".into()));
+                            return Err(SyntaxError("calc_rand needs 2 args".into()));
                         }
                         let min = from_expr(&args[0])?;
                         let max = from_expr(&args[1])?;
@@ -738,7 +744,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "ask_and_wait" {
                         let arg = args
                             .first()
-                            .ok_or_else(|| UnmappedBlock("ask_and_wait needs arg".into()))?;
+                            .ok_or_else(|| SyntaxError("ask_and_wait needs arg".into()))?;
                         return Ok(Block::AskAndWait {
                             question: from_expr(arg)?,
                         });
@@ -781,13 +787,13 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "quotient_and_mod" {
                         if args.len() != 3 {
-                            return Err(UnmappedBlock("quotient_and_mod needs 3 args".into()));
+                            return Err(SyntaxError("quotient_and_mod needs 3 args".into()));
                         }
                         let mode = match &args[2] {
                             Expr::Str(s) if s == "quotient" => QamMethod::Quotient,
                             Expr::Str(s) if s == "modulo" => QamMethod::Mod,
                             _ => {
-                                return Err(UnmappedBlock(
+                                return Err(SyntaxError(
                                     "quotient_and_mod mode must be \"quotient\" \"modulo\" ".into(),
                                 ));
                             }
@@ -799,7 +805,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "say" {
                         let content_arg = args
                             .first()
-                            .ok_or_else(|| UnmappedBlock("say needs arg".into()))?;
+                            .ok_or_else(|| SyntaxError("say needs arg".into()))?;
                         let content = from_expr(content_arg)?;
                         if let Some(time_arg) = args.get(1) {
                             let time = from_expr(time_arg)?;
@@ -817,7 +823,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "think" {
                         let content_arg = args
                             .first()
-                            .ok_or_else(|| UnmappedBlock("think needs arg".into()))?;
+                            .ok_or_else(|| SyntaxError("think needs arg".into()))?;
                         let content = from_expr(content_arg)?;
                         if let Some(time_arg) = args.get(1) {
                             let time = from_expr(time_arg)?;
@@ -834,12 +840,12 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "change_to_some_shape" {
                         let arg = args.first().ok_or_else(|| {
-                            UnmappedBlock("change_to_some_shape needs arg".into())
+                            SyntaxError("change_to_some_shape needs arg".into())
                         })?;
                         let picture = match arg {
                             Expr::Str(s) => s.clone(),
                             _ => {
-                                return Err(UnmappedBlock(
+                                return Err(SyntaxError(
                                     "change_to_some_shape arg must be string".into(),
                                 ));
                             }
@@ -852,7 +858,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if let Some(op) = calc_op_from_name(&fref.name) {
                         let arg = args
                             .first()
-                            .ok_or_else(|| UnmappedBlock(format!("{} needs arg", fref.name)))?;
+                            .ok_or_else(|| SyntaxError(format!("{} needs arg", fref.name)))?;
                         return Ok(Block::CalcOperation {
                             op,
                             expr: from_expr(arg)?,
@@ -863,13 +869,13 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "add_effect_amount" {
                         if args.len() != 2 {
-                            return Err(UnmappedBlock("add_effect_amount needs 2 args".into()));
+                            return Err(SyntaxError("add_effect_amount needs 2 args".into()));
                         }
                         let effect = match &args[0] {
                             Expr::Str(s) => str_to_effect(s)
-                                .ok_or_else(|| UnmappedBlock(format!("unknown effect: {s}")))?,
+                                .ok_or_else(|| SyntaxError(format!("unknown effect: {s}")))?,
                             _ => {
-                                return Err(UnmappedBlock(
+                                return Err(SyntaxError(
                                     "add_effect_amount effect must be string".into(),
                                 ));
                             }
@@ -879,13 +885,13 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "change_effect_amount" {
                         if args.len() != 2 {
-                            return Err(UnmappedBlock("change_effect_amount needs 2 arg".into()));
+                            return Err(SyntaxError("change_effect_amount needs 2 arg".into()));
                         }
                         let effect = match &args[0] {
                             Expr::Str(s) => str_to_effect(s)
-                                .ok_or_else(|| UnmappedBlock(format!("unknow effect: {s}")))?,
+                                .ok_or_else(|| SyntaxError(format!("unknow effect: {s}")))?,
                             _ => {
-                                return Err(UnmappedBlock(
+                                return Err(SyntaxError(
                                     "change_effect_amount effect must be string".into(),
                                 ));
                             }
@@ -899,7 +905,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "change_scale_size" {
                         let arg = args
                             .first()
-                            .ok_or_else(|| UnmappedBlock("change_scale_size needs arg".into()))?;
+                            .ok_or_else(|| SyntaxError("change_scale_size needs arg".into()))?;
                         return Ok(Block::ChangeScaleSize {
                             amount: from_expr(arg)?,
                         });
@@ -907,7 +913,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "set_scale_size" {
                         let arg = args
                             .first()
-                            .ok_or_else(|| UnmappedBlock("set_scale_size needs arg".into()))?;
+                            .ok_or_else(|| SyntaxError("set_scale_size needs arg".into()))?;
                         return Ok(Block::SetScaleSize {
                             amount: from_expr(arg)?,
                         });
@@ -923,13 +929,13 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "stretch_scale_size" {
                         if args.len() != 2 {
-                            return Err(UnmappedBlock("stretch_scale_size needs 2 args".into()));
+                            return Err(SyntaxError("stretch_scale_size needs 2 args".into()));
                         }
                         let dim = match &args[0] {
                             Expr::Str(s) => str_to_dim(s)
-                                .ok_or_else(|| UnmappedBlock(format!("unknown dimension: {s}")))?,
+                                .ok_or_else(|| SyntaxError(format!("unknown dimension: {s}")))?,
                             _ => {
-                                return Err(UnmappedBlock(
+                                return Err(SyntaxError(
                                     "stretch_scale_size dimension must be string".into(),
                                 ));
                             }
@@ -947,11 +953,11 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "change_object_index" {
                         let arg = args
                             .first()
-                            .ok_or_else(|| UnmappedBlock("change_object_index needs arg".into()))?;
+                            .ok_or_else(|| SyntaxError("change_object_index needs arg".into()))?;
                         let direction = match arg {
                             Expr::Str(s) => s.clone(),
                             _ => {
-                                return Err(UnmappedBlock(
+                                return Err(SyntaxError(
                                     "change_object_index arg must be string".into(),
                                 ));
                             }
@@ -960,14 +966,14 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "add_value_to_list" {
                         if args.len() != 2 {
-                            return Err(UnmappedBlock("add_value_to_list needs 2 args".into()));
+                            return Err(SyntaxError("add_value_to_list needs 2 args".into()));
                         }
 
                         let value = from_expr(&args[0])?;
                         let list = match &args[1] {
                             Expr::Var(name) => name.clone(),
                             _ => {
-                                return Err(UnmappedBlock(
+                                return Err(SyntaxError(
                                     "add_value_to_list list must be variable".into(),
                                 ));
                             }
@@ -977,7 +983,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "remove_value_from_list" {
                         if args.len() != 2 {
-                            return Err(UnmappedBlock(
+                            return Err(SyntaxError(
                                 "remove_value_from_list needs 2 args".into(),
                             ));
                         }
@@ -986,7 +992,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         let list = match &args[1] {
                             Expr::Var(name) => name.clone(),
                             _ => {
-                                return Err(UnmappedBlock(
+                                return Err(SyntaxError(
                                     "remove_value_from_list list must be variable".into(),
                                 ));
                             }
@@ -996,14 +1002,14 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "insert_value_to_list" {
                         if args.len() != 3 {
-                            return Err(UnmappedBlock("insert_value_to_list needs 3 args".into()));
+                            return Err(SyntaxError("insert_value_to_list needs 3 args".into()));
                         }
                         let value = from_expr(&args[0])?;
                         let index = from_expr(&args[1])?;
                         let list = match &args[2] {
                             Expr::Var(name) => name.clone(),
                             _ => {
-                                return Err(UnmappedBlock(
+                                return Err(SyntaxError(
                                     "insert_value_to_list list must be variable".into(),
                                 ));
                             }
@@ -1012,7 +1018,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "change_value_list_index" {
                         if args.len() != 3 {
-                            return Err(UnmappedBlock(
+                            return Err(SyntaxError(
                                 "change_vale_list_index needs 3 args".into(),
                             ));
                         }
@@ -1020,19 +1026,19 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         let value = from_expr(&args[1])?;
                         let list = match &args[2] {
                             Expr::Var(name) => name.clone(),
-                            _ => return Err(UnmappedBlock("change_value_list_index".into())),
+                            _ => return Err(SyntaxError("change_value_list_index".into())),
                         };
 
                         return Ok(Block::ChangeValueListIndex { index, value, list });
                     }
                     if fref.name == "length_of_list" {
                         if args.len() != 1 {
-                            return Err(UnmappedBlock("length_of_list needs 1 arg".into()));
+                            return Err(SyntaxError("length_of_list needs 1 arg".into()));
                         }
                         let list = match &args[0] {
                             Expr::Var(name) => name.clone(),
                             _ => {
-                                return Err(UnmappedBlock(
+                                return Err(SyntaxError(
                                     "length_of_list list must be variable".into(),
                                 ));
                             }
@@ -1041,32 +1047,32 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "show_list" {
                         if args.len() != 1 {
-                            return Err(UnmappedBlock("show_list needs 1 arg".into()));
+                            return Err(SyntaxError("show_list needs 1 arg".into()));
                         }
                         let list = match &args[0] {
                             Expr::Var(name) => name.clone(),
-                            _ => return Err(UnmappedBlock("show_list must be variable".into())),
+                            _ => return Err(SyntaxError("show_list must be variable".into())),
                         };
                         return Ok(Block::ShowList { list });
                     }
                     if fref.name == "hide_list" {
                         if args.len() != 1 {
-                            return Err(UnmappedBlock("hide_list needs 1 arg".into()));
+                            return Err(SyntaxError("hide_list needs 1 arg".into()));
                         }
                         let list = match &args[0] {
                             Expr::Var(name) => name.clone(),
-                            _ => return Err(UnmappedBlock("hide_list must be variable".into())),
+                            _ => return Err(SyntaxError("hide_list must be variable".into())),
                         };
                         return Ok(Block::HideList { list });
                     }
                     if fref.name == "is_included_in_list" {
                         if args.len() != 2 {
-                            return Err(UnmappedBlock("is_included_in_list needs 2 args".into()));
+                            return Err(SyntaxError("is_included_in_list needs 2 args".into()));
                         }
                         let list = match &args[0] {
                             Expr::Var(name) => name.clone(),
                             _ => {
-                                return Err(UnmappedBlock(
+                                return Err(SyntaxError(
                                     "is_included_in_list list must be variable".into(),
                                 ));
                             }
@@ -1076,13 +1082,13 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "is_clicked" {
                         if args.len() > 0 {
-                            return Err(UnmappedBlock("is_clicked needs no args".into()));
+                            return Err(SyntaxError("is_clicked needs no args".into()));
                         }
                         return Ok(Block::IsClicked);
                     }
                     if fref.name == "is_object_clicked" {
                         if args.len() > 0 {
-                            return Err(UnmappedBlock("is_object_clicked needs no args".into()));
+                            return Err(SyntaxError("is_object_clicked needs no args".into()));
                         }
                         return Ok(Block::IsObjectClicked);
                     }
@@ -1094,14 +1100,14 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                                 Expr::Var(name) if name == "self" => "self".to_string(),
                                 Expr::Var(name) => name.clone(),
                                 _ => {
-                                    return Err(UnmappedBlock(
+                                    return Err(SyntaxError(
                                         "create_clone target must be string literal or variable"
                                             .into(),
                                     ));
                                 }
                             },
                             _ => {
-                                return Err(UnmappedBlock(format!(
+                                return Err(SyntaxError(format!(
                                     "create_clone needs 0 or 1 args, got {}",
                                     args.len()
                                 )));
@@ -1111,35 +1117,35 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "move_x" {
                         if args.len() != 1 {
-                            return Err(UnmappedBlock("move_x needs 1 arg".into()));
+                            return Err(SyntaxError("move_x needs 1 arg".into()));
                         }
                         let amount = from_expr(&args[0])?;
                         return Ok(Block::MoveX { amount });
                     }
                     if fref.name == "move_y" {
                         if args.len() != 1 {
-                            return Err(UnmappedBlock("move_y needs 1 arg".into()));
+                            return Err(SyntaxError("move_y needs 1 arg".into()));
                         }
                         let amount = from_expr(&args[0])?;
                         return Ok(Block::MoveY { amount });
                     }
                     if fref.name == "rotate_relative" {
                         if args.len() != 1 {
-                            return Err(UnmappedBlock("rotate_relative needs 1 arg".into()));
+                            return Err(SyntaxError("rotate_relative needs 1 arg".into()));
                         }
                         let angle = from_expr(&args[0])?;
                         return Ok(Block::RotateRelative { angle });
                     }
                     if fref.name == "direction_relative" {
                         if args.len() != 1 {
-                            return Err(UnmappedBlock("direction_relative needs 1 arg".into()));
+                            return Err(SyntaxError("direction_relative needs 1 arg".into()));
                         }
                         let angle = from_expr(&args[0])?;
                         return Ok(Block::DirectionRelative { angle });
                     }
                     if fref.name == "move_xy_time" {
                         if args.len() != 3 {
-                            return Err(UnmappedBlock("move_xy_time".into()));
+                            return Err(SyntaxError("move_xy_time".into()));
                         }
                         let duration = from_expr(&args[0])?;
                         let dx = from_expr(&args[1])?;
@@ -1148,21 +1154,21 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "locate_x" {
                         if args.len() != 1 {
-                            return Err(UnmappedBlock("locate_x needs 1 arg".into()));
+                            return Err(SyntaxError("locate_x needs 1 arg".into()));
                         }
                         let x = from_expr(&args[0])?;
                         return Ok(Block::LocateX { x });
                     }
                     if fref.name == "locate_y" {
                         if args.len() != 1 {
-                            return Err(UnmappedBlock("locate_y needs 1 arg".into()));
+                            return Err(SyntaxError("locate_y needs 1 arg".into()));
                         }
                         let y = from_expr(&args[0])?;
                         return Ok(Block::LocateY { y });
                     }
                     if fref.name == "locate_xy" {
                         if args.len() != 2 {
-                            return Err(UnmappedBlock("locate_xy needs 2 args".into()));
+                            return Err(SyntaxError("locate_xy needs 2 args".into()));
                         }
                         let x = from_expr(&args[0])?;
                         let y = from_expr(&args[1])?;
@@ -1170,7 +1176,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "locate_xy_time" {
                         if args.len() != 3 {
-                            return Err(UnmappedBlock("locate_xy_time needs 3 args".into()));
+                            return Err(SyntaxError("locate_xy_time needs 3 args".into()));
                         }
                         let duration = from_expr(&args[0])?;
                         let x = from_expr(&args[1])?;
@@ -1179,7 +1185,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "locate_object_time" {
                         if args.len() != 2 {
-                            return Err(UnmappedBlock("locate_object_time needs 2 args".into()));
+                            return Err(SyntaxError("locate_object_time needs 2 args".into()));
                         }
                         let duration = from_expr(&args[0])?;
                         let target = from_expr(&args[1])?;
@@ -1187,14 +1193,14 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "locate" {
                         if args.len() != 1 {
-                            return Err(UnmappedBlock("locate needs 1 args".into()));
+                            return Err(SyntaxError("locate needs 1 args".into()));
                         }
                         let target = from_expr(&args[0])?;
                         return Ok(Block::Locate { target });
                     }
                     if fref.name == "rotate_by_time" {
                         if args.len() != 2 {
-                            return Err(UnmappedBlock("rotate_by_time needs 2 args".into()));
+                            return Err(SyntaxError("rotate_by_time needs 2 args".into()));
                         }
                         let duration = from_expr(&args[0])?;
                         let angle = from_expr(&args[1])?;
@@ -1202,7 +1208,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "direction_relative_duration" {
                         if args.len() != 2 {
-                            return Err(UnmappedBlock(
+                            return Err(SyntaxError(
                                 "direction_relative_duration needs 2 args".into(),
                             ));
                         }
@@ -1212,28 +1218,28 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "rotate_absolute" {
                         if args.len() != 1 {
-                            return Err(UnmappedBlock("rotate_absolute needs 1 arg".into()));
+                            return Err(SyntaxError("rotate_absolute needs 1 arg".into()));
                         }
                         let angle = from_expr(&args[0])?;
                         return Ok(Block::RotateAbsolute { angle });
                     }
                     if fref.name == "direction_absolute" {
                         if args.len() != 1 {
-                            return Err(UnmappedBlock("direction_absolute needs 1 arg".into()));
+                            return Err(SyntaxError("direction_absolute needs 1 arg".into()));
                         }
                         let angle = from_expr(&args[0])?;
                         return Ok(Block::DirectionAbsolute { angle });
                     }
                     if fref.name == "see_angle_object" {
                         if args.len() != 1 {
-                            return Err(UnmappedBlock("see_angle_object needs 1 arg".into()));
+                            return Err(SyntaxError("see_angle_object needs 1 arg".into()));
                         }
                         let target = from_expr(&args[0])?;
                         return Ok(Block::SeeAngleObject { target });
                     }
                     if fref.name == "move_to_angle" {
                         if args.len() != 2 {
-                            return Err(UnmappedBlock("move_to_angle needs 2 args".into()));
+                            return Err(SyntaxError("move_to_angle needs 2 args".into()));
                         }
                         let angle = from_expr(&args[0])?;
                         let distance = from_expr(&args[1])?;
@@ -1241,18 +1247,18 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "bounce_wall" {
                         if args.len() > 0 {
-                            return Err(UnmappedBlock("bounce_wall needs no args".into()));
+                            return Err(SyntaxError("bounce_wall needs no args".into()));
                         }
                         return Ok(Block::BounceWall);
                     }
                     if fref.name == "move_direction" {
                         if args.len() != 2 {
-                            return Err(UnmappedBlock("move_direction needs 2 args".into()));
+                            return Err(SyntaxError("move_direction needs 2 args".into()));
                         }
                         let direction = match &args[0] {
                             Expr::Str(s) => s.clone(),
                             _ => {
-                                return Err(UnmappedBlock(
+                                return Err(SyntaxError(
                                     "move_direction direction must be string".into(),
                                 ));
                             }
@@ -1263,11 +1269,11 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "is_press_some_key" {
                         let arg = args
                             .first()
-                            .ok_or_else(|| UnmappedBlock("is_press_some_key needs arg".into()))?;
+                            .ok_or_else(|| SyntaxError("is_press_some_key needs arg".into()))?;
                         let key = match arg {
                             Expr::Str(s) => s.clone(),
                             _ => {
-                                return Err(UnmappedBlock(
+                                return Err(SyntaxError(
                                     "is_press_some_key arg must be string".into(),
                                 ));
                             }
@@ -1280,7 +1286,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             match arg {
                                 Expr::Str(s) => s.clone(),
                                 _ => {
-                                    return Err(UnmappedBlock(
+                                    return Err(SyntaxError(
                                         "reach_something arg must be string".into(),
                                     ));
                                 }
@@ -1293,9 +1299,21 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     // --- 붓 ---
                     if fref.name == "brush_stamp" {
                         if args.len() > 0 {
-                            return Err(UnmappedBlock("brush_stamp not needs arg".into()));
+                            return Err(SyntaxError("brush_stamp not needs arg".into()));
                         }
                         return Ok(Block::BrushStamp);
+                    }
+                    if fref.name == "start_drawing" {
+                        if args.len() > 0 {
+                            return Err(SyntaxError("start_drawing not needs arg".into()));
+                        }
+                        return Ok(Block::StartDrawing);
+                    }
+                    if fref.name == "stop_drawing" {
+                        if args.len() > 0 {
+                            return Err(SyntaxError("stop_drawing not needs arg".into()));
+                        }
+                        return Ok(Block::StopDrawing);
                     }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
@@ -1317,7 +1335,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         args,
                     })
                 }
-                _ => Err(UnmappedBlock("stmt-level expr not a call".into())),
+                _ => Err(SyntaxError("stmt-level expr not a call".into())),
             }
         }
         Stmt::If {
@@ -1365,7 +1383,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
             //     change_variable i 1
             let (start, end) = match iter {
                 Expr::Range(s, e) => (s.as_ref().clone(), e.as_ref().clone()),
-                _ => return Err(UnmappedBlock("for iter not range".into())),
+                _ => return Err(SyntaxError("for iter not range".into())),
             };
             let start_pb = from_expr(&start)?;
             let end_pb = from_expr(&end)?;
@@ -1431,7 +1449,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
         Expr::Call(fref, args) => {
             if fref.name == "calc_rand" {
                 if args.len() != 2 {
-                    return Err(UnmappedBlock("calc_rand needs 2 args".into()));
+                    return Err(SyntaxError("calc_rand needs 2 args".into()));
                 }
                 let min = from_expr(&args[0])?;
                 let max = from_expr(&args[1])?;
@@ -1440,7 +1458,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             if fref.name == "say" {
                 let content_arg = args
                     .first()
-                    .ok_or_else(|| UnmappedBlock("say needs arg".into()))?;
+                    .ok_or_else(|| SyntaxError("say needs arg".into()))?;
                 let content = from_expr(content_arg)?;
                 if let Some(time_arg) = args.get(1) {
                     let time = from_expr(time_arg)?;
@@ -1458,7 +1476,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             if fref.name == "think" {
                 let content_arg = args
                     .first()
-                    .ok_or_else(|| UnmappedBlock("think needs arg".into()))?;
+                    .ok_or_else(|| SyntaxError("think needs arg".into()))?;
                 let content = from_expr(content_arg)?;
                 if let Some(time_arg) = args.get(1) {
                     let time = from_expr(time_arg)?;
@@ -1481,13 +1499,13 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             }
             if fref.name == "quotient_and_mod" {
                 if args.len() != 3 {
-                    return Err(UnmappedBlock("quotient_and_mod needs 3 args".into()));
+                    return Err(SyntaxError("quotient_and_mod needs 3 args".into()));
                 }
                 let mode = match &args[2] {
                     Expr::Str(s) if s == "quotient" => QamMethod::Quotient,
                     Expr::Str(s) if s == "modulo" => QamMethod::Mod,
                     _ => {
-                        return Err(UnmappedBlock(
+                        return Err(SyntaxError(
                             "quotient_and_mod mode must be \"quotient\" \"modulo\"".into(),
                         ));
                     }
@@ -1503,7 +1521,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             if let Some(op) = calc_op_from_name(&fref.name) {
                 let arg = args
                     .first()
-                    .ok_or_else(|| UnmappedBlock(format!("{} needs arg", fref.name)))?;
+                    .ok_or_else(|| SyntaxError(format!("{} needs arg", fref.name)))?;
                 return Ok(ParamBlock::Sub(Box::new(Block::CalcOperation {
                     op,
                     expr: from_expr(arg)?,
@@ -1512,21 +1530,21 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             if fref.name == "change_scale_size" {
                 let arg = args
                     .first()
-                    .ok_or_else(|| UnmappedBlock("change_scale_size needs arg".into()))?;
+                    .ok_or_else(|| SyntaxError("change_scale_size needs arg".into()))?;
                 return Ok(ParamBlock::Sub(Box::new(Block::ChangeScaleSize {
                     amount: from_expr(arg)?,
                 })));
             }
             if fref.name == "move_x" {
                 if args.len() != 1 {
-                    return Err(UnmappedBlock("move_x needs 1 arg".into()));
+                    return Err(SyntaxError("move_x needs 1 arg".into()));
                 }
                 let amount = from_expr(&args[0])?;
                 return Ok(ParamBlock::Sub(Box::new(Block::MoveX { amount })));
             }
             if fref.name == "move_y" {
                 if args.len() != 1 {
-                    return Err(UnmappedBlock("move_y needs 1 arg".into()));
+                    return Err(SyntaxError("move_y needs 1 arg".into()));
                 }
                 let amount = from_expr(&args[0])?;
                 return Ok(ParamBlock::Sub(Box::new(Block::MoveY { amount })));
@@ -1537,7 +1555,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             if fref.name == "set_scale_size" {
                 let arg = args
                     .first()
-                    .ok_or_else(|| UnmappedBlock("set_scale_size needs arg".into()))?;
+                    .ok_or_else(|| SyntaxError("set_scale_size needs arg".into()))?;
                 return Ok(ParamBlock::Sub(Box::new(Block::SetScaleSize {
                     amount: from_expr(arg)?,
                 })));
@@ -1547,12 +1565,12 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             }
             if fref.name == "move_direction" {
                 if args.len() != 2 {
-                    return Err(UnmappedBlock("move_direction needs 2 args".into()));
+                    return Err(SyntaxError("move_direction needs 2 args".into()));
                 }
                 let direction = match &args[0] {
                     Expr::Str(s) => s.clone(),
                     _ => {
-                        return Err(UnmappedBlock(
+                        return Err(SyntaxError(
                             "move_direction direction must be string".into(),
                         ));
                     }
@@ -1565,7 +1583,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             }
             if fref.name == "direction_relative" {
                 if args.len() != 1 {
-                    return Err(UnmappedBlock("direction_relative needs 1 arg".into()));
+                    return Err(SyntaxError("direction_relative needs 1 arg".into()));
                 }
                 let angle = from_expr(&args[0])?;
                 return Ok(ParamBlock::Sub(Box::new(Block::DirectionRelative {
@@ -1593,11 +1611,11 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             if fref.name == "change_object_index" {
                 let arg = args
                     .first()
-                    .ok_or_else(|| UnmappedBlock("change_object_index needs arg".into()))?;
+                    .ok_or_else(|| SyntaxError("change_object_index needs arg".into()))?;
                 let direction = match arg {
                     Expr::Str(s) => s.clone(),
                     _ => {
-                        return Err(UnmappedBlock(
+                        return Err(SyntaxError(
                             "change_object_index arg must be string".into(),
                         ));
                     }
@@ -1608,7 +1626,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             }
             if fref.name == "value_of_index_from_list" {
                 if args.len() != 2 {
-                    return Err(UnmappedBlock(
+                    return Err(SyntaxError(
                         "value_of_index_from_list needs 2 args".into(),
                     ));
                 }
@@ -1617,7 +1635,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 let list = match &args[1] {
                     Expr::Var(name) => name.clone(),
                     _ => {
-                        return Err(UnmappedBlock(
+                        return Err(SyntaxError(
                             "value_of_index_from_list list must be variable".into(),
                         ));
                     }
@@ -1630,24 +1648,24 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             }
             if fref.name == "length_of_list" {
                 if args.len() != 1 {
-                    return Err(UnmappedBlock("length_of_list needs 1 arg".into()));
+                    return Err(SyntaxError("length_of_list needs 1 arg".into()));
                 }
                 let list = match &args[0] {
                     Expr::Var(name) => name.clone(),
                     _ => {
-                        return Err(UnmappedBlock("length_of_list list must be variable".into()));
+                        return Err(SyntaxError("length_of_list list must be variable".into()));
                     }
                 };
                 return Ok(ParamBlock::Sub(Box::new(Block::LengthOfList { list })));
             }
             if fref.name == "is_included_in_list" {
                 if args.len() != 2 {
-                    return Err(UnmappedBlock("is_included_in_list needs 2 args".into()));
+                    return Err(SyntaxError("is_included_in_list needs 2 args".into()));
                 }
                 let list = match &args[0] {
                     Expr::Var(name) => name.clone(),
                     _ => {
-                        return Err(UnmappedBlock(
+                        return Err(SyntaxError(
                             "is_included_in_list list must be variable".into(),
                         ));
                     }
@@ -1661,10 +1679,10 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             if fref.name == "is_press_some_key" {
                 let arg = args
                     .first()
-                    .ok_or_else(|| UnmappedBlock("is_press_some_key needs arg".into()))?;
+                    .ok_or_else(|| SyntaxError("is_press_some_key needs arg".into()))?;
                 let key = match arg {
                     Expr::Str(s) => s.clone(),
-                    _ => return Err(UnmappedBlock("is_press_some_key arg must be string".into())),
+                    _ => return Err(SyntaxError("is_press_some_key arg must be string".into())),
                 };
                 return Ok(ParamBlock::Sub(Box::new(Block::IsPressSomeKey { key })));
             }
@@ -1673,7 +1691,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     match arg {
                         Expr::Str(s) => s.clone(),
                         _ => {
-                            return Err(UnmappedBlock("reach_something arg must be string".into()));
+                            return Err(SyntaxError("reach_something arg must be string".into()));
                         }
                     }
                 } else {
@@ -1684,7 +1702,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             // --- 붓(expr) ---
             if fref.name == "brush_stamp" {
                 if args.len() > 0 {
-                    return Err(UnmappedBlock("brush_stamp not needs arg".into()));
+                    return Err(SyntaxError("brush_stamp not needs arg".into()));
                 }
                 return Ok(ParamBlock::Sub(Box::new(Block::BrushStamp)));
             }
@@ -1708,10 +1726,10 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 args,
             })))
         }
-        Expr::Func(_) => Err(UnmappedBlock("bare func ref".into())),
+        Expr::Func(_) => Err(SyntaxError("bare func ref".into())),
         Expr::Range(start, end) => {
             let _ = (start, end);
-            Err(UnmappedBlock("range expr".into()))
+            Err(SyntaxError("range expr".into()))
         }
     }
 }
@@ -2108,6 +2126,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             None,
         ),
         Block::BrushStamp => (vec![], None),
+        Block::StartDrawing => (vec![], None),
+        Block::StopDrawing => (vec![], None),
     })
 }
 

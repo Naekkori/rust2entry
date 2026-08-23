@@ -26,6 +26,9 @@ pub enum Error {
     /// 매핑되지 않은 블록.
     #[error("unmapped block: {0}")]
     UnmappedBlock(String),
+    /// 구문오류 (파라미터 불일치 또는 여러가지)
+    #[error("syntax error: {0}")]
+    SyntaxError(String),
 }
 
 /// 컴파일러 결과 타입 별칭.

@@ -369,6 +369,8 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::MoveToAngle { angle, distance }
         }
         "brush_stamp" => Block::BrushStamp,
+        "start_drawing" => Block::StartDrawing,
+        "stop_drawing" => Block::StopDrawing,
         "direction_relative_duration" => {
             let duration = param_at(&params, 0, vars)?;
             let amount = param_at(&params, 1, vars)?;
@@ -2019,6 +2021,28 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::StartDrawing => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "start_drawing".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::StopDrawing => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "stop_drawing".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2743,6 +2767,22 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         Block::BrushStamp => Ok(Expr::Call(
             ir::FuncRef {
                 name: "brush_stamp".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
+        Block::StartDrawing => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "start_drawing".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
+        Block::StopDrawing => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "stop_drawing".to_string(),
                 arity: 0,
                 raw: None,
             },
