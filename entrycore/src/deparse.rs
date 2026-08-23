@@ -368,9 +368,12 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let distance = param_at(&params, 1, vars)?;
             Block::MoveToAngle { angle, distance }
         }
+        // 붓
         "brush_stamp" => Block::BrushStamp,
         "start_drawing" => Block::StartDrawing,
         "stop_drawing" => Block::StopDrawing,
+        "start_fill" => Block::StartFill,
+        "stop_fill" => Block::StopFill,
         "direction_relative_duration" => {
             let duration = param_at(&params, 0, vars)?;
             let amount = param_at(&params, 1, vars)?;
@@ -2043,6 +2046,28 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::StartFill => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "start_fill".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::StopFill => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "stop_fill".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2783,6 +2808,22 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         Block::StopDrawing => Ok(Expr::Call(
             ir::FuncRef {
                 name: "stop_drawing".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
+        Block::StartFill => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "start_fill".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
+        Block::StopFill => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "stop_fill".to_string(),
                 arity: 0,
                 raw: None,
             },

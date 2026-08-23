@@ -2767,6 +2767,90 @@ fn compile_stop_drawing_roundtrip() {
     }
 }
 
+/// `start_fill()` → `start_fill` 블록, params = [].
+#[test]
+fn compile_start_fill() {
+    let src = r#"fn when_start() { start_fill(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "start_fill");
+    let params = thread[1]["params"].as_array().unwrap();
+    assert_eq!(params.len(), 0);
+}
+
+#[test]
+fn compile_start_fill_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { start_fill(); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "start_fill");
+                    assert_eq!(args.len(), 0);
+                }
+                other => panic!("expected Call(start_fill), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `stop_fill()` → `stop_fill` 블록, params = [].
+#[test]
+fn compile_stop_fill() {
+    let src = r#"fn when_start() { stop_fill(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "stop_fill");
+    let params = thread[1]["params"].as_array().unwrap();
+    assert_eq!(params.len(), 0);
+}
+
+#[test]
+fn compile_stop_fill_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { stop_fill(); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "stop_fill");
+                    assert_eq!(args.len(), 0);
+                }
+                other => panic!("expected Call(stop_fill), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// `move_xy_time(1.0, 10.0, 5.0)` → `move_xy_time` 블록, params = [시간, x, y].
 #[test]
 fn compile_move_xy_time() {

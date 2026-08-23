@@ -323,6 +323,8 @@ pub enum Block {
     BrushStamp,
     StartDrawing,
     StopDrawing,
+    StartFill,
+    StopFill,
     // --- 움직임 ---
     MoveDirection {
         direction: String,
@@ -555,6 +557,8 @@ impl Block {
             Block::BrushStamp => "brush_stamp",
             Block::StartDrawing => "start_drawing",
             Block::StopDrawing => "stop_drawing",
+            Block::StartFill => "start_fill",
+            Block::StopFill => "stop_fill",
         }
     }
 
@@ -664,6 +668,8 @@ impl Block {
             Block::BrushStamp => Category::Pen,
             Block::StartDrawing => Category::Pen,
             Block::StopDrawing => Category::Pen,
+            Block::StartFill => Category::Pen,
+            Block::StopFill => Category::Pen,
         }
     }
 }
@@ -839,9 +845,9 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         });
                     }
                     if fref.name == "change_to_some_shape" {
-                        let arg = args.first().ok_or_else(|| {
-                            SyntaxError("change_to_some_shape needs arg".into())
-                        })?;
+                        let arg = args
+                            .first()
+                            .ok_or_else(|| SyntaxError("change_to_some_shape needs arg".into()))?;
                         let picture = match arg {
                             Expr::Str(s) => s.clone(),
                             _ => {
@@ -983,9 +989,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "remove_value_from_list" {
                         if args.len() != 2 {
-                            return Err(SyntaxError(
-                                "remove_value_from_list needs 2 args".into(),
-                            ));
+                            return Err(SyntaxError("remove_value_from_list needs 2 args".into()));
                         }
 
                         let index = from_expr(&args[0])?;
@@ -1018,9 +1022,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     if fref.name == "change_value_list_index" {
                         if args.len() != 3 {
-                            return Err(SyntaxError(
-                                "change_vale_list_index needs 3 args".into(),
-                            ));
+                            return Err(SyntaxError("change_vale_list_index needs 3 args".into()));
                         }
                         let index = from_expr(&args[0])?;
                         let value = from_expr(&args[1])?;
@@ -1296,7 +1298,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         return Ok(Block::ReachSomeThing { target });
                     }
-                    // --- 붓 ---
+                    // --- 붓(stmt) ---
                     if fref.name == "brush_stamp" {
                         if args.len() > 0 {
                             return Err(SyntaxError("brush_stamp not needs arg".into()));
@@ -1314,6 +1316,18 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             return Err(SyntaxError("stop_drawing not needs arg".into()));
                         }
                         return Ok(Block::StopDrawing);
+                    }
+                    if fref.name == "start_fill" {
+                        if args.len() > 0 {
+                            return Err(SyntaxError("start_fill not needs arg".into()));
+                        }
+                        return Ok(Block::StartFill);
+                    }
+                    if fref.name == "stop_fill" {
+                        if args.len() > 0 {
+                            return Err(SyntaxError("stop_fill not needs arg".into()));
+                        }
+                        return Ok(Block::StopFill);
                     }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
@@ -1615,9 +1629,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 let direction = match arg {
                     Expr::Str(s) => s.clone(),
                     _ => {
-                        return Err(SyntaxError(
-                            "change_object_index arg must be string".into(),
-                        ));
+                        return Err(SyntaxError("change_object_index arg must be string".into()));
                     }
                 };
                 return Ok(ParamBlock::Sub(Box::new(Block::ChangeObjectIndex {
@@ -1626,9 +1638,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             }
             if fref.name == "value_of_index_from_list" {
                 if args.len() != 2 {
-                    return Err(SyntaxError(
-                        "value_of_index_from_list needs 2 args".into(),
-                    ));
+                    return Err(SyntaxError("value_of_index_from_list needs 2 args".into()));
                 }
 
                 let index = from_expr(&args[0])?;
@@ -1706,6 +1716,31 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 }
                 return Ok(ParamBlock::Sub(Box::new(Block::BrushStamp)));
             }
+            if fref.name == "start_drawing" {
+                if args.len() > 0 {
+                    return Err(SyntaxError("start_drawing not needs arg".into()));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::StartDrawing)));
+            }
+            if fref.name == "stop_drawing" {
+                if args.len() > 0 {
+                    return Err(SyntaxError("stop_drawing not needs arg".into()));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::StopDrawing)));
+            }
+            if fref.name == "start_fill" {
+                if args.len() > 0 {
+                    return Err(SyntaxError("start_fill not needs arg".into()));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::StartFill)));
+            }
+            if fref.name == "stop_fill" {
+                if args.len() > 0 {
+                    return Err(SyntaxError("stop_fill not needs arg".into()));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::StopFill)));
+            }
+
             // 하드웨어 getter 블럭 (소스맵 인덱스) — 값으로 사용.
             if crate::block::registry::is_hw_block(&fref.name) {
                 let raw = if let Some(r) = &fref.raw {
@@ -2128,6 +2163,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::BrushStamp => (vec![], None),
         Block::StartDrawing => (vec![], None),
         Block::StopDrawing => (vec![], None),
+        Block::StartFill => (vec![], None),
+        Block::StopFill => (vec![], None),
     })
 }
 
