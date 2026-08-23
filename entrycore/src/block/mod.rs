@@ -657,7 +657,7 @@ impl Block {
             Block::DirectionAbsolute { .. } => Category::Movement,
             Block::SeeAngleObject { .. } => Category::Movement,
             Block::MoveToAngle { .. } => Category::Movement,
-            Block::BrushStamp => todo!(),
+            Block::BrushStamp => Category::Pen,
         }
     }
 }
@@ -1290,6 +1290,13 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
                         return Ok(Block::ReachSomeThing { target });
                     }
+                    // --- 붓 ---
+                    if fref.name == "brush_stamp" {
+                        if args.len() > 0 {
+                            return Err(UnmappedBlock("brush_stamp not needs arg".into()));
+                        }
+                        return Ok(Block::BrushStamp);
+                    }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
                         let raw = if let Some(r) = &fref.raw {
@@ -1673,6 +1680,13 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     "self".to_string()
                 };
                 return Ok(ParamBlock::Sub(Box::new(Block::ReachSomeThing { target })));
+            }
+            // --- 붓(expr) ---
+            if fref.name == "brush_stamp" {
+                if args.len() > 0 {
+                    return Err(UnmappedBlock("brush_stamp not needs arg".into()));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::BrushStamp)));
             }
             // 하드웨어 getter 블럭 (소스맵 인덱스) — 값으로 사용.
             if crate::block::registry::is_hw_block(&fref.name) {
@@ -2093,6 +2107,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             vec![param_to_value(angle), param_to_value(distance), Value::Null],
             None,
         ),
+        Block::BrushStamp => (vec![], None),
     })
 }
 
