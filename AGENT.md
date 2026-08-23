@@ -223,8 +223,8 @@ fn greet(a: StringParam, b: BoolParam) {
 > EntryJS 의 `flip_x` 는 setScaleY 부호 반전 (좌우), `flip_y` 는 setScaleX 부호 반전 (상하). EntryJS 변수명과 동작이 반대 — EntryJS 호환을 위해 그대로 매핑.
 - ✅ `change_object_index` — □ 보내기 (레이어) (→ `change_object_index("front")` / `change_object_index("back")`)
 
-### 붓 (0/13)
-- ⬜ `brush_stamp` — 도장 찍기
+### 붓 (1/13)
+- ✅ `brush_stamp` — 도장 찍기 (→ `brush_stamp()`)
 - ⬜ `start_drawing` / `stop_drawing` — 그리기 시작/멈추기
 - ⬜ `start_fill` / `stop_fill` — 채우기 시작/멈추기
 - ⬜ `set_color` / `set_random_color` / `set_fill_color` — 색 정하기
@@ -511,9 +511,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**104/334** 매핑됨 (약 31.1%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**105/334** 매핑됨 (약 31.4%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 0/13, 텍스트 0/9, 소리 0/16, 판단 7/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 1/13, 텍스트 0/9, 소리 0/16, 판단 7/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -617,7 +617,7 @@ cargo build                 # 빌드만
 - `block::Dimension` (Width/Height) vs `codegen/schema.rs::Dimension` (picture width/height i64) — 이름 겹침. 현재는 모듈이 달라 컴파일 되지만 codegen 에서 둘 다 쓰면 alias 강제됨. `ScaleAxis` 로 rename 권장 (참조 ~7곳)
 
 **다음 할 일 추천 순서**:
-1. 판단 — `is_type` (타입 체크, 숫자/문자/리스트)
+1. 붓 — `start_drawing` / `stop_drawing` (그리기 시작/멈추기)
 
 ## 디렉토리
 

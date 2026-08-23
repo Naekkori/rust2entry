@@ -368,6 +368,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let distance = param_at(&params, 1, vars)?;
             Block::MoveToAngle { angle, distance }
         }
+        "brush_stamp" => Block::BrushStamp,
         "direction_relative_duration" => {
             let duration = param_at(&params, 0, vars)?;
             let amount = param_at(&params, 1, vars)?;
@@ -2007,6 +2008,17 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::BrushStamp => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "brush_stamp".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2728,6 +2740,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![angle_param, distance_param],
             ))
         }
+        Block::BrushStamp => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "brush_stamp".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
     }
 }
 
