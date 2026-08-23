@@ -380,6 +380,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let b = param_at(&params, 2, vars)?;
             Block::SetColor { r, g, b }
         }
+        "set_random_color" => Block::SetRandomColor,
         "direction_relative_duration" => {
             let duration = param_at(&params, 0, vars)?;
             let amount = param_at(&params, 1, vars)?;
@@ -388,7 +389,18 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         "delete_clone" => Block::DeleteClone,
         "remove_all_clones" => Block::RemoveAllClones,
         "bounce_wall" => Block::BounceWall,
-
+        "set_fill_color" => {
+            let color = param_at(&params, 0, vars)?;
+            Block::SetFillColor { color }
+        }
+        "change_thickness" => {
+            let amount = param_at(&params, 0, vars)?;
+            Block::ChangeThickness { amount }
+        }
+        "set_thickness" => {
+            let value = param_at(&params, 0, vars)?;
+            Block::SetThickness { value }
+        }
         // 산술/비교/논리
         "calc_basic" => {
             let lhs = param_at(&params, 0, vars)?;
@@ -2088,6 +2100,53 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::SetRandomColor => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "set_random_color".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::SetFillColor { color } => {
+            let c = expr_from_param(color, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "set_fill_color".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![c],
+            )));
+            Ok(())
+        }
+        Block::ChangeThickness { amount } => {
+            let a = expr_from_param(amount, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "change_thickness".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![a],
+            )));
+            Ok(())
+        }
+        Block::SetThickness { value } => {
+            let v = expr_from_param(value, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "set_thickness".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![v],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2860,6 +2919,47 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![r, g, b],
+            ))
+        }
+        Block::SetRandomColor => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "set_random_color".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
+        Block::SetFillColor { color } => {
+            let c = expr_from_param(color, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "set_fill_color".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![c],
+            ))
+        }
+        Block::ChangeThickness { amount } => {
+            let a = expr_from_param(amount, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "change_thickness".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![a],
+            ))
+        }
+        Block::SetThickness { value } => {
+            let v = expr_from_param(value, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "set_thickness".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![v],
             ))
         }
     }

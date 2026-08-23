@@ -223,12 +223,14 @@ fn greet(a: StringParam, b: BoolParam) {
 > EntryJS 의 `flip_x` 는 setScaleY 부호 반전 (좌우), `flip_y` 는 setScaleX 부호 반전 (상하). EntryJS 변수명과 동작이 반대 — EntryJS 호환을 위해 그대로 매핑.
 - ✅ `change_object_index` — □ 보내기 (레이어) (→ `change_object_index("front")` / `change_object_index("back")`)
 
-### 붓 (6/13)
+### 붓 (10/13)
 - ✅ `brush_stamp` — 도장 찍기 (→ `brush_stamp()`)
 - ✅ `start_drawing` / `stop_drawing` — 그리기 시작/멈추기 (→ `start_drawing()` / `stop_drawing()`)
 - ✅ `start_fill` / `stop_fill` — 채우기 시작/멈추기 (→ `start_fill()` / `stop_fill()`)
-- ✅ `set_color` / `set_random_color` / `set_fill_color` — 색 정하기 (→ `set_color(50.0, 100.0, 0.0)`)
-- ⬜ `change_thickness` / `set_thickness` — 그리기 굵기
+- ✅ `set_color` — 색 정하기 (→ `set_color(50.0, 100.0, 0.0)`)
+- ✅ `set_random_color` — 색을 랜덤으로 정하기 (→ `set_random_color()`)
+- ✅ `set_fill_color` — 채우기 색을 □ 로 정하기 (→ `set_fill_color("#FF0000")`)
+- ✅ `change_thickness` / `set_thickness` — 그리기 굵기 (→ `change_thickness(5.0)` / `set_thickness(10.0)`)
 - ⬜ `change_brush_transparency` / `set_brush_tranparency` — 붓 투명도
 - ⬜ `brush_erase_all` — 모든 붓 지우기
 
@@ -511,9 +513,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**110/334** 매핑됨 (약 32.9%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**114/334** 매핑됨 (약 34.1%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 6/13, 텍스트 0/9, 소리 0/16, 판단 7/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 10/13, 텍스트 0/9, 소리 0/16, 판단 7/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -590,19 +592,14 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
-- `43b1ab4 test: compile_locate + roundtrip`
-- `83a3616 feat(movement): locate_xy_time 매핑 (□ 초 동안 x:□ y:□ 위치로 이동하기)`
-- `e41a0d7a feat(movement): rotate_relative, direction_relative 매핑 + 오타fix + deparse 누락 fix`
-- `63f4ebcc feat(movement): bounce_wall 매핑 (화면 끝에 닿으면 튕기기)`
-- `630e157 feat(judge): reach_something 매핑 (□ 에 닿았는가?)`
-- `0f39a53 feat(judge): is_press_some_key 매핑 (키 눌렸는가?)`
-- `af984d8 docs: AGENT.md 흐름 카테고리 카운트 갱신 (12/13 -> 14/14)`
-- `31fe77c refactor(flow): delete_clone/remove_all_clones 중복 arm 정리`
-- `fba3ca1 feat(flow): remove_all_clones 매핑 (모든 복제본 삭제하기) → 흐름 13/13 완료`
+- `fed2f16 refactor(error): add Error::ParseUnsupported variant; move op errors to SyntaxError`
+- `eca22ef feat(brush): start_drawing/stop_drawing 매핑 + Error 분기 (Timer/Answer 는 UnmappedBlock 유지)`
+- `51d4b82 feat(brush): start_fill/stop_fill 매핑 (no-arg statement, statement 블록 from_expr 일관성)`
+- `65f1940 feat(brush): set_color(r, g, b) 매핑 + 테스트 + deparse block_from_value 누락 fix`
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 191 + parse 26 = 232 통과)
+cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 247 + parse 26 + 회귀 3 = 291 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -617,7 +614,7 @@ cargo build                 # 빌드만
 - `block::Dimension` (Width/Height) vs `codegen/schema.rs::Dimension` (picture width/height i64) — 이름 겹침. 현재는 모듈이 달라 컴파일 되지만 codegen 에서 둘 다 쓰면 alias 강제됨. `ScaleAxis` 로 rename 권장 (참조 ~7곳)
 
 **다음 할 일 추천 순서**:
-1. 붓 — `change_thickness` / `set_thickness` (그리기 굵기)
+1. 붓 — `change_brush_transparency` / `set_brush_tranparency` (붓 투명도)
 
 ## 디렉토리
 

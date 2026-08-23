@@ -325,6 +325,21 @@ pub enum Block {
     StopDrawing,
     StartFill,
     StopFill,
+    SetColor {
+        r: ParamBlock,
+        g: ParamBlock,
+        b: ParamBlock,
+    },
+    SetRandomColor,
+    SetFillColor {
+        color: ParamBlock,
+    },
+    ChangeThickness {
+        amount: ParamBlock,
+    },
+    SetThickness {
+        value: ParamBlock,
+    },
     // --- 움직임 ---
     MoveDirection {
         direction: String,
@@ -559,6 +574,11 @@ impl Block {
             Block::StopDrawing => "stop_drawing",
             Block::StartFill => "start_fill",
             Block::StopFill => "stop_fill",
+            Block::SetColor { .. } => "set_color",
+            Block::SetRandomColor => "set_random_color",
+            Block::SetFillColor { .. } => "set_fill_color",
+            Block::ChangeThickness { .. } => "change_thickness",
+            Block::SetThickness { .. } => "set_thickness",
         }
     }
 
@@ -670,6 +690,11 @@ impl Block {
             Block::StopDrawing => Category::Pen,
             Block::StartFill => Category::Pen,
             Block::StopFill => Category::Pen,
+            Block::SetColor { .. } => Category::Pen,
+            Block::SetRandomColor => Category::Pen,
+            Block::SetFillColor { .. } => Category::Pen,
+            Block::ChangeThickness { .. } => Category::Pen,
+            Block::SetThickness { .. } => Category::Pen,
         }
     }
 }
@@ -1329,6 +1354,42 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         }
                         return Ok(Block::StopFill);
                     }
+                    if fref.name == "set_color" {
+                        if args.len() != 3 {
+                            return Err(SyntaxError("set_color needs 3 args".into()));
+                        }
+                        let r = from_expr(&args[0])?;
+                        let g = from_expr(&args[1])?;
+                        let b = from_expr(&args[2])?;
+                        return Ok(Block::SetColor { r, g, b });
+                    }
+                    if fref.name == "set_random_color" {
+                        if args.len() > 0 {
+                            return Err(SyntaxError("set_random_color not needs arg".into()));
+                        }
+                        return Ok(Block::SetRandomColor);
+                    }
+                    if fref.name == "set_fill_color" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("set_fill_color needs 1 arg".into()));
+                        }
+                        let color = from_expr(&args[0])?;
+                        return Ok(Block::SetFillColor { color });
+                    }
+                    if fref.name == "change_thickness" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("change_thickness needs 1 arg".into()));
+                        }
+                        let amount = from_expr(&args[0])?;
+                        return Ok(Block::ChangeThickness { amount });
+                    }
+                    if fref.name == "set_thickness" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("set_thickness needs 1 arg".into()));
+                        }
+                        let value = from_expr(&args[0])?;
+                        return Ok(Block::SetThickness { value });
+                    }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
                         let raw = if let Some(r) = &fref.raw {
@@ -1740,7 +1801,42 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 }
                 return Ok(ParamBlock::Sub(Box::new(Block::StopFill)));
             }
-
+            if fref.name == "set_color" {
+                if args.len() != 3 {
+                    return Err(SyntaxError("set_color needs 3 args".into()));
+                }
+                let r = from_expr(&args[0])?;
+                let g = from_expr(&args[1])?;
+                let b = from_expr(&args[2])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::SetColor { r, g, b })));
+            }
+            if fref.name == "set_random_color" {
+                if args.len() > 0 {
+                    return Err(SyntaxError("set_random_color not needs arg".into()));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::SetRandomColor)));
+            }
+            if fref.name == "set_fill_color" {
+                if args.len() != 1 {
+                    return Err(SyntaxError("set_fill_color needs 1 arg".into()));
+                }
+                let color = from_expr(&args[0])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::SetFillColor { color })));
+            }
+            if fref.name == "change_thickness" {
+                if args.len() != 1 {
+                    return Err(SyntaxError("change_thickness needs 1 arg".into()));
+                }
+                let amount = from_expr(&args[0])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::ChangeThickness { amount })));
+            }
+            if fref.name == "set_thickness" {
+                if args.len() != 1 {
+                    return Err(SyntaxError("set_thickness needs 1 arg".into()));
+                }
+                let value = from_expr(&args[0])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::SetThickness { value })));
+            }
             // 하드웨어 getter 블럭 (소스맵 인덱스) — 값으로 사용.
             if crate::block::registry::is_hw_block(&fref.name) {
                 let raw = if let Some(r) = &fref.raw {
@@ -2165,6 +2261,14 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::StopDrawing => (vec![], None),
         Block::StartFill => (vec![], None),
         Block::StopFill => (vec![], None),
+        Block::SetColor { r, g, b } => (
+            vec![param_to_value(r), param_to_value(g), param_to_value(b)],
+            None,
+        ),
+        Block::SetRandomColor => (vec![], None),
+        Block::SetFillColor { color } => (vec![param_to_value(color)], None),
+        Block::ChangeThickness { amount } => (vec![param_to_value(amount), Value::Null], None),
+        Block::SetThickness { value } => (vec![param_to_value(value), Value::Null], None),
     })
 }
 
