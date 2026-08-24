@@ -48,10 +48,11 @@ pub enum VarInit {
     EmptyList,
 }
 
-/// ID -> VarInfo lookup.
+/// ID/name -> VarInfo lookup.
 #[derive(Debug, Default, Clone)]
 pub struct VarMap {
     inner: HashMap<String, VarInfo>,
+    names: HashMap<String, String>,
 }
 
 impl VarMap {
@@ -60,11 +61,26 @@ impl VarMap {
     }
 
     pub fn insert(&mut self, info: VarInfo) {
-        self.inner.insert(info.id.clone(), info);
+        let name = info.name.clone();
+        let id = info.id.clone();
+        self.names.insert(name, id.clone());
+        self.inner.insert(id, info);
     }
 
     pub fn get(&self, id: &str) -> Option<&VarInfo> {
         self.inner.get(id)
+    }
+
+    pub fn get_by_name(&self, name: &str) -> Option<&VarInfo> {
+        self.names.get(name).and_then(|id| self.inner.get(id))
+    }
+
+    pub fn id_by_name(&self, name: &str) -> Option<&str> {
+        self.names.get(name).map(String::as_str)
+    }
+
+    pub fn name_by_id(&self, id: &str) -> Option<&str> {
+        self.get(id).map(|info| info.name.as_str())
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &VarInfo> {

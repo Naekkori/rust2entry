@@ -1,10 +1,33 @@
 //! parse -> codegen 통합 테스트.
 
-use entrycore::VarKind;
+use entrycore::{VarKind, VarMap};
 use entrycore::codegen::{collect_var_map, generate};
 use entrycore::deparse::program_from_script_value_with_vars;
 use entrycore::parse::parse;
+use entrycore::var::var_map_from_value;
 use serde_json::{Value, json};
+#[test]
+fn variable_map_supports_bidirectional_lookup() {
+    let vars = var_map_from_value(&json!([
+        {"id":"variable-x", "name":"x", "variableType":"variable"},
+        {"id":"timer", "name":"timer", "variableType":"timer"}
+    ]));
+    let id = vars.id_by_name("x").expect("name -> id");
+    assert_eq!(vars.name_by_id(id), Some("x"));
+    assert_eq!(vars.get_by_name("x").expect("x").id, "variable-x");
+}
+
+#[test]
+fn variable_map_insert_is_bidirectional() {
+    let mut vars = VarMap::new();
+    vars.insert(entrycore::VarInfo {
+        id: "id-x".into(), name: "x".into(), kind: VarKind::Variable,
+        init: entrycore::VarInit::Int0, scope: entrycore::ir::VarScope::Local,
+    });
+    assert_eq!(vars.id_by_name("x"), Some("id-x"));
+    assert_eq!(vars.name_by_id("id-x"), Some("x"));
+}
+
 fn empty_project() -> Value {
     json!({
         "speed": 60, "objects": [], "variables": [], "messages": [],
