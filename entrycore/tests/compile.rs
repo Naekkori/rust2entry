@@ -3195,6 +3195,62 @@ fn compile_brush_erase_all_roundtrip() {
     }
 }
 
+/// `text_read` (값 슬롯) — `let x = text_read("self")` → SetVar 값으로 Sub 사용.
+#[test]
+fn compile_text_read() {
+    let src = r#"fn when_start() { let x = text_read("self"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    // SetVar 블록 type
+    assert_eq!(thread[1]["type"], "set_variable");
+    // SetVar 의 params[1] (value 자리) 에 Sub 블록 (text_read)
+    let value = &thread[1]["params"][1];
+    assert_eq!(value["type"], "text_read");
+    let value_params = value["params"].as_array().unwrap();
+    // to_value 가 [value, null] 로 emit (params.len == 2)
+    assert_eq!(value_params.len(), 2);
+}
+
+#[test]
+fn compile_text_read_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { let x = text_read("self"); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            // SetVar (text_read 가 Sub 로 들어감)
+            match &body[0] {
+                Stmt::SetVar(var_name, expr) => {
+                    assert_eq!(var_name, "x");
+                    // SetVar 의 expr 이 Call(text_read) 이어야
+                    match expr {
+                        Expr::Call(fref, args) => {
+                            assert_eq!(fref.name, "text_read");
+                            assert_eq!(args.len(), 1);
+                            assert!(matches!(&args[0], Expr::Str(s) if s == "self"));
+                        }
+                        other => panic!("expected Call(text_read), got {other:?}"),
+                    }
+                }
+                other => panic!("expected SetVar, got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
 /// `move_xy_time(1.0, 10.0, 5.0)` → `move_xy_time` 블록, params = [시간, x, y].
 #[test]
 fn compile_move_xy_time() {

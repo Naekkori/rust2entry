@@ -410,6 +410,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::SetThickness { value }
         }
         "brush_erase_all" => Block::BrushEraseAll,
+        // 글상자
+        "text_read" => {
+            let value = param_at(&params, 0, vars)?;
+            Block::TextRead { value }
+        }
         // 산술/비교/논리
         "calc_basic" => {
             let lhs = param_at(&params, 0, vars)?;
@@ -2191,6 +2196,18 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::TextRead { value } => {
+            let v = expr_from_param(value, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "text_read".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![v],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -3036,6 +3053,17 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             Vec::new(),
         )),
+        Block::TextRead { value } => {
+            let v = expr_from_param(value, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "text_read".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![v],
+            ))
+        }
     }
 }
 

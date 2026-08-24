@@ -234,8 +234,8 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `change_brush_transparency` / `set_brush_tranparency` — 붓 투명도 (→ `change_brush_transparency(10.0)` / `set_brush_tranparency(50.0)`). **EntryJS 의 set_brush_tranparency 는 원본 오타 그대로**
 - ✅ `brush_erase_all` — 모든 붓 지우기 (→ `brush_erase_all()`)
 
-### 텍스트 (0/9)
-- ⬜ `text_read` — 글상자 □의 내용
+### 텍스트 (1/9)
+- ✅ `text_read` — 글상자 □ 의 내용 (→ `text_read("self")`)
 - ⬜ `text_write` — □ (이)라고 글쓰기
 - ⬜ `text_append` / `text_prepend` — 뒤/앞에 추가하기
 - ⬜ `text_change_effect` — 텍스트에 효과
@@ -513,9 +513,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**117/334** 매핑됨 (약 35.0%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**118/334** 매핑됨 (약 35.3%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 0/9, 소리 0/16, 판단 7/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 1/9, 소리 0/16, 판단 7/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -599,7 +599,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 253 + parse 26 + 회귀 3 = 297 통과)
+cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 255 + parse 26 + 회귀 3 = 299 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만
@@ -614,7 +614,7 @@ cargo build                 # 빌드만
 - `block::Dimension` (Width/Height) vs `codegen/schema.rs::Dimension` (picture width/height i64) — 이름 겹침. 현재는 모듈이 달라 컴파일 되지만 codegen 에서 둘 다 쓰면 alias 강제됨. `ScaleAxis` 로 rename 권장 (참조 ~7곳)
 
 **다음 할 일 추천 순서**:
-1. 텍스트 — `text_read` (글상자 □ 의 내용)
+1. 텍스트 — `text_write` (□ (이)라고 글쓰기)
 
 ## 디렉토리
 

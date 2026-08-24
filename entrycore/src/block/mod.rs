@@ -347,6 +347,10 @@ pub enum Block {
         value: ParamBlock,
     },
     BrushEraseAll,
+    // --- 글상자 ---
+    TextRead {
+        value: ParamBlock,
+    },
     // --- 움직임 ---
     MoveDirection {
         direction: String,
@@ -589,6 +593,7 @@ impl Block {
             Block::ChangeBrushTransparency { .. } => "change_brush_transparency",
             Block::SetBrushTranparency { .. } => "set_brush_tranparency",
             Block::BrushEraseAll => "brush_erase_all",
+            Block::TextRead { .. } => "text_read",
         }
     }
 
@@ -708,6 +713,7 @@ impl Block {
             Block::ChangeBrushTransparency { .. } => Category::Pen,
             Block::SetBrushTranparency { .. } => Category::Pen,
             Block::BrushEraseAll => Category::Pen,
+            Block::TextRead { .. } => Category::Text,
         }
     }
 }
@@ -1425,6 +1431,14 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         }
                         return Ok(Block::BrushEraseAll);
                     }
+                    // --- 글상자(stmt) ---
+                    if fref.name == "text_read" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("text_read needs 1 arg".into()));
+                        }
+                        let value = from_expr(&args[0])?;
+                        return Ok(Block::TextRead { value });
+                    }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
                         let raw = if let Some(r) = &fref.raw {
@@ -1896,6 +1910,14 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 }
                 return Ok(ParamBlock::Sub(Box::new(Block::BrushEraseAll)));
             }
+            // --- 글상자(stmt) ---
+            if fref.name == "text_read" {
+                if args.len() != 1 {
+                    return Err(SyntaxError("text_read needs 1 arg".into()));
+                }
+                let value = from_expr(&args[0])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::TextRead { value })));
+            }
             // 하드웨어 getter 블럭 (소스맵 인덱스) — 값으로 사용.
             if crate::block::registry::is_hw_block(&fref.name) {
                 let raw = if let Some(r) = &fref.raw {
@@ -2333,6 +2355,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         }
         Block::SetBrushTranparency { value } => (vec![param_to_value(value), Value::Null], None),
         Block::BrushEraseAll => (vec![], None),
+        Block::TextRead { value } => (vec![param_to_value(value), Value::Null], None),
     })
 }
 
