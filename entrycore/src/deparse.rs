@@ -386,6 +386,14 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let amount = param_at(&params, 1, vars)?;
             Block::DirectionRelativeDuration { duration, amount }
         }
+        "change_brush_transparency" => {
+            let amount = param_at(&params, 0, vars)?;
+            Block::ChangeBrushTransparency { amount }
+        }
+        "set_brush_tranparency" => {
+            let value = param_at(&params, 0, vars)?;
+            Block::SetBrushTranparency { value }
+        }
         "delete_clone" => Block::DeleteClone,
         "remove_all_clones" => Block::RemoveAllClones,
         "bounce_wall" => Block::BounceWall,
@@ -2147,6 +2155,30 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::ChangeBrushTransparency { amount } => {
+            let a = expr_from_param(amount, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "change_brush_transparency".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![a],
+            )));
+            Ok(())
+        }
+        Block::SetBrushTranparency { value } => {
+            let a = expr_from_param(value, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "set_brush_tranparency".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![a],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2956,6 +2988,28 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             Ok(Expr::Call(
                 ir::FuncRef {
                     name: "set_thickness".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![v],
+            ))
+        }
+        Block::ChangeBrushTransparency { amount } => {
+            let a = expr_from_param(amount, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "change_brush_transparency".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![a],
+            ))
+        }
+        Block::SetBrushTranparency { value } => {
+            let v = expr_from_param(value, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "set_brush_tranparency".to_string(),
                     arity: 1,
                     raw: None,
                 },
