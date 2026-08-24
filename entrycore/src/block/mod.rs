@@ -351,6 +351,9 @@ pub enum Block {
     TextRead {
         value: ParamBlock,
     },
+    TextWrite {
+        content: ParamBlock,
+    },
     // --- 움직임 ---
     MoveDirection {
         direction: String,
@@ -594,6 +597,7 @@ impl Block {
             Block::SetBrushTranparency { .. } => "set_brush_tranparency",
             Block::BrushEraseAll => "brush_erase_all",
             Block::TextRead { .. } => "text_read",
+            Block::TextWrite { .. } => "text_write",
         }
     }
 
@@ -714,6 +718,7 @@ impl Block {
             Block::SetBrushTranparency { .. } => Category::Pen,
             Block::BrushEraseAll => Category::Pen,
             Block::TextRead { .. } => Category::Text,
+            Block::TextWrite { .. } => Category::Text,
         }
     }
 }
@@ -1438,6 +1443,13 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         }
                         let value = from_expr(&args[0])?;
                         return Ok(Block::TextRead { value });
+                    }
+                    if fref.name == "text_write" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("text_write needs 1 arg".into()));
+                        }
+                        let content = from_expr(&args[0])?;
+                        return Ok(Block::TextWrite { content });
                     }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
@@ -2356,6 +2368,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::SetBrushTranparency { value } => (vec![param_to_value(value), Value::Null], None),
         Block::BrushEraseAll => (vec![], None),
         Block::TextRead { value } => (vec![param_to_value(value), Value::Null], None),
+        Block::TextWrite { content } => (vec![param_to_value(content), Value::Null], None),
     })
 }
 

@@ -415,6 +415,10 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let value = param_at(&params, 0, vars)?;
             Block::TextRead { value }
         }
+        "text_write" => {
+            let content = param_at(&params, 0, vars)?;
+            Block::TextWrite { content }
+        }
         // 산술/비교/논리
         "calc_basic" => {
             let lhs = param_at(&params, 0, vars)?;
@@ -2208,6 +2212,18 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::TextWrite { content } => {
+            let c = expr_from_param(content, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "text_write".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![c],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -3062,6 +3078,17 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![v],
+            ))
+        }
+        Block::TextWrite { content } => {
+            let c = expr_from_param(content, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "text_write".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![c],
             ))
         }
     }

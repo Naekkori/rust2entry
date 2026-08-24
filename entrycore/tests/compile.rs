@@ -5392,3 +5392,83 @@ fn compile_create_clone_self_reference() {
     assert_eq!(params[0].as_str().unwrap(), "self");
     assert!(params[1].is_null());
 }
+
+/// `text_write("hello")` → `text_write` 블록, params[0] = `{type:"text", params:["hello"]}` (TextInput 슬롯), params[1] = null (Indicator).
+#[test]
+fn compile_text_write() {
+    let src = r#"fn when_start() { text_write("hello"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "text_write")
+        .expect("text_write block");
+    let params = block["params"].as_array().unwrap();
+    assert_eq!(params.len(), 2);
+    assert_eq!(params[0]["type"], "text");
+    assert_eq!(params[0]["params"][0].as_str().unwrap(), "hello");
+    assert!(params[1].is_null());
+}
+
+/// text_write 라운드트립 — codegen → deparse → IR 의 `Stmt::Expr(Call(text_write, [str("hi")]))` 가 복원되는지.
+#[test]
+fn compile_text_write_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { text_write("hi"); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "text_write");
+                    assert_eq!(args.len(), 1);
+                    match &args[0] {
+                        Expr::Str(s) => assert_eq!(s, "hi"),
+                        other => panic!("expected Str(\"hi\"), got {other:?}"),
+                    }
+                }
+                other => panic!("expected Call(text_write), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// text_write 의 args 로 표현식 (`text_read` 결과) 도 정상 처리 — 값 슬롯 블록을 Sub 로 emit.
+#[test]
+fn compile_text_write_sub_expr() {
+    let src = r#"fn when_start() { text_write(text_read("self")); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "text_write")
+        .expect("text_write block");
+    let params = block["params"].as_array().unwrap();
+    // params[0] = text_read Sub 블록이 nested 으로 emit 됨.
+    assert_eq!(params[0]["type"], "text_read");
+    assert!(params[1].is_null());
+}
+
+/// text_write 의 args 가 0 또는 2 이면 SyntaxError.
+#[test]
+fn compile_text_write_arity_check() {
+    use entrycore::compile;
+    let src0 = r#"fn when_start() { text_write(); }"#;
+    assert!(compile(&[("obj", src0)], &empty_project()).is_err());
+    let src2 = r#"fn when_start() { text_write("a", "b"); }"#;
+    assert!(compile(&[("obj", src2)], &empty_project()).is_err());
+}
