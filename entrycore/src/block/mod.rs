@@ -346,6 +346,7 @@ pub enum Block {
     SetBrushTranparency {
         value: ParamBlock,
     },
+    BrushEraseAll,
     // --- 움직임 ---
     MoveDirection {
         direction: String,
@@ -587,6 +588,7 @@ impl Block {
             Block::SetThickness { .. } => "set_thickness",
             Block::ChangeBrushTransparency { .. } => "change_brush_transparency",
             Block::SetBrushTranparency { .. } => "set_brush_tranparency",
+            Block::BrushEraseAll => "brush_erase_all",
         }
     }
 
@@ -705,6 +707,7 @@ impl Block {
             Block::SetThickness { .. } => Category::Pen,
             Block::ChangeBrushTransparency { .. } => Category::Pen,
             Block::SetBrushTranparency { .. } => Category::Pen,
+            Block::BrushEraseAll => Category::Pen,
         }
     }
 }
@@ -1416,6 +1419,12 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         let value = from_expr(&args[0])?;
                         return Ok(Block::SetBrushTranparency { value });
                     }
+                    if fref.name == "brush_erase_all" {
+                        if args.len() > 0 {
+                            return Err(SyntaxError("brush_erase_all not needs arg".into()));
+                        }
+                        return Ok(Block::BrushEraseAll);
+                    }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
                         let raw = if let Some(r) = &fref.raw {
@@ -1881,6 +1890,12 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     value,
                 })));
             }
+            if fref.name == "brush_erase_all" {
+                if args.len() > 0 {
+                    return Err(SyntaxError("brush_erase_all not needs arg".into()));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::BrushEraseAll)));
+            }
             // 하드웨어 getter 블럭 (소스맵 인덱스) — 값으로 사용.
             if crate::block::registry::is_hw_block(&fref.name) {
                 let raw = if let Some(r) = &fref.raw {
@@ -2317,6 +2332,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             (vec![param_to_value(amount), Value::Null], None)
         }
         Block::SetBrushTranparency { value } => (vec![param_to_value(value), Value::Null], None),
+        Block::BrushEraseAll => (vec![], None),
     })
 }
 

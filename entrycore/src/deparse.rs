@@ -409,6 +409,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let value = param_at(&params, 0, vars)?;
             Block::SetThickness { value }
         }
+        "brush_erase_all" => Block::BrushEraseAll,
         // 산술/비교/논리
         "calc_basic" => {
             let lhs = param_at(&params, 0, vars)?;
@@ -2179,6 +2180,17 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::BrushEraseAll => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "brush_erase_all".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -3016,6 +3028,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![v],
             ))
         }
+        Block::BrushEraseAll => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "brush_erase_all".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
     }
 }
 
