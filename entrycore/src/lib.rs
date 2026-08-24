@@ -98,7 +98,7 @@ pub fn compile_with_options(
             var_object.entry(var_name).or_insert_with(|| name.to_string());
         }
     }
-    let vars_map = codegen::collect_var_map(&merged_program)?;
+    let vars_map = codegen::collect_var_map(&merged_program);
     let vars_arr: Vec<Value> = vars_map
         .iter()
         .map(|v| {

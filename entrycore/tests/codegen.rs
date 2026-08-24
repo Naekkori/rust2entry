@@ -112,7 +112,7 @@ fn roundtrip_simple_set() {
     let src = "fn when_start() { let x = 42; }";
     let p1 = parse(src).expect("parse1");
     let json = generate(&p1,&empty_project()).expect("generate");
-    let vars = collect_var_map(&p1).unwrap();
+    let vars = collect_var_map(&p1);
     // scripts = [set_variable_block]. deparse는 [[block,...]] 형태 기대.
     let scripts_wrapped = serde_json::json!([json["scripts"].clone()]);
     let p2 = program_from_script_value_with_vars(&scripts_wrapped, &vars)
@@ -135,7 +135,7 @@ fn roundtrip_if() {
     let src = "fn when_start() { if 1 < 2 { let x = 1; } }";
     let p1 = parse(src).expect("parse1");
     let json = generate(&p1,&empty_project()).expect("generate");
-    let vars = collect_var_map(&p1).unwrap();
+    let vars = collect_var_map(&p1);
     let scripts_wrapped = serde_json::json!([json["scripts"].clone()]);
     let p2 = program_from_script_value_with_vars(&scripts_wrapped, &vars)
         .expect("deparse");
@@ -159,7 +159,7 @@ fn for_range_roundtrip_is_repeat() {
     let src = "fn when_start() { for i in 0..5 { let x = 1; } }";
     let p1 = parse(src).expect("parse1");
     let json = generate(&p1,&empty_project()).expect("generate");
-    let vars = collect_var_map(&p1).unwrap();
+    let vars = collect_var_map(&p1);
     let scripts_wrapped = serde_json::json!([json["scripts"].clone()]);
     let p2 = program_from_script_value_with_vars(&scripts_wrapped, &vars)
         .expect("deparse");
@@ -186,7 +186,7 @@ fn timer_named_var_registers_as_timer() {
     let src = "fn when_start() { let 초시계 = 0; }";
     // ↑ 이건 위 거부 테스트에서 거부되므로, 등록은 collect_var_map 단독 테스트로
     let p = parse(src).expect("parse");
-    let vars = collect_var_map(&p).unwrap();
+    let vars = collect_var_map(&p);
     let info = vars.get(&entrycore::block::id_for("초시계")).expect("timer registered");
     assert!(matches!(info.kind, VarKind::Timer));
 }
