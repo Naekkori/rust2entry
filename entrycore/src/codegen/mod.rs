@@ -25,7 +25,7 @@ pub fn generate(program: &Program, original: &Value) -> Result<Value> {
         .into_iter()
         .map(|b| to_value(&b))
         .collect::<Result<Vec<_>>>()?;
-    let vars = collect_var_map(program);
+    let vars = collect_var_map(program)?;
     let vars_arr: Vec<Value> = vars
         .iter()
         .map(|v| {
@@ -88,8 +88,8 @@ pub fn generate(program: &Program, original: &Value) -> Result<Value> {
 ///
 /// `static x = ...` 같이 VarDecl 이 Global scope 를 가지면 VarInfo.scope 도
 /// Global 로 설정 — EntryJS variables[].object = null.
-pub fn collect_var_map(program: &Program) -> VarMap {
-    let analysis = analyze_variables(program);
+pub fn collect_var_map(program: &Program) -> crate::Result<VarMap> {
+    let analysis = analyze_variables(program)?;
     let mut map = VarMap::new();
     let names = analysis.names;
     for name in names {
@@ -121,7 +121,7 @@ pub fn collect_var_map(program: &Program) -> VarMap {
             scope,
         });
     }
-    map
+    Ok(map)
 }
 
 struct VariableAnalysis {
@@ -132,7 +132,7 @@ struct VariableAnalysis {
     kinds: std::collections::HashMap<String, VarKind>,
 }
 
-fn analyze_variables(program: &Program) -> VariableAnalysis {
+fn analyze_variables(program: &Program) -> crate::Result<VariableAnalysis> {
     let mut analysis = VariableAnalysis {
         names: Vec::new(),
         explicit_kinds: std::collections::HashMap::new(),
@@ -140,7 +140,7 @@ fn analyze_variables(program: &Program) -> VariableAnalysis {
         list_context_names: std::collections::HashSet::new(),
         kinds: std::collections::HashMap::new(),
     };
-    analyze_statements(program.stmts.as_slice(), &mut analysis);
+    analyze_statements(program.stmts.as_slice(), &mut analysis)?;
     for name in &analysis.names {
         let kind = analysis
             .explicit_kinds
@@ -155,55 +155,77 @@ fn analyze_variables(program: &Program) -> VariableAnalysis {
             .unwrap_or_else(|| crate::block::kind_for(name));
         analysis.kinds.insert(name.clone(), kind);
     }
-    analysis
+    Ok(analysis)
 }
 
-fn analyze_statements(stmts: &[Stmt], out: &mut VariableAnalysis) {
+fn analyze_statements(stmts: &[Stmt], out: &mut VariableAnalysis) -> crate::Result<()> {
     for stmt in stmts {
         match stmt {
             Stmt::VarDecl(name, expr, kind, scope) => {
-                push_unique(&mut out.names, name);
+                if out.names.iter().any(|n| n == name) {
+                    return Err(crate::Error::SyntaxError(format!(
+                        "variable '{name}' is declared multiple times"
+                    )));
+                }
+                out.names.push(name.clone());
                 if let Some(kind) = kind {
                     out.explicit_kinds.insert(name.clone(), kind.clone());
                 }
                 out.scopes.insert(name.clone(), *scope);
-                analyze_expr(expr, out);
+                analyze_expr(expr, out)?;
             }
             Stmt::SetVar(name, expr) => {
-                push_unique(&mut out.names, name);
-                analyze_expr(expr, out);
+                if out.names.iter().any(|n| n == name) {
+                    return Err(crate::Error::SyntaxError(format!(
+                        "variable '{name}' is declared multiple times"
+                    )));
+                }
+                out.names.push(name.clone());
+                analyze_expr(expr, out)?;
             }
-            Stmt::Expr(expr) | Stmt::Return(expr) => analyze_expr(expr, out),
+            Stmt::Expr(expr) | Stmt::Return(expr) => analyze_expr(expr, out)?,
             Stmt::If {
                 cond,
                 then_body,
                 else_body,
             } => {
-                analyze_expr(cond, out);
-                analyze_statements(then_body, out);
-                analyze_statements(else_body, out);
+                analyze_expr(cond, out)?;
+                analyze_statements(then_body, out)?;
+                analyze_statements(else_body, out)?;
             }
             Stmt::While { cond, body } | Stmt::Repeat { times: cond, body } => {
-                analyze_expr(cond, out);
-                analyze_statements(body, out);
+                analyze_expr(cond, out)?;
+                analyze_statements(body, out)?;
             }
             Stmt::For { var, iter, body } => {
-                push_unique(&mut out.names, var);
-                analyze_expr(iter, out);
-                analyze_statements(body, out);
+                // for loop 변수는 매 iteration 새 scope — 중복 허용.
+                if !out.names.contains(var) {
+                    out.names.push(var.clone());
+                }
+                analyze_expr(iter, out)?;
+                analyze_statements(body, out)?;
             }
             Stmt::FuncDef { params, body, .. } => {
+                // 함수 param + body 변수는 함수 scope — 외부 변수와 dup 허용.
+                // names 스냅샷 후 body 분석, 끝나면 복원.
+                let snapshot = out.names.clone();
                 for (param, _) in params {
-                    push_unique(&mut out.names, param);
+                    if !out.names.contains(param) {
+                        out.names.push(param.clone());
+                    }
                 }
-                analyze_statements(body, out);
+                analyze_statements(body, out)?;
+                // 함수 scope 안에서 새로 추가된 변수만 제거 (snapshot 이후).
+                let new_len = snapshot.len();
+                out.names.truncate(new_len);
             }
             Stmt::Break | Stmt::Continue => {}
         }
     }
+    Ok(())
 }
 
-fn analyze_expr(expr: &Expr, out: &mut VariableAnalysis) {
+fn analyze_expr(expr: &Expr, out: &mut VariableAnalysis) -> crate::Result<()> {
     match expr {
         Expr::Var(name) => push_unique(&mut out.names, name),
         Expr::Call(func, args) => {
@@ -224,16 +246,17 @@ fn analyze_expr(expr: &Expr, out: &mut VariableAnalysis) {
                 }
             }
             for arg in args {
-                analyze_expr(arg, out);
+                analyze_expr(arg, out)?;
             }
         }
         Expr::BinOp(_, lhs, rhs) | Expr::Range(lhs, rhs) => {
-            analyze_expr(lhs, out);
-            analyze_expr(rhs, out);
+            analyze_expr(lhs, out)?;
+            analyze_expr(rhs, out)?;
         }
-        Expr::UnaryOp(_, inner) => analyze_expr(inner, out),
+        Expr::UnaryOp(_, inner) => analyze_expr(inner, out)?,
         Expr::Int(_) | Expr::Float(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Func(_) => {}
     }
+    Ok(())
 }
 
 /// VarDecl 의 explicit kind 를 수집. SetVar 는 이름만 쓰므로 무시.

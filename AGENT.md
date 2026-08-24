@@ -111,6 +111,8 @@ AI/에이전트 협업용 진행 문서. Readme와 동기화.
 
 Rust 의미 차용 (`let` = 블록 scope, `static` = 프로그램 전역). `const` 는 미지원 (UnmappedBlock).
 
+**변수명 중복 검사:** 같은 scope 에서 같은 이름 `let` 두 번 = 컴파일 에러 (`SyntaxError`). 함수 param 은 오버로드 허용 (같은 이름 다른 arity 가능), 함수 body 변수와 외부 변수 이름 같아도 OK (함수 scope 격리).
+
 ## 함수 param type (EntryJS 호환)
 
 함수 정의 시 param 에 type 어노테이션 신택스:
@@ -599,7 +601,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 255 + parse 26 + 회귀 3 = 299 통과)
+cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 256 + parse 26 + 회귀 3 = 300 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만

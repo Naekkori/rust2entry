@@ -109,15 +109,32 @@ fn compile_aggregates_variables_across_sources() {
     assert_eq!(vars.len(), 3);
 }
 
-/// 같은 변수명 두 소스에서 쓰면 하나로 합쳐짐.
+/// 같은 source 에서 같은 변수명을 두 번 선언하면 컴파일 실패.
 #[test]
-fn compile_deduplicates_variables() {
+fn compile_duplicate_variables_in_same_source_fail() {
+    let src = r#"
+        fn when_start() {
+            let x = 1;
+            let x = 2;
+        }
+    "#;
+    let r = compile(&[("obj", src)], &empty_project());
+    assert!(r.is_err(), "같은 scope 에서 중복 변수 선언 시 컴파일 실패해야 함");
+    let err = r.unwrap_err();
+    let msg = err.to_string();
+    assert!(
+        msg.contains("x") && msg.contains("multiple"),
+        "에러 메시지에 변수명 포함: {msg}"
+    );
+}
+
+/// 같은 변수명이 여러 source 에 흩어져 있으면 둘 다 에러 (cross-source 도 unique).
+#[test]
+fn compile_duplicate_variables_across_sources_fail() {
     let a = "fn when_start() { let x = 1; }";
     let b = "fn when_start() { let x = 2; }";
-    let v = compile(&[("a", a), ("b", b)], &empty_project()).expect("compile").0;
-    let vars = v["variables"].as_array().expect("variables array");
-    let xs: Vec<&Value> = vars.iter().filter(|x| x["name"] == "x").collect();
-    assert_eq!(xs.len(), 1, "중복 변수 발생");
+    let r = compile(&[("a", a), ("b", b)], &empty_project());
+    assert!(r.is_err(), "cross-source 중복 변수명도 컴파일 실패");
 }
 
 #[test]
@@ -173,7 +190,7 @@ fn compile_roundtrip_via_deparse() {
     let src = "fn when_start() { if 1 < 2 { let x = 1; } }";
     let p1 = entrycore::parse::parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -257,7 +274,7 @@ fn compile_wait_second_roundtrip() {
     let src = r#"fn when_start() { wait_second(1.5); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -333,7 +350,7 @@ fn compile_wait_until_true_roundtrip() {
     let src = r#"fn when_start() { wait_until_true(x > 5); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -370,7 +387,7 @@ fn compile_if_roundtrip_with_var_cond() {
     "#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -442,7 +459,7 @@ fn compile_calc_rand_roundtrip() {
     let src = r#"fn when_start() { let x = calc_rand(1, 10); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -499,7 +516,7 @@ fn compile_get_project_timer_value_roundtrip() {
     let src = r#"fn when_start() { let x = get_project_timer_value(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -554,7 +571,7 @@ fn compile_show_timer_roundtrip() {
     let src = r#"fn when_start() { show_timer(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -609,7 +626,7 @@ fn compile_show_answer_roundtrip() {
     let src = r#"fn when_start() { show_answer(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -671,7 +688,7 @@ fn compile_say_roundtrip() {
     let src = r#"fn when_start() { say("hi"); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -714,7 +731,7 @@ fn compile_think_roundtrip() {
     let src = r#"fn when_start() { think("hmm"); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -770,7 +787,7 @@ fn compile_say_with_time_roundtrip() {
     let src = r#"fn when_start() { say("hi", 2.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -801,7 +818,7 @@ fn compile_think_with_time_roundtrip() {
     let src = r#"fn when_start() { think("hmm", 1.5); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -854,7 +871,7 @@ fn compile_change_to_some_shape_roundtrip() {
     let src = r#"fn when_start() { change_to_some_shape("walk"); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -886,7 +903,7 @@ fn compile_change_to_next_shape_roundtrip() {
     let src = r#"fn when_start() { change_to_next_shape(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -928,7 +945,7 @@ fn compile_remove_dialog_roundtrip() {
     let src = r#"fn when_start() { remove_dialog(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -982,7 +999,7 @@ fn compile_add_effect_amount_roundtrip() {
     let src = r#"fn when_start() { add_effect_amount("color", 50.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -1037,7 +1054,7 @@ fn compile_change_effect_amount_roundtrip() {
     let src = r#"fn when_start() { change_effect_amount("color", 50.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -1080,7 +1097,7 @@ fn compile_erase_all_effects_roundtrip() {
     let src = r#"fn when_start() { erase_all_effects(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -1174,7 +1191,7 @@ fn compile_value_of_index_from_list_roundtrip() {
     let v = compile(&[("obj", src)], &empty_project())
         .expect("compile")
         .0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let script = objects[0]["script"].as_str().expect("script string");
     let p2 = program_from_script_string_with_vars(script, &vars).expect("deparse");
@@ -1270,7 +1287,7 @@ fn compile_add_value_to_list_roundtrip() {
     let v = compile(&[("obj", src)], &empty_project())
         .expect("compile")
         .0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let script = objects[0]["script"].as_str().expect("script string");
     let p2 = program_from_script_string_with_vars(script, &vars).expect("deparse");
@@ -1335,7 +1352,7 @@ fn compile_remove_value_from_list_roundtrip() {
     let v = compile(&[("obj", src)], &empty_project())
         .expect("compile")
         .0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let script = objects[0]["script"].as_str().expect("script string");
     let p2 = program_from_script_string_with_vars(script, &vars).expect("deparse");
@@ -1397,7 +1414,7 @@ fn compile_insert_value_to_list_roundtrip() {
     "#;
     let p1 = parse(src).expect("parse");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let script = objects[0]["script"].as_str().expect("script string");
     let p2 = program_from_script_string_with_vars(script, &vars).expect("deparse");
@@ -1451,7 +1468,7 @@ fn compile_change_value_list_index_roundtrip() {
     "#;
     let p1 = parse(src).expect("parse");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let script = objects[0]["script"].as_str().expect("script string");
     let p2 = program_from_script_string_with_vars(script, &vars).expect("deparse");
@@ -1510,7 +1527,7 @@ fn compile_length_of_list_roundtrip() {
     "#;
     let p1 = parse(src).expect("parse");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let script = objects[0]["script"].as_str().expect("script string");
     let p2 = program_from_script_string_with_vars(script, &vars).expect("deparse");
@@ -1568,7 +1585,7 @@ fn compile_is_included_in_list_roundtrip() {
     "#;
     let p1 = parse(src).expect("parse");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let script = objects[0]["script"].as_str().expect("script string");
     let p2 = program_from_script_string_with_vars(script, &vars).expect("deparse");
@@ -1594,7 +1611,7 @@ fn compile_change_scale_size_roundtrip() {
     let src = r#"fn when_start() { change_scale_size(10.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -1652,7 +1669,7 @@ fn compile_set_scale_size_roundtrip() {
     let src = r#"fn when_start() { set_scale_size(100.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -1694,7 +1711,7 @@ fn compile_reset_scale_size_roundtrip() {
     let src = r#"fn when_start() { reset_scale_size(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -1739,7 +1756,7 @@ fn compile_stretch_scale_size_roundtrip() {
     let src = r#"fn when_start() { stretch_scale_size("width", 10); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -1785,7 +1802,7 @@ fn compile_flip_x_roundtrip() {
     let src = r#"fn when_start() { flip_x(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -1827,7 +1844,7 @@ fn compile_flip_y_roundtrip() {
     let src = r#"fn when_start() { flip_y(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -1869,7 +1886,7 @@ fn compile_is_clicked_roundtrip() {
     let src = r#"fn when_start() { is_clicked(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -1911,7 +1928,7 @@ fn compile_is_object_clicked_roundtrip() {
     let src = r#"fn when_start() { is_object_clicked(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -1966,7 +1983,7 @@ fn compile_change_object_index_roundtrip() {
     let src = r#"fn when_start() { change_object_index("front"); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2009,7 +2026,7 @@ fn compile_delete_clone_roundtrip() {
     let src = r#"fn when_start() { delete_clone(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2051,7 +2068,7 @@ fn compile_remove_all_clones_roundtrip() {
     let src = r#"fn when_start() { remove_all_clones(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2093,7 +2110,7 @@ fn compile_bounce_wall_roundtrip() {
     let src = r#"fn when_start() { bounce_wall(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2156,7 +2173,7 @@ fn compile_is_press_some_key_roundtrip() {
     let src = r#"fn when_start() { is_press_some_key("space"); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2210,7 +2227,7 @@ fn compile_reach_something_roundtrip() {
     let src = r#"fn when_start() { reach_something("enemy"); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2271,7 +2288,7 @@ fn compile_move_direction_roundtrip() {
     let src = r#"fn when_start() { move_direction("forward", 10.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2329,7 +2346,7 @@ fn compile_move_x_roundtrip() {
     let src = r#"fn when_start() { move_x(10.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2360,7 +2377,7 @@ fn compile_move_y_roundtrip() {
     let src = r#"fn when_start() { move_y(5.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2416,7 +2433,7 @@ fn compile_rotate_relative_roundtrip() {
     let src = r#"fn when_start() { rotate_relative(45.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2447,7 +2464,7 @@ fn compile_direction_relative_roundtrip() {
     let src = r#"fn when_start() { direction_relative(90.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2490,7 +2507,7 @@ fn compile_rotate_absolute_roundtrip() {
     let src = r#"fn when_start() { rotate_absolute(90.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2533,7 +2550,7 @@ fn compile_direction_absolute_roundtrip() {
     let src = r#"fn when_start() { direction_absolute(45.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2576,7 +2593,7 @@ fn compile_see_angle_object_roundtrip() {
     let src = r#"fn when_start() { see_angle_object("mouse"); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2619,7 +2636,7 @@ fn compile_move_to_angle_roundtrip() {
     let src = r#"fn when_start() { move_to_angle(45.0, 10.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2663,7 +2680,7 @@ fn compile_brush_stamp_roundtrip() {
     let src = r#"fn when_start() { brush_stamp(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2705,7 +2722,7 @@ fn compile_start_drawing_roundtrip() {
     let src = r#"fn when_start() { start_drawing(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2747,7 +2764,7 @@ fn compile_stop_drawing_roundtrip() {
     let src = r#"fn when_start() { stop_drawing(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2789,7 +2806,7 @@ fn compile_start_fill_roundtrip() {
     let src = r#"fn when_start() { start_fill(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2831,7 +2848,7 @@ fn compile_stop_fill_roundtrip() {
     let src = r#"fn when_start() { stop_fill(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2873,7 +2890,7 @@ fn compile_set_color_roundtrip() {
     let src = r#"fn when_start() { set_color(50.0, 100.0, 0.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2918,7 +2935,7 @@ fn compile_set_random_color_roundtrip() {
     let src = r#"fn when_start() { set_random_color(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -2960,7 +2977,7 @@ fn compile_set_fill_color_roundtrip() {
     let src = r##"fn when_start() { set_fill_color("#FF0000"); }"##;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3003,7 +3020,7 @@ fn compile_change_thickness_roundtrip() {
     let src = r#"fn when_start() { change_thickness(5.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3046,7 +3063,7 @@ fn compile_set_thickness_roundtrip() {
     let src = r#"fn when_start() { set_thickness(10.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3089,7 +3106,7 @@ fn compile_change_brush_transparency_roundtrip() {
     let src = r#"fn when_start() { change_brush_transparency(10.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3132,7 +3149,7 @@ fn compile_set_brush_tranparency_roundtrip() {
     let src = r#"fn when_start() { set_brush_tranparency(50.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3175,7 +3192,7 @@ fn compile_brush_erase_all_roundtrip() {
     let src = r#"fn when_start() { brush_erase_all(); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3222,7 +3239,7 @@ fn compile_text_read_roundtrip() {
     let src = r#"fn when_start() { let x = text_read("self"); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3274,7 +3291,7 @@ fn compile_move_xy_time_roundtrip() {
     let src = r#"fn when_start() { move_xy_time(1.0, 10.0, 5.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3319,7 +3336,7 @@ fn compile_locate_x_roundtrip() {
     let src = r#"fn when_start() { locate_x(100.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3362,7 +3379,7 @@ fn compile_locate_y_roundtrip() {
     let src = r#"fn when_start() { locate_y(-50.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3405,7 +3422,7 @@ fn compile_locate_xy_roundtrip() {
     let src = r#"fn when_start() { locate_xy(100.0, -50.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3449,7 +3466,7 @@ fn compile_locate_xy_time_roundtrip() {
     let src = r#"fn when_start() { locate_xy_time(1.0, 100.0, -50.0); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3494,7 +3511,7 @@ fn compile_locate_object_time_roundtrip() {
     let src = r#"fn when_start() { locate_object_time(1.0, "mouse"); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3538,7 +3555,7 @@ fn compile_locate_roundtrip() {
     let src = r#"fn when_start() { locate("mouse"); }"#;
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3607,7 +3624,7 @@ fn compile_ask_and_wait_roundtrip() {
     let src = r#"fn when_start() { ask_and_wait("이름"); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = entrycore::codegen::collect_var_map(&p1);
+    let vars = entrycore::codegen::collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3640,7 +3657,7 @@ fn compile_get_canvas_input_value_roundtrip() {
     let src = r#"fn when_start() { let x = get_canvas_input_value(); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = entrycore::codegen::collect_var_map(&p1);
+    let vars = entrycore::codegen::collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3705,7 +3722,7 @@ fn compile_start_timer_roundtrip() {
     let src = r#"fn when_start() { start_timer(); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = entrycore::codegen::collect_var_map(&p1);
+    let vars = entrycore::codegen::collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3734,7 +3751,7 @@ fn compile_reset_timer_roundtrip() {
     let src = r#"fn when_start() { reset_timer(); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = entrycore::codegen::collect_var_map(&p1);
+    let vars = entrycore::codegen::collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3801,7 +3818,7 @@ fn compile_quotient_and_mod_roundtrip() {
     let src = r#"fn when_start() { let x = quotient_and_mod(10, 3, "modulo"); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = entrycore::codegen::collect_var_map(&p1);
+    let vars = entrycore::codegen::collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3854,7 +3871,7 @@ fn compile_sqrt_roundtrip() {
     let src = r#"fn when_start() { let y = sqrt(x); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = entrycore::codegen::collect_var_map(&p1);
+    let vars = entrycore::codegen::collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3935,7 +3952,7 @@ fn compile_show_roundtrip() {
     let src = r#"fn when_start() { show(); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = entrycore::codegen::collect_var_map(&p1);
+    let vars = entrycore::codegen::collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -3964,7 +3981,7 @@ fn compile_hide_roundtrip() {
     let src = r#"fn when_start() { hide(); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = entrycore::codegen::collect_var_map(&p1);
+    let vars = entrycore::codegen::collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -4122,7 +4139,7 @@ fn compile_if_else_roundtrip() {
     let src = "fn when_start() { if 1 < 2 { let x = 1; } else { let y = 2; } }";
     let p1 = parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
     let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
@@ -5093,7 +5110,7 @@ fn compile_start_blocks_roundtrip() {
     "#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let script_str = objects[0]["script"].as_str().expect("script str");
     let _ = program_from_script_string_with_vars(script_str, &vars).expect("deparse");
@@ -5147,7 +5164,7 @@ fn compile_show_list_roundtrip() {
     "#;
     let p1 = parse(src).expect("parse");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let script_str = objects[0]["script"].as_str().expect("script string");
     let p2 = program_from_script_string_with_vars(script_str, &vars).expect("deparse");
@@ -5200,7 +5217,7 @@ fn compile_hide_list_roundtrip() {
     "#;
     let p1 = parse(src).expect("parse");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let script_str = objects[0]["script"].as_str().expect("script string");
     let p2 = program_from_script_string_with_vars(script_str, &vars).expect("deparse");
@@ -5242,7 +5259,7 @@ fn compile_stop_run_all_roundtrip() {
     let src = r#"fn when_start() { stop_run_all(); }"#;
     let p1 = parse(src).expect("parse");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let script_str = objects[0]["script"].as_str().expect("script string");
     let p2 = program_from_script_string_with_vars(script_str, &vars).expect("deparse");
@@ -5284,7 +5301,7 @@ fn compile_restart_project_roundtrip() {
     let src = r#"fn when_start() { restart_project(); }"#;
     let p1 = parse(src).expect("parse");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let script_str = objects[0]["script"].as_str().expect("script string");
     let p2 = program_from_script_string_with_vars(script_str, &vars).expect("deparse");
@@ -5335,7 +5352,7 @@ fn compile_create_clone_roundtrip() {
     "#;
     let p1 = parse(src).expect("parse");
     let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let vars = collect_var_map(&p1);
+    let vars = collect_var_map(&p1).unwrap();
     let objects = v["objects"].as_array().unwrap();
     let script_str = objects[0]["script"].as_str().expect("script string");
     let p2 = program_from_script_string_with_vars(script_str, &vars).expect("deparse");
