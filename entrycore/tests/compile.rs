@@ -2947,7 +2947,8 @@ fn compile_set_fill_color() {
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_fill_color");
     let params = thread[1]["params"].as_array().unwrap();
-    assert_eq!(params.len(), 1);
+    assert_eq!(params.len(), 2);
+    assert!(params[1].is_null());
 }
 
 #[test]
@@ -5850,4 +5851,78 @@ fn compile_text_flush_arity_check() {
     assert!(compile(&[("obj", src1)], &empty_project()).is_err());
     let src2 = r#"fn when_start() { text_flush("x", "y"); }"#;
     assert!(compile(&[("obj", src2)], &empty_project()).is_err());
+}
+
+// --- text_change_font / text_change_font_color / text_change_bg_color (글상자 서식) ---
+
+/// 글씨체는 동적 드롭다운이므로 문자열로, 두 색상은 색상 블록으로 emit된다.
+#[test]
+fn compile_text_style_blocks() {
+    let src = r##"fn when_start() {
+        text_change_font("Nanum Gothic");
+        text_change_font_color("#112233");
+        text_change_bg_color("#445566");
+    }"##;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+
+    let font = thread.iter().find(|b| b["type"] == "text_change_font").expect("font block");
+    assert_eq!(font["params"][0], "Nanum Gothic");
+    assert!(font["params"][1].is_null());
+
+    for (type_id, color) in [("text_change_font_color", "#112233"), ("text_change_bg_color", "#445566")] {
+        let block = thread.iter().find(|b| b["type"] == type_id).expect("color block");
+        assert_eq!(block["params"][0]["type"], "text");
+        assert_eq!(block["params"][0]["params"][0], color);
+        assert!(block["params"][1].is_null());
+    }
+}
+
+/// 글상자 서식 세 블록이 codegen 후 deparse에서도 원래 호출 이름과 인자를 유지한다.
+#[test]
+fn compile_text_style_blocks_roundtrip() {
+    use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r##"fn when_start() {
+        text_change_font("Nanum Gothic");
+        text_change_font_color("#112233");
+        text_change_bg_color("#445566");
+    }"##;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let script = v["objects"][0]["script"].as_str().expect("script string");
+    let p2 = program_from_script_string_with_vars(script, &collect_var_map(&p1)).expect("deparse");
+    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else { panic!("expected when_start"); };
+
+    for (stmt, (expected_name, expected_arg)) in body.iter().zip([
+        ("text_change_font", "Nanum Gothic"),
+        ("text_change_font_color", "#112233"),
+        ("text_change_bg_color", "#445566"),
+    ]) {
+        let Stmt::Expr(Expr::Call(fref, args)) = stmt else { panic!("expected call"); };
+        assert_eq!(fref.name, expected_name);
+        assert_eq!(args.len(), 1);
+        match &args[0] {
+            Expr::Str(arg) => assert_eq!(arg, expected_arg),
+            other => panic!("expected string argument, got {other:?}"),
+        }
+    }
+}
+
+/// 글상자 서식 함수는 정확히 하나의 인자만 허용하고 글씨체는 문자열만 허용한다.
+#[test]
+fn compile_text_style_blocks_validation() {
+    for src in [
+        r#"fn when_start() { text_change_font(); }"#,
+        r#"fn when_start() { text_change_font("a", "b"); }"#,
+        r#"fn when_start() { text_change_font(1); }"#,
+        r#"fn when_start() { text_change_font_color(); }"#,
+        r#"fn when_start() { text_change_bg_color("a", "b"); }"#,
+    ] {
+        assert!(compile(&[("obj", src)], &empty_project()).is_err());
+    }
 }

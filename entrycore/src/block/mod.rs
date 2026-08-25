@@ -371,6 +371,15 @@ pub enum Block {
         mode: bool,
     },
     TextFlush,
+    TextChangeFont {
+        font: String,
+    },
+    TextChangeFontColor {
+        color: ParamBlock,
+    },
+    TextChangeBgColor {
+        color: ParamBlock,
+    },
     // --- 움직임 ---
     MoveDirection {
         direction: String,
@@ -619,6 +628,9 @@ impl Block {
             Block::TextPrepend { .. } => "text_prepend",
             Block::TextChangeEffect { .. } => "text_change_effect",
             Block::TextFlush => "text_flush",
+            Block::TextChangeFont { .. } => "text_change_font",
+            Block::TextChangeFontColor { .. } => "text_change_font_color",
+            Block::TextChangeBgColor { .. } => "text_change_bg_color",
         }
     }
 
@@ -744,6 +756,9 @@ impl Block {
             Block::TextPrepend { .. } => Category::Text,
             Block::TextChangeEffect { .. } => Category::Text,
             Block::TextFlush => Category::Text,
+            Block::TextChangeFont { .. } => Category::Text,
+            Block::TextChangeFontColor { .. } => Category::Text,
+            Block::TextChangeBgColor { .. } => Category::Text,
         }
     }
 }
@@ -1483,6 +1498,34 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             return Err(SyntaxError("text_flush needs 0 args".into()));
                         }
                         return Ok(Block::TextFlush);
+                    }
+                    if fref.name == "text_change_font" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("text_change_font needs 1 arg".into()));
+                        }
+                        let font = match &args[0] {
+                            Expr::Str(font) => font.clone(),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "text_change_font font must be string".into(),
+                                ));
+                            }
+                        };
+                        return Ok(Block::TextChangeFont { font });
+                    }
+                    if fref.name == "text_change_font_color" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("text_change_font_color needs 1 arg".into()));
+                        }
+                        let color = from_expr(&args[0])?;
+                        return Ok(Block::TextChangeFontColor { color });
+                    }
+                    if fref.name == "text_change_bg_color" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("text_change_bg_color needs 1 arg".into()));
+                        }
+                        let color = from_expr(&args[0])?;
+                        return Ok(Block::TextChangeBgColor { color });
                     }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
@@ -2385,7 +2428,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             None,
         ),
         Block::SetRandomColor => (vec![], None),
-        Block::SetFillColor { color } => (vec![param_to_value(color)], None),
+        Block::SetFillColor { color } => (vec![param_to_value(color), Value::Null], None),
         Block::ChangeThickness { amount } => (vec![param_to_value(amount), Value::Null], None),
         Block::SetThickness { value } => (vec![param_to_value(value), Value::Null], None),
         Block::ChangeBrushTransparency { amount } => {
@@ -2406,6 +2449,9 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             None,
         ),
         Block::TextFlush => (vec![], None),
+        Block::TextChangeFont { font } => (vec![Value::String(font.clone()), Value::Null], None),
+        Block::TextChangeFontColor { color } => (vec![param_to_value(color), Value::Null], None),
+        Block::TextChangeBgColor { color } => (vec![param_to_value(color), Value::Null], None),
     })
 }
 

@@ -442,12 +442,27 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 .ok_or_else(|| SyntaxError(format!("unknown text effect: {effect_str}")))?;
             let mode = match &mode_pb {
                 ParamBlock::Text(s) if s == "on" => true,
-                ParamBlock::Text(s) if s == "of" => false,
+                ParamBlock::Text(s) if s == "off" => false,
                 _ => return Err(SyntaxError("text_change_effect mode must be on/off".into())),
             };
             Block::TextChangeEffect { effect, mode }
         }
         "text_flush" => Block::TextFlush, // null=슬롯없음
+        "text_change_font" => {
+            let font = match param_at(&params, 0, vars)? {
+                ParamBlock::Text(font) => font,
+                _ => return Err(SyntaxError("text_change_font font must be string".into())),
+            };
+            Block::TextChangeFont { font }
+        }
+        "text_change_font_color" => {
+            let color = param_at(&params, 0, vars)?;
+            Block::TextChangeFontColor { color }
+        }
+        "text_change_bg_color" => {
+            let color = param_at(&params, 0, vars)?;
+            Block::TextChangeBgColor { color }
+        }
         // 산술/비교/논리
         "calc_basic" => {
             let lhs = param_at(&params, 0, vars)?;
@@ -2300,6 +2315,41 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::TextChangeFont { font } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "text_change_font".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![Expr::Str(font.clone())],
+            )));
+            Ok(())
+        }
+        Block::TextChangeFontColor { color } => {
+            let c = expr_from_param(color, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "text_change_font_color".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![c],
+            )));
+            Ok(())
+        }
+        Block::TextChangeBgColor { color } => {
+            let c = expr_from_param(color, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "text_change_bg_color".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![c],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2661,6 +2711,38 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             Vec::new(),
         )),
+        Block::TextChangeFont { font } => {
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "text_change_font".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![Expr::Str(font.clone())],
+            ))
+        }
+        Block::TextChangeFontColor { color } => {
+            let c = expr_from_param(color, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "text_change_font_color".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![c],
+            ))
+        }
+        Block::TextChangeBgColor { color } => {
+            let c = expr_from_param(color, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "text_change_bg_color".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![c],
+            ))
+        }
     }
 }
 

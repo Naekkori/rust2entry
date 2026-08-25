@@ -234,14 +234,16 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `change_brush_transparency` / `set_brush_tranparency` — 붓 투명도 (→ `change_brush_transparency(10.0)` / `set_brush_tranparency(50.0)`). **EntryJS 의 set_brush_tranparency 는 원본 오타 그대로**
 - ✅ `brush_erase_all` — 모든 붓 지우기 (→ `brush_erase_all()`)
 
-### 텍스트 (6/9)
+### 텍스트 (9/9) ✅ 완료
 - ✅ `text_read` — 글상자 □ 의 내용 (→ `text_read("self")`)
 - ✅ `text_write` — □ (이)라고 글쓰기 (→ `text_write("...")`; statement 전용 — 자기 textBox 에 작성, textBox 없는 sprite 는 런타임이 silent 로 무시)
 - ✅ `text_append` — □ 라고 뒤에 이어쓰기 (→ `text_append("...")`; statement 전용, `text_write` 와 동일 시그니처 — params = `[TextInput, Null]`)
 - ✅ `text_prepend` — □ 라고 앞에 추가하기 (→ `text_prepend("...")`; statement 전용, `text_write` 와 동일 시그니처 — params = `[TextInput, Null]`)
 - ✅ `text_change_effect` — 텍스트에 효과 (→ `text_change_effect("strike", true)` 또는 `text_change_effect(TextEffect::Strike, true)`; statement 전용, `Block::TextChangeEffect { effect: TextEffect, mode: bool }`. Dropdown 슬롯 2개 + Indicator, params = `["strike"|"underLine"|"fontItalic"|"fontBold", "on"|"off", null]`. `TextEffect` enum (Strike/UnderLine/FontItalic/FontBlold) + `text_effect_to_str`/`str_to_text_effect` helper.)
 - ✅ `text_flush` — 텍스트 모두 지우기 (→ `text_flush()`; statement 전용, no-arg. EntryJS `def: { params: [null] }` 가 `.ent` 에선 빈 배열로 emit → `Block::TextFlush` unit variant, params = `[]`.)
-- ⬜ `text_change_font` / `text_change_font_color` / `text_change_bg_color` — 글씨체/색/배경색
+- ✅ `text_change_font` — 글씨체 변경 (→ `text_change_font("Nanum Gothic")`; 동적 드롭다운이므로 JSON 문자열 + Indicator 슬롯으로 emit)
+- ✅ `text_change_font_color` — 글씨 색 변경 (→ `text_change_font_color("#112233")`; 색상 값 블록 + Indicator 슬롯)
+- ✅ `text_change_bg_color` — 글상자 배경색 변경 (→ `text_change_bg_color("#445566")`; 색상 값 블록 + Indicator 슬롯)
 
 ### 소리 (0/16)
 - ⬜ `sound_something_with_block` — 소리 □ 재생하기
@@ -514,9 +516,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**123/334** 매핑됨 (약 36.8%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**126/334** 매핑됨 (약 37.7%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 6/9, 소리 0/16, 판단 7/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 0/16, 판단 7/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -580,6 +582,7 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 텍스트: `text_append` (□ 라고 뒤에 이어쓰기) / `text_prepend` (□ 라고 앞에 추가하기) — `Block::TextAppend { content }` / `Block::TextPrepend { content }` 분리 variant. text_write 와 동일 시그니처 (params = `[TextInput, Null]`). reserved name 매칭 `text_append("...")` / `text_prepend("...")`. 테스트 8개 (basic/roundtrip/sub_expr/arity_check 각 4). **텍스트 4/9.**
   - [x] 텍스트: `text_change_effect` (텍스트에 효과) — `Block::TextChangeEffect { effect: TextEffect, mode: bool }`. `TextEffect` enum (Strike/UnderLine/FontItalic/FontBlold) + `text_effect_to_str`/`str_to_text_effect` helper. `text_change_effect("strike", true)` 및 `text_change_effect(TextEffect::Strike, true)` 신택스 (effect=string 또는 TextEffect variant, mode=bool). params = `["strike", "on", null]` (Dropdown 슬롯 2개 + Indicator). 문자열/enum 공통 dropdown 변환 규약으로 `EffectType`, `Dimension`, `QamMethod`에도 동일하게 적용. deparse 라운드트립에서 mode string ("on"/"off") ↔ bool 변환. 테스트 7개 (basic/enum/mixed/all_enum/roundtrip/arity_check/type_check). **텍스트 5/9.**
   - [x] 텍스트: `text_flush` (텍스트 모두 지우기) — no-arg statement. `Block::TextFlush` unit variant. EntryJS `def: { params: [null] }` 가 `.ent` 에선 빈 배열로 emit → params = `[]`. deparse 라운드트립에서 `Call(text_flush, [])` 복원. 테스트 3개 (basic/roundtrip/arity_check). **텍스트 6/9.**
+  - [x] 텍스트: `text_change_font` / `text_change_font_color` / `text_change_bg_color` — 글씨체는 동적 드롭다운 문자열, 글씨 색·배경색은 색상 값 블록으로 emit. 세 블록의 기본 변환·라운드트립·인자 검증 테스트 추가. `text_change_effect` 비활성 값의 deparse 오타 (`"of"` → `"off"`) 수정. **텍스트 9/9 완료.**
 - [ ] 중기
   - [ ] Timer/Answer 전용 블록 신택스 (`start_timer()` 등)
   - [x] Cloud/RealTime 변수 신택스 (`let x: CloudVar = ""` / `: RealtimeVar = ""`)
@@ -619,8 +622,8 @@ cargo build                 # 빌드만
 - `block::Dimension` (Width/Height) vs `codegen/schema.rs::Dimension` (picture width/height i64) — 이름 겹침. 현재는 모듈이 달라 컴파일 되지만 codegen 에서 둘 다 쓰면 alias 강제됨. `ScaleAxis` 로 rename 권장 (참조 ~7곳)
 
 **다음 할 일 추천 순서**:
-1. ~~텍스트 — `text_write` (□ (이)라고 글쓰기)~~ ✅ 완료
-2. 텍스트 — `text_append` / `text_prepend` (뒤/앞에 추가하기) — statement 패턴 동일, 즉시 가치
+1. 판단 — 남은 4개 블록을 스키마 기준으로 매핑
+2. 연산 — 남은 값 블록을 우선 매핑
 
 ## 디렉토리
 
