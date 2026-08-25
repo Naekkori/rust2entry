@@ -5634,3 +5634,89 @@ fn compile_text_prepend_arity_check() {
     let src2 = r#"fn when_start() { text_prepend("a", "b"); }"#;
     assert!(compile(&[("obj", src2)], &empty_project()).is_err());
 }
+
+// --- text_change_effect (텍스트에 효과) ---
+
+/// `text_change_effect("strike", true)` → `text_change_effect` 블록, params[0] = "strike" (Dropdown), params[1] = "on" (Dropdown, bool → "on"), params[2] = null (Indicator).
+#[test]
+fn compile_text_change_effect() {
+    let src = r#"fn when_start() { text_change_effect("strike", true); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "text_change_effect")
+        .expect("text_change_effect block");
+    let params = block["params"].as_array().unwrap();
+    assert_eq!(params.len(), 3);
+    assert_eq!(params[0].as_str().unwrap(), "strike");
+    assert_eq!(params[1].as_str().unwrap(), "on");
+    assert!(params[2].is_null());
+}
+
+/// text_change_effect 라운드트립 — codegen → deparse → IR 의 `Stmt::Expr(Call(text_change_effect, [Str("strike"), Bool(true)]))` 가 복원되는지.
+#[test]
+fn compile_text_change_effect_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { text_change_effect("strike", true); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "text_change_effect");
+                    assert_eq!(args.len(), 2);
+                    match &args[0] {
+                        Expr::Str(s) => assert_eq!(s, "strike"),
+                        other => panic!("expected Str(\"strike\"), got {other:?}"),
+                    }
+                    match &args[1] {
+                        Expr::Bool(b) => assert!(*b),
+                        other => panic!("expected Bool(true), got {other:?}"),
+                    }
+                }
+                other => panic!("expected Call(text_change_effect), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// text_change_effect 의 args 가 0/1/3 이면 SyntaxError.
+#[test]
+fn compile_text_change_effect_arity_check() {
+    use entrycore::compile;
+    let src0 = r#"fn when_start() { text_change_effect(); }"#;
+    assert!(compile(&[("obj", src0)], &empty_project()).is_err());
+    let src1 = r#"fn when_start() { text_change_effect("strike"); }"#;
+    assert!(compile(&[("obj", src1)], &empty_project()).is_err());
+    let src3 = r#"fn when_start() { text_change_effect("strike", true, "x"); }"#;
+    assert!(compile(&[("obj", src3)], &empty_project()).is_err());
+}
+
+/// text_change_effect 의 args 가 string literal / bool 이 아니면 SyntaxError.
+#[test]
+fn compile_text_change_effect_type_check() {
+    use entrycore::compile;
+    // effect 가 string literal 아님 (숫자).
+    let src_num = r#"fn when_start() { text_change_effect(123, true); }"#;
+    assert!(compile(&[("obj", src_num)], &empty_project()).is_err());
+    // mode 가 bool 아님 (string).
+    let src_str_mode = r#"fn when_start() { text_change_effect("strike", "on"); }"#;
+    assert!(compile(&[("obj", src_str_mode)], &empty_project()).is_err());
+    // effect 가 unknown string.
+    let src_unknown = r#"fn when_start() { text_change_effect("unknown_effect", true); }"#;
+    assert!(compile(&[("obj", src_unknown)], &empty_project()).is_err());
+}

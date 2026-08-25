@@ -9,7 +9,7 @@ use std::vec;
 use crate::Error::{SyntaxError, UnmappedBlock};
 use crate::block::{
     Block, DialogMode, Dimension, EffectType, MathOperation, ParamBlock, QamMethod, dim_to_dsl_str,
-    effect_to_str,
+    effect_to_str, str_to_text_effect, text_effect_to_str,
 };
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
@@ -426,6 +426,26 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         "text_prepend" => {
             let content = param_at(&params, 0, vars)?;
             Block::TextPrepend { content }
+        }
+        "text_change_effect" => {
+            let effect_pb = param_at(&params, 0, vars)?;
+            let mode_pb = param_at(&params, 1, vars)?;
+            let effect_str = match &effect_pb {
+                ParamBlock::Text(s) => s,
+                _ => {
+                    return Err(SyntaxError(
+                        "text_change_effect effect must be string".into(),
+                    ));
+                }
+            };
+            let effect = str_to_text_effect(effect_str)
+                .ok_or_else(|| SyntaxError(format!("unknown text effect: {effect_str}")))?;
+            let mode = match &mode_pb {
+                ParamBlock::Text(s) if s == "on" => true,
+                ParamBlock::Text(s) if s == "of" => false,
+                _ => return Err(SyntaxError("text_change_effect mode must be on/off".into())),
+            };
+            Block::TextChangeEffect { effect, mode }
         }
         // 산술/비교/논리
         "calc_basic" => {
@@ -2256,6 +2276,18 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::TextChangeEffect { effect, mode } => {
+            let effect_str = text_effect_to_str(*effect);
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "text_change_effect".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![Expr::Str(effect_str.to_string()), Expr::Bool(*mode)],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2393,36 +2425,9 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             Vec::new(),
         )),
-        Block::AskAndWait { question } => {
-            let q = expr_from_param(question, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "ask_and_wait".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![q],
-            ))
-        }
         Block::GetCanvasInputValue {} => Ok(Expr::Call(
             ir::FuncRef {
                 name: "get_canvas_input_value".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::Show {} => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "show".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::Hide {} => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "hide".to_string(),
                 arity: 0,
                 raw: None,
             },
@@ -2472,66 +2477,73 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         | Block::FuncDef { .. }
         | Block::WaitSeconds { .. }
         | Block::WaitUntilTrue { .. }
+        | Block::AskAndWait { .. }
         | Block::AddValueToList { .. }
         | Block::RemoveValueFromList { .. }
         | Block::InsertValueToList { .. }
+        | Block::ChangeValueListIndex { .. }
+        | Block::RestartProject
+        | Block::DeleteClone
+        | Block::RemoveAllClones
+        | Block::ChooseProjectTimerAction { .. }
+        | Block::SetVisibleProjectTimer { .. }
+        | Block::SetVisibleAnswer { .. }
+        | Block::Show {}
+        | Block::Hide {}
+        | Block::Dialog { .. }
+        | Block::DialogTime { .. }
+        | Block::ChangeToSomeShape { .. }
+        | Block::ChangeToNextShape {}
+        | Block::RemoveDialog {}
+        | Block::AddEffectAmount { .. }
+        | Block::ChangeEffectAmount { .. }
+        | Block::EraseAllEffects {}
+        | Block::ChangeScaleSize { .. }
+        | Block::SetScaleSize { .. }
+        | Block::ResetScaleSize {}
+        | Block::FlipX {}
+        | Block::FlipY {}
+        | Block::ChangeObjectIndex { .. }
+        | Block::StretchScaleSize { .. }
+        | Block::TextChangeEffect { .. }
+        | Block::BounceWall
+        | Block::MoveX { .. }
+        | Block::MoveY { .. }
+        | Block::RotateRelative { .. }
+        | Block::DirectionRelative { .. }
+        | Block::MoveXyTime { .. }
+        | Block::LocateX { .. }
+        | Block::LocateY { .. }
+        | Block::LocateXY { .. }
+        | Block::LocateXyTime { .. }
+        | Block::LocateObjectTime { .. }
+        | Block::Locate { .. }
+        | Block::RotateByTime { .. }
+        | Block::DirectionRelativeDuration { .. }
+        | Block::RotateAbsolute { .. }
+        | Block::DirectionAbsolute { .. }
+        | Block::SeeAngleObject { .. }
+        | Block::MoveToAngle { .. }
+        | Block::BrushStamp
+        | Block::StartDrawing
+        | Block::StopDrawing
+        | Block::StartFill
+        | Block::StopFill
+        | Block::SetColor { .. }
+        | Block::SetRandomColor
+        | Block::SetFillColor { .. }
+        | Block::ChangeThickness { .. }
+        | Block::SetThickness { .. }
+        | Block::ChangeBrushTransparency { .. }
+        | Block::SetBrushTranparency { .. }
+        | Block::BrushEraseAll
+        | Block::TextWrite { .. }
+        | Block::TextAppend { .. }
+        | Block::TextPrepend { .. }
         | Block::Return { .. } => Err(UnmappedBlock(format!(
             "block used as expr: {}",
             b.type_id()
         ))),
-        Block::ChooseProjectTimerAction { action } => {
-            let fn_name = match action.as_str() {
-                "start" => "start_timer",
-                "stop" => "stop_timer",
-                "reset" => "reset_timer",
-                _ => "start_timer",
-            };
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: fn_name.to_string(),
-                    arity: 0,
-                    raw: None,
-                },
-                Vec::new(),
-            ))
-        }
-        Block::SetVisibleProjectTimer { value } => Ok(Expr::Bool(*value)),
-        Block::SetVisibleAnswer { value } => Ok(Expr::Bool(*value)),
-        Block::Dialog { mode, content } => {
-            let arg = expr_from_param(content, vars)?;
-            let name = match mode {
-                DialogMode::Say => "say",
-                DialogMode::Think => "think",
-            };
-            Ok(Expr::Call(
-                crate::ir::FuncRef {
-                    name: name.to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![arg],
-            ))
-        }
-        Block::DialogTime {
-            mode,
-            content,
-            time,
-        } => {
-            let content_arg = expr_from_param(content, vars)?;
-            let time_arg = expr_from_param(time, vars)?;
-            let name = match mode {
-                DialogMode::Say => "say",
-                DialogMode::Think => "think",
-            };
-            Ok(Expr::Call(
-                crate::ir::FuncRef {
-                    name: name.to_string(),
-                    arity: 2,
-                    raw: None,
-                },
-                vec![content_arg, time_arg],
-            ))
-        }
         Block::QuotientAndMod { a, b, mode } => {
             let av = expr_from_param(a, vars)?;
             let bv = expr_from_param(b, vars)?;
@@ -2548,125 +2560,6 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![av, bv, Expr::Str(mode_str.to_string())],
             ))
         }
-        Block::ChangeToSomeShape { picture } => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "change_to_some_shape".to_string(),
-                arity: 1,
-                raw: None,
-            },
-            vec![Expr::Str(picture.clone())],
-        )),
-        Block::ChangeToNextShape {} => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "change_to_next_shape".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::RemoveDialog {} => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "remove_dialog".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::AddEffectAmount { effect, amount } => {
-            let a = expr_from_param(amount, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "add_effect_amount".to_string(),
-                    arity: 2,
-                    raw: None,
-                },
-                vec![Expr::Str(effect_to_str(*effect).to_string()), a],
-            ))
-        }
-        Block::StretchScaleSize { dim, value } => {
-            let v = expr_from_param(value, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "stretch_scale_size".to_string(),
-                    arity: 2,
-                    raw: None,
-                },
-                vec![Expr::Str(dim_to_dsl_str(dim).to_string()), v],
-            ))
-        }
-        Block::ChangeEffectAmount { effect, amount } => {
-            let a = expr_from_param(amount, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "change_effect_amount".to_string(),
-                    arity: 2,
-                    raw: None,
-                },
-                vec![Expr::Str(effect_to_str(*effect).to_string()), a],
-            ))
-        }
-        Block::EraseAllEffects {} => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "erase_all_effects".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::ChangeScaleSize { amount } => {
-            let a = expr_from_param(amount, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "change_scale_size".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![a],
-            ))
-        }
-        Block::SetScaleSize { amount } => {
-            let a = expr_from_param(amount, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "set_scale_size".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![a],
-            ))
-        }
-        Block::ResetScaleSize {} => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "reset_scale_size".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::FlipX {} => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "flip_x".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::FlipY {} => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "flip_y".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::ChangeObjectIndex { direction } => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "change_object_index".to_string(),
-                arity: 1,
-                raw: None,
-            },
-            vec![Expr::Str(direction.clone())],
-        )),
         Block::ListValueAt { index, list } => {
             let index = expr_from_param(index, vars)?;
             Ok(Expr::Call(
@@ -2676,18 +2569,6 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![index, Expr::Var(list.clone())],
-            ))
-        }
-        Block::ChangeValueListIndex { index, value, list } => {
-            let index = expr_from_param(index, vars)?;
-            let value = expr_from_param(value, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "change_value_list_index".to_string(),
-                    arity: 3,
-                    raw: None,
-                },
-                vec![index, value, Expr::Var(list.clone())],
             ))
         }
         Block::LengthOfList { list } => Ok(Expr::Call(
@@ -2709,22 +2590,6 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![Expr::Var(list.clone()), value],
             ))
         }
-        Block::RestartProject => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "restart_project".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::DeleteClone => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "delete_clone".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
         Block::Raw { type_id, raw } => Ok(Expr::Call(
             ir::FuncRef {
                 name: type_id.clone(),
@@ -2732,14 +2597,6 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 raw: Some(raw.clone()),
             },
             hw_raw_args(raw, vars),
-        )),
-        Block::RemoveAllClones => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "remove_all_clones".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
         )),
         Block::IsPressSomeKey { key } => Ok(Expr::Call(
             ir::FuncRef {
@@ -2757,58 +2614,6 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             vec![Expr::Str(target.clone())],
         )),
-        Block::BounceWall => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "bounce_wall".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::MoveX { amount } => {
-            let a_param = expr_from_param(amount, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "move_x".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![a_param],
-            ))
-        }
-        Block::MoveY { amount } => {
-            let a_param = expr_from_param(amount, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "move_y".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![a_param],
-            ))
-        }
-        Block::RotateRelative { angle } => {
-            let a_param = expr_from_param(angle, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "rotate_relative".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![a_param],
-            ))
-        }
-        Block::DirectionRelative { angle } => {
-            let a_param = expr_from_param(angle, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "direction_relative".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![a_param],
-            ))
-        }
         Block::IsClicked => Ok(Expr::Call(
             ir::FuncRef {
                 name: "is_clicked".to_string(),
@@ -2825,282 +2630,6 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             Vec::new(),
         )),
-        Block::MoveXyTime { duration, dx, dy } => {
-            let d_param = expr_from_param(duration, vars)?;
-            let dx_param = expr_from_param(dx, vars)?;
-            let dy_param = expr_from_param(dy, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "move_xy_time".to_string(),
-                    arity: 3,
-                    raw: None,
-                },
-                vec![d_param, dx_param, dy_param],
-            ))
-        }
-        Block::LocateX { x } => {
-            let x_param = expr_from_param(x, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "locate_x".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![x_param],
-            ))
-        }
-        Block::LocateY { y } => {
-            let y_param = expr_from_param(y, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "locate_y".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![y_param],
-            ))
-        }
-        Block::LocateXY { x, y } => {
-            let x_param = expr_from_param(x, vars)?;
-            let y_param = expr_from_param(y, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "locate_xy".to_string(),
-                    arity: 2,
-                    raw: None,
-                },
-                vec![x_param, y_param],
-            ))
-        }
-        Block::LocateXyTime { duration, x, y } => {
-            let d_param = expr_from_param(duration, vars)?;
-            let x_param = expr_from_param(x, vars)?;
-            let y_param = expr_from_param(y, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "locate_xy_time".to_string(),
-                    arity: 3,
-                    raw: None,
-                },
-                vec![d_param, x_param, y_param],
-            ))
-        }
-        Block::LocateObjectTime { duration, target } => {
-            let d_param = expr_from_param(duration, vars)?;
-            let target_param = expr_from_param(target, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "locate_object_time".to_string(),
-                    arity: 2,
-                    raw: None,
-                },
-                vec![d_param, target_param],
-            ))
-        }
-        Block::Locate { target } => {
-            let target_param = expr_from_param(target, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "locate".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![target_param],
-            ))
-        }
-        Block::RotateByTime { duration, angle } => {
-            let duration_param = expr_from_param(duration, vars)?;
-            let target_angle = expr_from_param(angle, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "rotate_by_time".to_string(),
-                    arity: 2,
-                    raw: None,
-                },
-                vec![duration_param, target_angle],
-            ))
-        }
-        Block::DirectionRelativeDuration { duration, amount } => {
-            let duration_param = expr_from_param(duration, vars)?;
-            let target_amount = expr_from_param(amount, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "direction_relative_duration".to_string(),
-                    arity: 2,
-                    raw: None,
-                },
-                vec![duration_param, target_amount],
-            ))
-        }
-        Block::RotateAbsolute { angle } => {
-            let angle_param = expr_from_param(angle, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "rotate_absolute".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![angle_param],
-            ))
-        }
-        Block::DirectionAbsolute { angle } => {
-            let angle_param = expr_from_param(angle, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "direction_absolute".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![angle_param],
-            ))
-        }
-        Block::SeeAngleObject { target } => {
-            let target_param = expr_from_param(target, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "see_angle_object".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![target_param],
-            ))
-        }
-        Block::MoveToAngle { angle, distance } => {
-            let angle_param = expr_from_param(angle, vars)?;
-            let distance_param = expr_from_param(distance, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "move_to_angle".to_string(),
-                    arity: 2,
-                    raw: None,
-                },
-                vec![angle_param, distance_param],
-            ))
-        }
-        Block::BrushStamp => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "brush_stamp".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::StartDrawing => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "start_drawing".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::StopDrawing => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "stop_drawing".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::StartFill => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "start_fill".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::StopFill => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "stop_fill".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::SetColor { r, g, b } => {
-            let r = expr_from_param(r, vars)?;
-            let g = expr_from_param(g, vars)?;
-            let b = expr_from_param(b, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "set_color".to_string(),
-                    arity: 3,
-                    raw: None,
-                },
-                vec![r, g, b],
-            ))
-        }
-        Block::SetRandomColor => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "set_random_color".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
-        Block::SetFillColor { color } => {
-            let c = expr_from_param(color, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "set_fill_color".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![c],
-            ))
-        }
-        Block::ChangeThickness { amount } => {
-            let a = expr_from_param(amount, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "change_thickness".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![a],
-            ))
-        }
-        Block::SetThickness { value } => {
-            let v = expr_from_param(value, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "set_thickness".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![v],
-            ))
-        }
-        Block::ChangeBrushTransparency { amount } => {
-            let a = expr_from_param(amount, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "change_brush_transparency".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![a],
-            ))
-        }
-        Block::SetBrushTranparency { value } => {
-            let v = expr_from_param(value, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "set_brush_tranparency".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![v],
-            ))
-        }
-        Block::BrushEraseAll => Ok(Expr::Call(
-            ir::FuncRef {
-                name: "brush_erase_all".to_string(),
-                arity: 0,
-                raw: None,
-            },
-            Vec::new(),
-        )),
         Block::TextRead { value } => {
             let v = expr_from_param(value, vars)?;
             Ok(Expr::Call(
@@ -3110,39 +2639,6 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![v],
-            ))
-        }
-        Block::TextWrite { content } => {
-            let c = expr_from_param(content, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "text_write".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![c],
-            ))
-        }
-        Block::TextAppend { content } => {
-            let c = expr_from_param(content, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "text_append".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![c],
-            ))
-        }
-        Block::TextPrepend { content } => {
-            let c = expr_from_param(content, vars)?;
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "text_prepend".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![c],
             ))
         }
     }

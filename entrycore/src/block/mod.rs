@@ -60,7 +60,13 @@ pub enum EffectType {
     Mosaic,
     Negative,
 }
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TextEffect {
+    Strike,
+    UnderLine,
+    FontItalic,
+    FontBlold,
+}
 /// 모든 Entry 블록의 통합 표현.
 #[derive(Debug, Clone)]
 pub enum Block {
@@ -360,6 +366,10 @@ pub enum Block {
     TextPrepend {
         content: ParamBlock,
     },
+    TextChangeEffect {
+        effect: TextEffect,
+        mode: bool,
+    },
     // --- 움직임 ---
     MoveDirection {
         direction: String,
@@ -606,6 +616,7 @@ impl Block {
             Block::TextWrite { .. } => "text_write",
             Block::TextAppend { .. } => "text_append",
             Block::TextPrepend { .. } => "text_prepend",
+            Block::TextChangeEffect { .. } => "text_change_effect",
         }
     }
 
@@ -729,6 +740,7 @@ impl Block {
             Block::TextWrite { .. } => Category::Text,
             Block::TextAppend { .. } => Category::Text,
             Block::TextPrepend { .. } => Category::Text,
+            Block::TextChangeEffect { .. } => Category::Text,
         }
     }
 }
@@ -1474,6 +1486,30 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         }
                         let content = from_expr(&args[0])?;
                         return Ok(Block::TextPrepend { content });
+                    }
+                    if fref.name == "text_change_effect" {
+                        if args.len() != 2 {
+                            return Err(SyntaxError("text_change_effect needs 2 args".into()));
+                        }
+                        let effect = match &args[0] {
+                            Expr::Str(s) => str_to_text_effect(s)
+                                .ok_or_else(|| SyntaxError(format!("unknown text effect: {s}")))?,
+                            _ => {
+                                return Err(SyntaxError(
+                                    "text_change_effect effect must be string".into(),
+                                ));
+                            }
+                        };
+                        let mode = match &args[1] {
+                            Expr::Bool(b) => *b,
+                            _ => {
+                                return Err(SyntaxError(
+                                    "text_change_effect mode must be bool".into(),
+                                ));
+                            }
+                        };
+
+                        return Ok(Block::TextChangeEffect { effect, mode });
                     }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
@@ -2395,6 +2431,14 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::TextWrite { content } => (vec![param_to_value(content), Value::Null], None),
         Block::TextAppend { content } => (vec![param_to_value(content), Value::Null], None),
         Block::TextPrepend { content } => (vec![param_to_value(content), Value::Null], None),
+        Block::TextChangeEffect { effect, mode } => (
+            vec![
+                Value::String(text_effect_to_str(*effect).to_string()),
+                Value::String(if *mode { "on" } else { "off" }.to_string()),
+                Value::Null,
+            ],
+            None,
+        ),
     })
 }
 
@@ -2540,7 +2584,24 @@ fn str_to_effect(s: &str) -> Option<EffectType> {
         _ => return None,
     })
 }
+pub fn str_to_text_effect(s: &str) -> Option<TextEffect> {
+    Some(match s {
+        "strike" => TextEffect::Strike,
+        "underLine" => TextEffect::UnderLine,
+        "fontItalic" => TextEffect::FontItalic,
+        "fontBold" => TextEffect::FontBlold,
+        _ => return None,
+    })
+}
 
+pub fn text_effect_to_str(t: TextEffect) -> &'static str {
+    match t {
+        TextEffect::Strike => "strike",
+        TextEffect::UnderLine => "underLine",
+        TextEffect::FontItalic => "fontItalic",
+        TextEffect::FontBlold => "fontBold",
+    }
+}
 //dim helper
 fn str_to_dim(s: &str) -> Option<Dimension> {
     Some(match s {
