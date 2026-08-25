@@ -5472,3 +5472,165 @@ fn compile_text_write_arity_check() {
     let src2 = r#"fn when_start() { text_write("a", "b"); }"#;
     assert!(compile(&[("obj", src2)], &empty_project()).is_err());
 }
+
+// --- text_append / text_prepend (글상자 뒤/앞에 이어쓰기) ---
+
+/// `text_append("hello")` → `text_append` 블록, params[0] = TextInput 슬롯, params[1] = null (Indicator).
+#[test]
+fn compile_text_append() {
+    let src = r#"fn when_start() { text_append("hello"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "text_append")
+        .expect("text_append block");
+    let params = block["params"].as_array().unwrap();
+    assert_eq!(params.len(), 2);
+    assert_eq!(params[0]["type"], "text");
+    assert_eq!(params[0]["params"][0].as_str().unwrap(), "hello");
+    assert!(params[1].is_null());
+}
+
+/// text_append 라운드트립 — codegen → deparse → IR 의 `Stmt::Expr(Call(text_append, [str("hi")]))` 가 복원되는지.
+#[test]
+fn compile_text_append_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { text_append("hi"); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "text_append");
+                    assert_eq!(args.len(), 1);
+                    match &args[0] {
+                        Expr::Str(s) => assert_eq!(s, "hi"),
+                        other => panic!("expected Str(\"hi\"), got {other:?}"),
+                    }
+                }
+                other => panic!("expected Call(text_append), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// text_append 의 args 로 표현식 (`text_read` 결과) 도 정상 처리 — 값 슬롯 블록을 Sub 로 emit.
+#[test]
+fn compile_text_append_sub_expr() {
+    let src = r#"fn when_start() { text_append(text_read("self")); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "text_append")
+        .expect("text_append block");
+    let params = block["params"].as_array().unwrap();
+    // params[0] = text_read Sub 블록이 nested 으로 emit 됨.
+    assert_eq!(params[0]["type"], "text_read");
+    assert!(params[1].is_null());
+}
+
+/// text_append 의 args 가 0 또는 2 이면 SyntaxError.
+#[test]
+fn compile_text_append_arity_check() {
+    use entrycore::compile;
+    let src0 = r#"fn when_start() { text_append(); }"#;
+    assert!(compile(&[("obj", src0)], &empty_project()).is_err());
+    let src2 = r#"fn when_start() { text_append("a", "b"); }"#;
+    assert!(compile(&[("obj", src2)], &empty_project()).is_err());
+}
+
+/// `text_prepend("hello")` → `text_prepend` 블록, params[0] = TextInput 슬롯, params[1] = null (Indicator).
+#[test]
+fn compile_text_prepend() {
+    let src = r#"fn when_start() { text_prepend("hello"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "text_prepend")
+        .expect("text_prepend block");
+    let params = block["params"].as_array().unwrap();
+    assert_eq!(params.len(), 2);
+    assert_eq!(params[0]["type"], "text");
+    assert_eq!(params[0]["params"][0].as_str().unwrap(), "hello");
+    assert!(params[1].is_null());
+}
+
+/// text_prepend 라운드트립 — codegen → deparse → IR 의 `Stmt::Expr(Call(text_prepend, [str("hi")]))` 가 복원되는지.
+#[test]
+fn compile_text_prepend_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { text_prepend("hi"); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "text_prepend");
+                    assert_eq!(args.len(), 1);
+                    match &args[0] {
+                        Expr::Str(s) => assert_eq!(s, "hi"),
+                        other => panic!("expected Str(\"hi\"), got {other:?}"),
+                    }
+                }
+                other => panic!("expected Call(text_prepend), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// text_prepend 의 args 로 표현식 (`text_read` 결과) 도 정상 처리 — 값 슬롯 블록을 Sub 로 emit.
+#[test]
+fn compile_text_prepend_sub_expr() {
+    let src = r#"fn when_start() { text_prepend(text_read("self")); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "text_prepend")
+        .expect("text_prepend block");
+    let params = block["params"].as_array().unwrap();
+    // params[0] = text_read Sub 블록이 nested 으로 emit 됨.
+    assert_eq!(params[0]["type"], "text_read");
+    assert!(params[1].is_null());
+}
+
+/// text_prepend 의 args 가 0 또는 2 이면 SyntaxError.
+#[test]
+fn compile_text_prepend_arity_check() {
+    use entrycore::compile;
+    let src0 = r#"fn when_start() { text_prepend(); }"#;
+    assert!(compile(&[("obj", src0)], &empty_project()).is_err());
+    let src2 = r#"fn when_start() { text_prepend("a", "b"); }"#;
+    assert!(compile(&[("obj", src2)], &empty_project()).is_err());
+}

@@ -234,10 +234,11 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `change_brush_transparency` / `set_brush_tranparency` — 붓 투명도 (→ `change_brush_transparency(10.0)` / `set_brush_tranparency(50.0)`). **EntryJS 의 set_brush_tranparency 는 원본 오타 그대로**
 - ✅ `brush_erase_all` — 모든 붓 지우기 (→ `brush_erase_all()`)
 
-### 텍스트 (2/9)
+### 텍스트 (4/9)
 - ✅ `text_read` — 글상자 □ 의 내용 (→ `text_read("self")`)
 - ✅ `text_write` — □ (이)라고 글쓰기 (→ `text_write("...")`; statement 전용 — 자기 textBox 에 작성, textBox 없는 sprite 는 런타임이 silent 로 무시)
-- ⬜ `text_append` / `text_prepend` — 뒤/앞에 추가하기
+- ✅ `text_append` — □ 라고 뒤에 이어쓰기 (→ `text_append("...")`; statement 전용, `text_write` 와 동일 시그니처 — params = `[TextInput, Null]`)
+- ✅ `text_prepend` — □ 라고 앞에 추가하기 (→ `text_prepend("...")`; statement 전용, `text_write` 와 동일 시그니처 — params = `[TextInput, Null]`)
 - ⬜ `text_change_effect` — 텍스트에 효과
 - ⬜ `text_change_font` / `text_change_font_color` / `text_change_bg_color` — 글씨체/색/배경색
 - ⬜ `text_flush` — 텍스트 모두 지우기
@@ -513,9 +514,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**119/334** 매핑됨 (약 35.6%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**121/334** 매핑됨 (약 36.2%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 2/9, 소리 0/16, 판단 7/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 4/9, 소리 0/16, 판단 7/11, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -576,6 +577,7 @@ fn greet(a: StringParam, b: BoolParam) {
     - [x] `function_field_label.params[0]` = `{type:"TextInput", value:name}` 객체로 변경 (EntryJS `script.getField('NAME')` 경로, raw string 직접 박으면 필드 lookup 실패)
     - [x] 같은 이름 + 다른 arity 함수 정의 → 호출 사이트가 `args.len()` 으로 매칭되어 각각 정확한 `func_<id>` 로 라우팅 (정확 매칭 우선, 실패 시 가장 가까운 arity fallback)
   - [x] 텍스트: `text_write` (□ (이)라고 글쓰기) — statement 전용, `Block::TextWrite { content: ParamBlock }` + params = `[TextInput, Null]` emit. textBox 없는 sprite 는 EntryJS 런타임이 silent 무시. **텍스트 2/9.**
+  - [x] 텍스트: `text_append` (□ 라고 뒤에 이어쓰기) / `text_prepend` (□ 라고 앞에 추가하기) — `Block::TextAppend { content }` / `Block::TextPrepend { content }` 분리 variant. text_write 와 동일 시그니처 (params = `[TextInput, Null]`). reserved name 매칭 `text_append("...")` / `text_prepend("...")`. 테스트 8개 (basic/roundtrip/sub_expr/arity_check 각 4). **텍스트 4/9.**
 - [ ] 중기
   - [ ] Timer/Answer 전용 블록 신택스 (`start_timer()` 등)
   - [x] Cloud/RealTime 변수 신택스 (`let x: CloudVar = ""` / `: RealtimeVar = ""`)

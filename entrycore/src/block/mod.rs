@@ -354,6 +354,12 @@ pub enum Block {
     TextWrite {
         content: ParamBlock,
     },
+    TextAppend {
+        content: ParamBlock,
+    },
+    TextPrepend {
+        content: ParamBlock,
+    },
     // --- 움직임 ---
     MoveDirection {
         direction: String,
@@ -598,6 +604,8 @@ impl Block {
             Block::BrushEraseAll => "brush_erase_all",
             Block::TextRead { .. } => "text_read",
             Block::TextWrite { .. } => "text_write",
+            Block::TextAppend { .. } => "text_append",
+            Block::TextPrepend { .. } => "text_prepend",
         }
     }
 
@@ -719,6 +727,8 @@ impl Block {
             Block::BrushEraseAll => Category::Pen,
             Block::TextRead { .. } => Category::Text,
             Block::TextWrite { .. } => Category::Text,
+            Block::TextAppend { .. } => Category::Text,
+            Block::TextPrepend { .. } => Category::Text,
         }
     }
 }
@@ -1450,6 +1460,20 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         }
                         let content = from_expr(&args[0])?;
                         return Ok(Block::TextWrite { content });
+                    }
+                    if fref.name == "text_append" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("text_append needs 1 arg".into()));
+                        }
+                        let content = from_expr(&args[0])?;
+                        return Ok(Block::TextAppend { content });
+                    }
+                    if fref.name == "text_prepend" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("text_prepend needs 1 arg".into()));
+                        }
+                        let content = from_expr(&args[0])?;
+                        return Ok(Block::TextPrepend { content });
                     }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
@@ -2369,6 +2393,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::BrushEraseAll => (vec![], None),
         Block::TextRead { value } => (vec![param_to_value(value), Value::Null], None),
         Block::TextWrite { content } => (vec![param_to_value(content), Value::Null], None),
+        Block::TextAppend { content } => (vec![param_to_value(content), Value::Null], None),
+        Block::TextPrepend { content } => (vec![param_to_value(content), Value::Null], None),
     })
 }
 

@@ -419,6 +419,14 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let content = param_at(&params, 0, vars)?;
             Block::TextWrite { content }
         }
+        "text_append" => {
+            let content = param_at(&params, 0, vars)?;
+            Block::TextAppend { content }
+        }
+        "text_prepend" => {
+            let content = param_at(&params, 0, vars)?;
+            Block::TextPrepend { content }
+        }
         // 산술/비교/논리
         "calc_basic" => {
             let lhs = param_at(&params, 0, vars)?;
@@ -2224,6 +2232,30 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::TextAppend { content } => {
+            let c = expr_from_param(content, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "text_append".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![c],
+            )));
+            Ok(())
+        }
+        Block::TextPrepend { content } => {
+            let c = expr_from_param(content, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "text_prepend".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![c],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -3085,6 +3117,28 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             Ok(Expr::Call(
                 ir::FuncRef {
                     name: "text_write".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![c],
+            ))
+        }
+        Block::TextAppend { content } => {
+            let c = expr_from_param(content, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "text_append".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![c],
+            ))
+        }
+        Block::TextPrepend { content } => {
+            let c = expr_from_param(content, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "text_prepend".to_string(),
                     arity: 1,
                     raw: None,
                 },
