@@ -5793,3 +5793,61 @@ fn compile_text_change_effect_type_check() {
     let src_unknown = r#"fn when_start() { text_change_effect("unknown_effect", true); }"#;
     assert!(compile(&[("obj", src_unknown)], &empty_project()).is_err());
 }
+
+// --- text_flush (텍스트 모두 지우기) ---
+
+/// `text_flush()` → `text_flush` 블록, params = `[]` (no-arg statement, EntryJS 의 Indicator 슬롯 없음 — def.params = [null] 가 .ent 에선 빈 배열로 emit).
+#[test]
+fn compile_text_flush() {
+    let src = r#"fn when_start() { text_flush(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "text_flush")
+        .expect("text_flush block");
+    let params = block["params"].as_array().unwrap();
+    assert_eq!(params.len(), 0);
+}
+
+/// text_flush 라운드트립 — codegen → deparse → IR 의 `Stmt::Expr(Call(text_flush, []))` 가 복원되는지.
+#[test]
+fn compile_text_flush_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { text_flush(); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "text_flush");
+                    assert_eq!(args.len(), 0);
+                }
+                other => panic!("expected Call(text_flush), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// text_flush 의 args 가 1개 이상이면 SyntaxError.
+#[test]
+fn compile_text_flush_arity_check() {
+    use entrycore::compile;
+    let src1 = r#"fn when_start() { text_flush("x"); }"#;
+    assert!(compile(&[("obj", src1)], &empty_project()).is_err());
+    let src2 = r#"fn when_start() { text_flush("x", "y"); }"#;
+    assert!(compile(&[("obj", src2)], &empty_project()).is_err());
+}

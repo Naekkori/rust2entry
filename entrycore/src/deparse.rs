@@ -447,6 +447,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             };
             Block::TextChangeEffect { effect, mode }
         }
+        "text_flush" => Block::TextFlush, // null=슬롯없음
         // 산술/비교/논리
         "calc_basic" => {
             let lhs = param_at(&params, 0, vars)?;
@@ -2288,6 +2289,17 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::TextFlush => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "text_flush".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2641,6 +2653,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![v],
             ))
         }
+        Block::TextFlush => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "text_flush".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
     }
 }
 

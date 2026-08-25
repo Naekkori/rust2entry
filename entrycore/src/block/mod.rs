@@ -370,6 +370,7 @@ pub enum Block {
         effect: TextEffect,
         mode: bool,
     },
+    TextFlush,
     // --- 움직임 ---
     MoveDirection {
         direction: String,
@@ -617,6 +618,7 @@ impl Block {
             Block::TextAppend { .. } => "text_append",
             Block::TextPrepend { .. } => "text_prepend",
             Block::TextChangeEffect { .. } => "text_change_effect",
+            Block::TextFlush => "text_flush",
         }
     }
 
@@ -741,6 +743,7 @@ impl Block {
             Block::TextAppend { .. } => Category::Text,
             Block::TextPrepend { .. } => Category::Text,
             Block::TextChangeEffect { .. } => Category::Text,
+            Block::TextFlush => Category::Text,
         }
     }
 }
@@ -940,7 +943,8 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         if args.len() != 2 {
                             return Err(SyntaxError("add_effect_amount needs 2 args".into()));
                         }
-                        let effect = parse_enum_arg::<EffectType>(&args[0], "add_effect_amount effect")?;
+                        let effect =
+                            parse_enum_arg::<EffectType>(&args[0], "add_effect_amount effect")?;
                         let amount = from_expr(&args[1])?;
                         return Ok(Block::AddEffectAmount { effect, amount });
                     }
@@ -985,7 +989,8 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         if args.len() != 2 {
                             return Err(SyntaxError("stretch_scale_size needs 2 args".into()));
                         }
-                        let dim = parse_enum_arg::<Dimension>(&args[0], "stretch_scale_size dimension")?;
+                        let dim =
+                            parse_enum_arg::<Dimension>(&args[0], "stretch_scale_size dimension")?;
                         let value = from_expr(&args[1])?;
                         return Ok(Block::StretchScaleSize { dim, value });
                     }
@@ -1460,7 +1465,8 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         if args.len() != 2 {
                             return Err(SyntaxError("text_change_effect needs 2 args".into()));
                         }
-                        let effect = parse_enum_arg::<TextEffect>(&args[0], "text_change_effect effect")?;
+                        let effect =
+                            parse_enum_arg::<TextEffect>(&args[0], "text_change_effect effect")?;
                         let mode = match &args[1] {
                             Expr::Bool(b) => *b,
                             _ => {
@@ -1471,6 +1477,12 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         };
 
                         return Ok(Block::TextChangeEffect { effect, mode });
+                    }
+                    if fref.name == "text_flush" {
+                        if args.len() > 0 {
+                            return Err(SyntaxError("text_flush needs 0 args".into()));
+                        }
+                        return Ok(Block::TextFlush);
                     }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
@@ -2393,6 +2405,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
+        Block::TextFlush => (vec![], None),
     })
 }
 
