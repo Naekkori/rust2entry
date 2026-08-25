@@ -687,6 +687,19 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 .to_string();
             Block::ChangeObjectIndex { direction }
         }
+        // 소리
+        "sound_something_with_block" => {
+            let sound_name = param_at(&params, 0, vars)?;
+            Block::SoundSomethingWithBlock { sound_name }
+        }
+        "sound_something_second_with_block" => {
+            let sound_name = param_at(&params, 0, vars)?;
+            let seconds = param_at(&params, 1, vars)?;
+            Block::SoundSomethingSecondWithBlock {
+                sound_name,
+                seconds,
+            }
+        }
         // 함수
         "function_call" => {
             let name = params
@@ -704,9 +717,20 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::FuncCall { name, args }
         }
         "change_to_some_shape" => {
+            // 현재 EntryJS 형식은 `get_pictures` 값 블록 안에 이미지 ID를 둔다.
+            // 이전에 생성한 원시 문자열 형식도 extract 호환을 위해 읽는다.
             let picture = params
                 .get(0)
-                .and_then(Value::as_str)
+                .and_then(|value| {
+                    value
+                        .get("type")
+                        .filter(|kind| *kind == "get_pictures")
+                        .and_then(|_| value.get("params"))
+                        .and_then(Value::as_array)
+                        .and_then(|items| items.first())
+                        .and_then(Value::as_str)
+                        .or_else(|| value.as_str())
+                })
                 .unwrap_or("")
                 .to_string();
             Block::ChangeToSomeShape { picture }
@@ -852,6 +876,16 @@ fn value_to_param(v: &Value, vars: &VarMap) -> Result<ParamBlock> {
                         .and_then(Value::as_bool)
                     {
                         return Ok(ParamBlock::Boolean(b));
+                    }
+                }
+                "get_sounds" => {
+                    if let Some(id) = v
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|items| items.first())
+                        .and_then(Value::as_str)
+                    {
+                        return Ok(ParamBlock::Text(id.to_string()));
                     }
                 }
                 _ => {}
@@ -2350,6 +2384,34 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::SoundSomethingWithBlock { sound_name } => {
+            let sn = expr_from_param(sound_name, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_something_with_block".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![sn],
+            )));
+            Ok(())
+        }
+        Block::SoundSomethingSecondWithBlock {
+            sound_name,
+            seconds,
+        } => {
+            let sn = expr_from_param(sound_name, vars)?;
+            let sec = expr_from_param(seconds, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_something_second_with_block".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![sn, sec],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2711,16 +2773,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             Vec::new(),
         )),
-        Block::TextChangeFont { font } => {
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "text_change_font".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![Expr::Str(font.clone())],
-            ))
-        }
+        Block::TextChangeFont { font } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "text_change_font".to_string(),
+                arity: 1,
+                raw: None,
+            },
+            vec![Expr::Str(font.clone())],
+        )),
         Block::TextChangeFontColor { color } => {
             let c = expr_from_param(color, vars)?;
             Ok(Expr::Call(
@@ -2741,6 +2801,32 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![c],
+            ))
+        }
+        Block::SoundSomethingWithBlock { sound_name } => {
+            let sn = expr_from_param(sound_name, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_something_with_block".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![sn],
+            ))
+        }
+        Block::SoundSomethingSecondWithBlock {
+            sound_name,
+            seconds,
+        } => {
+            let sn = expr_from_param(sound_name, vars)?;
+            let sec = expr_from_param(seconds, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_something_second_with_block".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![sn, sec],
             ))
         }
     }
@@ -2830,8 +2916,24 @@ fn resolve_asset_ids(
                         }
                     }
                 }
+                Stmt::Expr(Expr::Call(fref, args))
+                    if matches!(
+                        fref.name.as_str(),
+                        "sound_something_with_block" | "sound_something_second_with_block"
+                    ) =>
+                {
+                    if let Some(Expr::Str(id)) = args.first_mut() {
+                        if let Some(name) = assets.sound_name_by_id(object_name, id) {
+                            *id = name.to_string();
+                        }
+                    }
+                }
                 Stmt::FuncDef { body, .. } => resolve_stmts(body, assets, object_name),
-                Stmt::If { then_body, else_body, .. } => {
+                Stmt::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     resolve_stmts(then_body, assets, object_name);
                     resolve_stmts(else_body, assets, object_name);
                 }

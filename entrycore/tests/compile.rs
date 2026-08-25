@@ -829,7 +829,8 @@ fn compile_change_to_some_shape() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "change_to_some_shape");
-    assert_eq!(thread[1]["params"][0].as_str(), Some("walk"));
+    assert_eq!(thread[1]["params"][0]["type"], "get_pictures");
+    assert_eq!(thread[1]["params"][0]["params"][0], "walk");
 }
 
 /// `change_to_next_shape();` → `change_to_next_shape` 블록, params = [].
@@ -5977,7 +5978,8 @@ fn compile_shape_change_uses_picture_id_roundtrip() {
     let compiled = compile(&[("hero", src)], &base).expect("compile").0;
     let script = compiled["objects"][0]["script"].as_str().expect("script string");
     let value: Value = serde_json::from_str(script).expect("script JSON");
-    assert_eq!(value[0][1]["params"][0], "picture-walk");
+    assert_eq!(value[0][1]["params"][0]["type"], "get_pictures");
+    assert_eq!(value[0][1]["params"][0]["params"][0], "picture-walk");
 
     let program = program_from_script_string_with_vars_and_assets(
         script,
@@ -5994,4 +5996,65 @@ fn compile_shape_change_uses_picture_id_roundtrip() {
     };
     assert_eq!(fref.name, "change_to_some_shape");
     assert!(matches!(&args[0], Expr::Str(name) if name == "walk"));
+}
+
+/// 소리 이름은 `get_sounds` 값 블록의 ID로 저장되고 extract에서 이름으로 복원된다.
+#[test]
+fn compile_sound_blocks_use_sound_id_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars_and_assets;
+    use entrycore::ir::{Expr, Stmt};
+
+    let mut base = empty_project();
+    base["objects"] = json!([{
+        "id": "hero-object",
+        "name": "hero",
+        "objectType": "sprite",
+        "scene": "scene1",
+        "script": "[]",
+        "sprite": {
+            "name": "hero",
+            "pictures": [],
+            "sounds": [{"id": "sound-jump", "name": "jump"}]
+        },
+        "entity": {"x": 0, "y": 0, "visible": true}
+    }]);
+    let assets = entrycore::AssetMap::from_project_value(&base);
+    let src = r#"fn when_start() {
+        sound_something_with_block("jump");
+        sound_something_second_with_block("jump", 1.5);
+    }"#;
+    let compiled = compile(&[("hero", src)], &base).expect("compile").0;
+    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let value: Value = serde_json::from_str(script).expect("script JSON");
+    for block in [&value[0][1], &value[0][2]] {
+        assert_eq!(block["params"][0]["type"], "get_sounds");
+        assert_eq!(block["params"][0]["params"][0], "sound-jump");
+    }
+    assert_eq!(value[0][2]["params"][1]["type"], "number");
+    assert_eq!(value[0][2]["params"][1]["params"][0], 1.5);
+
+    let program = program_from_script_string_with_vars_and_assets(
+        script,
+        &entrycore::VarMap::new(),
+        &assets,
+        "hero",
+    )
+    .expect("deparse");
+    let Stmt::FuncDef { body, .. } = &program.stmts[0] else {
+        panic!("expected when_start");
+    };
+    for (stmt, expected_name) in body.iter().zip([
+        "sound_something_with_block",
+        "sound_something_second_with_block",
+    ]) {
+        let Stmt::Expr(Expr::Call(fref, args)) = stmt else {
+            panic!("expected sound call");
+        };
+        assert_eq!(fref.name, expected_name);
+        assert!(matches!(&args[0], Expr::Str(name) if name == "jump"));
+    }
+    let Stmt::Expr(Expr::Call(_, second_args)) = &body[1] else {
+        panic!("expected second sound call");
+    };
+    assert!(matches!(second_args[1], Expr::Float(value) if value == 1.5));
 }

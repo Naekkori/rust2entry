@@ -446,6 +446,14 @@ pub enum Block {
         angle: ParamBlock,
         distance: ParamBlock,
     },
+    /// --- 소리 ---
+    SoundSomethingWithBlock {
+        sound_name: ParamBlock,
+    },
+    SoundSomethingSecondWithBlock {
+        sound_name: ParamBlock,
+        seconds: ParamBlock,
+    },
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -631,6 +639,8 @@ impl Block {
             Block::TextChangeFont { .. } => "text_change_font",
             Block::TextChangeFontColor { .. } => "text_change_font_color",
             Block::TextChangeBgColor { .. } => "text_change_bg_color",
+            Block::SoundSomethingWithBlock { .. } => "sound_something_with_block",
+            Block::SoundSomethingSecondWithBlock { .. } => "sound_something_second_with_block",
         }
     }
 
@@ -759,6 +769,8 @@ impl Block {
             Block::TextChangeFont { .. } => Category::Text,
             Block::TextChangeFontColor { .. } => Category::Text,
             Block::TextChangeBgColor { .. } => Category::Text,
+            Block::SoundSomethingWithBlock { .. } => Category::Sound,
+            Block::SoundSomethingSecondWithBlock { .. } => Category::Sound,
         }
     }
 }
@@ -1527,6 +1539,29 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         let color = from_expr(&args[0])?;
                         return Ok(Block::TextChangeBgColor { color });
                     }
+                    // --- 소리(stmt) ---
+                    if fref.name == "sound_something_with_block" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError(
+                                "sound_something_with_block needs 1 arg".into(),
+                            ));
+                        }
+                        let sound_name = from_expr(&args[0])?;
+                        return Ok(Block::SoundSomethingWithBlock { sound_name });
+                    }
+                    if fref.name == "sound_something_second_with_block" {
+                        if args.len() != 2 {
+                            return Err(SyntaxError(
+                                "sound_something_second_with_block needs 2 args".into(),
+                            ));
+                        }
+                        let sound_name = from_expr(&args[0])?;
+                        let seconds = from_expr(&args[1])?;
+                        return Ok(Block::SoundSomethingSecondWithBlock {
+                            sound_name,
+                            seconds,
+                        });
+                    }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
                         let raw = if let Some(r) = &fref.raw {
@@ -2047,7 +2082,7 @@ pub fn to_value(block: &Block) -> crate::Result<Value> {
     Ok(Value::Object(obj))
 }
 
-/// 오브젝트별 자산 이름을 Entry 자산 ID로 치환해 블록 JSON을 만든다.
+/// 오브젝트별 이미지 이름을 Entry 자산 ID로 치환해 블록 JSON을 만든다.
 pub fn to_value_with_assets(
     block: &Block,
     assets: &crate::AssetMap,
@@ -2056,8 +2091,23 @@ pub fn to_value_with_assets(
     let mut value = to_value(block)?;
     if let Block::ChangeToSomeShape { picture } = block {
         if let Some(id) = assets.picture_id_by_name(object_name, picture) {
-            value["params"][0] = Value::String(id.to_string());
+            // `change_to_some_shape`은 문자열이 아니라 `get_pictures` 값 블록을 받는다.
+            value["params"][0]["params"][0] = Value::String(id.to_string());
         }
+    }
+    if let Block::SoundSomethingWithBlock {
+        sound_name: ParamBlock::Text(sound_name),
+    }
+    | Block::SoundSomethingSecondWithBlock {
+        sound_name: ParamBlock::Text(sound_name),
+        ..
+    } = block
+    {
+        let id = assets.sound_id_by_name(object_name, sound_name).ok_or_else(|| {
+            crate::Error::Semantic(format!("{object_name}: sound not found: {sound_name}"))
+        })?;
+        // 소리 선택도 EntryJS의 `get_sounds` 값 블록으로 저장한다.
+        value["params"][0] = json!({ "type": "get_sounds", "params": [id] });
     }
     Ok(value)
 }
@@ -2268,7 +2318,14 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             None,
         ),
         Block::ChangeToSomeShape { picture } => {
-            (vec![Value::String(picture.clone()), Value::Null], None)
+            // EntryJS는 이미지 선택 값을 `get_pictures` 블록으로 저장한다.
+            (
+                vec![
+                    json!({ "type": "get_pictures", "params": [picture] }),
+                    Value::Null,
+                ],
+                None,
+            )
         }
         Block::ChangeToNextShape {} => (vec![], None),
         Block::RemoveDialog {} => (vec![], None),
@@ -2467,6 +2524,20 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::TextChangeFont { font } => (vec![Value::String(font.clone()), Value::Null], None),
         Block::TextChangeFontColor { color } => (vec![param_to_value(color), Value::Null], None),
         Block::TextChangeBgColor { color } => (vec![param_to_value(color), Value::Null], None),
+        Block::SoundSomethingWithBlock { sound_name } => {
+            (vec![param_to_value(sound_name), Value::Null], None)
+        }
+        Block::SoundSomethingSecondWithBlock {
+            sound_name,
+            seconds,
+        } => (
+            vec![
+                param_to_value(sound_name),
+                param_to_value(seconds),
+                Value::Null,
+            ],
+            None,
+        ),
     })
 }
 
