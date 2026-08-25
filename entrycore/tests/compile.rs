@@ -5655,6 +5655,79 @@ fn compile_text_change_effect() {
     assert!(params[2].is_null());
 }
 
+/// `TextEffect::Strike` enum 문법도 text_change_effect 블록으로 컴파일된다.
+#[test]
+fn compile_text_change_effect_enum_syntax() {
+    let src = r#"fn when_start() { text_change_effect(TextEffect::Strike, true); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "text_change_effect")
+        .expect("text_change_effect block");
+    let params = block["params"].as_array().unwrap();
+    assert_eq!(params[0].as_str().unwrap(), "strike");
+    assert_eq!(params[1].as_str().unwrap(), "on");
+}
+
+/// string literal 문법은 enum 문법 추가 뒤에도 그대로 지원된다.
+#[test]
+fn compile_text_change_effect_mixed_syntax() {
+    let src = r#"fn when_start() { text_change_effect("strike", true); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let block = thread
+        .iter()
+        .find(|b| b["type"] == "text_change_effect")
+        .expect("text_change_effect block");
+    let params = block["params"].as_array().unwrap();
+    assert_eq!(params[0].as_str().unwrap(), "strike");
+    assert_eq!(params[1].as_str().unwrap(), "on");
+}
+
+/// enum 문법은 다른 enum 기반 dropdown 함수에도 공통으로 적용된다.
+#[test]
+fn compile_enum_syntax_for_all_enum_dropdowns() {
+    let src = r#"
+        fn when_start() {
+            add_effect_amount(EffectType::Ghost, 25);
+            change_effect_amount(EffectType::Brightness, 10);
+            stretch_scale_size(Dimension::Height, 10);
+            let x = quotient_and_mod(10, 3, QamMethod::Mod);
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+
+    let add_effect = thread
+        .iter()
+        .find(|b| b["type"] == "add_effect_amount")
+        .expect("add_effect_amount block");
+    assert_eq!(add_effect["params"][0], "ghost");
+
+    let change_effect = thread
+        .iter()
+        .find(|b| b["type"] == "change_effect_amount")
+        .expect("change_effect_amount block");
+    assert_eq!(change_effect["params"][0], "brightness");
+
+    let stretch = thread
+        .iter()
+        .find(|b| b["type"] == "stretch_scale_size")
+        .expect("stretch_scale_size block");
+    assert_eq!(stretch["params"][0], "HEIGHT");
+
+    let quotient = thread
+        .iter()
+        .find(|b| b["type"] == "set_variable")
+        .expect("set_variable block");
+    assert_eq!(quotient["params"][1]["type"], "quotient_and_mod");
+    assert_eq!(quotient["params"][1]["params"][2], "modulo");
+}
+
 /// text_change_effect 라운드트립 — codegen → deparse → IR 의 `Stmt::Expr(Call(text_change_effect, [Str("strike"), Bool(true)]))` 가 복원되는지.
 #[test]
 fn compile_text_change_effect_roundtrip() {

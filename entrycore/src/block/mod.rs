@@ -866,15 +866,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         if args.len() != 3 {
                             return Err(SyntaxError("quotient_and_mod needs 3 args".into()));
                         }
-                        let mode = match &args[2] {
-                            Expr::Str(s) if s == "quotient" => QamMethod::Quotient,
-                            Expr::Str(s) if s == "modulo" => QamMethod::Mod,
-                            _ => {
-                                return Err(SyntaxError(
-                                    "quotient_and_mod mode must be \"quotient\" \"modulo\" ".into(),
-                                ));
-                            }
-                        };
+                        let mode = parse_enum_arg::<QamMethod>(&args[2], "quotient_and_mod mode")?;
                         let a = from_expr(&args[0])?;
                         let b = from_expr(&args[1])?;
                         return Ok(Block::QuotientAndMod { a, b, mode });
@@ -948,15 +940,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         if args.len() != 2 {
                             return Err(SyntaxError("add_effect_amount needs 2 args".into()));
                         }
-                        let effect = match &args[0] {
-                            Expr::Str(s) => str_to_effect(s)
-                                .ok_or_else(|| SyntaxError(format!("unknown effect: {s}")))?,
-                            _ => {
-                                return Err(SyntaxError(
-                                    "add_effect_amount effect must be string".into(),
-                                ));
-                            }
-                        };
+                        let effect = parse_enum_arg::<EffectType>(&args[0], "add_effect_amount effect")?;
                         let amount = from_expr(&args[1])?;
                         return Ok(Block::AddEffectAmount { effect, amount });
                     }
@@ -964,15 +948,8 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         if args.len() != 2 {
                             return Err(SyntaxError("change_effect_amount needs 2 arg".into()));
                         }
-                        let effect = match &args[0] {
-                            Expr::Str(s) => str_to_effect(s)
-                                .ok_or_else(|| SyntaxError(format!("unknow effect: {s}")))?,
-                            _ => {
-                                return Err(SyntaxError(
-                                    "change_effect_amount effect must be string".into(),
-                                ));
-                            }
-                        };
+                        let effect =
+                            parse_enum_arg::<EffectType>(&args[0], "change_effect_amount effect")?;
                         let amount = from_expr(&args[1])?;
                         return Ok(Block::ChangeEffectAmount { effect, amount });
                     }
@@ -1008,15 +985,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         if args.len() != 2 {
                             return Err(SyntaxError("stretch_scale_size needs 2 args".into()));
                         }
-                        let dim = match &args[0] {
-                            Expr::Str(s) => str_to_dim(s)
-                                .ok_or_else(|| SyntaxError(format!("unknown dimension: {s}")))?,
-                            _ => {
-                                return Err(SyntaxError(
-                                    "stretch_scale_size dimension must be string".into(),
-                                ));
-                            }
-                        };
+                        let dim = parse_enum_arg::<Dimension>(&args[0], "stretch_scale_size dimension")?;
                         let value = from_expr(&args[1])?;
                         return Ok(Block::StretchScaleSize { dim, value });
                     }
@@ -1491,15 +1460,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         if args.len() != 2 {
                             return Err(SyntaxError("text_change_effect needs 2 args".into()));
                         }
-                        let effect = match &args[0] {
-                            Expr::Str(s) => str_to_text_effect(s)
-                                .ok_or_else(|| SyntaxError(format!("unknown text effect: {s}")))?,
-                            _ => {
-                                return Err(SyntaxError(
-                                    "text_change_effect effect must be string".into(),
-                                ));
-                            }
-                        };
+                        let effect = parse_enum_arg::<TextEffect>(&args[0], "text_change_effect effect")?;
                         let mode = match &args[1] {
                             Expr::Bool(b) => *b,
                             _ => {
@@ -1626,6 +1587,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             }
             Ok(ParamBlock::Variable(name.clone()))
         }
+        Expr::Path(_) => Err(SyntaxError("qualified path expr".into())),
         Expr::BinOp(op, lhs, rhs) => {
             let lhs = from_expr(lhs)?;
             let rhs = from_expr(rhs)?;
@@ -1697,15 +1659,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 if args.len() != 3 {
                     return Err(SyntaxError("quotient_and_mod needs 3 args".into()));
                 }
-                let mode = match &args[2] {
-                    Expr::Str(s) if s == "quotient" => QamMethod::Quotient,
-                    Expr::Str(s) if s == "modulo" => QamMethod::Mod,
-                    _ => {
-                        return Err(SyntaxError(
-                            "quotient_and_mod mode must be \"quotient\" \"modulo\"".into(),
-                        ));
-                    }
-                };
+                let mode = parse_enum_arg::<QamMethod>(&args[2], "quotient_and_mod mode")?;
                 let a = from_expr(&args[0])?;
                 let b = from_expr(&args[1])?;
                 return Ok(ParamBlock::Sub(Box::new(Block::QuotientAndMod {
@@ -2600,6 +2554,107 @@ pub fn text_effect_to_str(t: TextEffect) -> &'static str {
         TextEffect::UnderLine => "underLine",
         TextEffect::FontItalic => "fontItalic",
         TextEffect::FontBlold => "fontBold",
+    }
+}
+
+/// 문자열 리터럴과 Rust enum 경로를 함께 받는 dropdown enum 규약.
+trait DslEnum: Sized {
+    const TYPE_NAME: &'static str;
+
+    fn from_dsl_str(value: &str) -> Option<Self>;
+    fn from_variant(variant: &str) -> Option<Self>;
+}
+
+/// dropdown 인자를 기존 문자열 또는 `EnumType::Variant` 경로로 변환한다.
+fn parse_enum_arg<T: DslEnum>(expr: &Expr, arg_name: &str) -> crate::Result<T> {
+    match expr {
+        Expr::Str(value) => T::from_dsl_str(value)
+            .ok_or_else(|| SyntaxError(format!("unknown {} value: {value}", T::TYPE_NAME))),
+        Expr::Path(segments) if segments.len() == 2 && segments[0] == T::TYPE_NAME => {
+            T::from_variant(&segments[1]).ok_or_else(|| {
+                SyntaxError(format!("unknown {} variant: {}", T::TYPE_NAME, segments[1]))
+            })
+        }
+        _ => Err(SyntaxError(format!(
+            "{arg_name} must be string or {} variant",
+            T::TYPE_NAME
+        ))),
+    }
+}
+
+impl DslEnum for EffectType {
+    const TYPE_NAME: &'static str = "EffectType";
+
+    fn from_dsl_str(value: &str) -> Option<Self> {
+        str_to_effect(value)
+    }
+
+    fn from_variant(variant: &str) -> Option<Self> {
+        Some(match variant {
+            "Color" => Self::Color,
+            "Brightness" => Self::Brightness,
+            "Ghost" => Self::Ghost,
+            "Fisheye" => Self::Fisheye,
+            "Whirl" => Self::Whirl,
+            "Pixelate" => Self::Pixelate,
+            "Mosaic" => Self::Mosaic,
+            "Negative" => Self::Negative,
+            _ => return None,
+        })
+    }
+}
+
+impl DslEnum for TextEffect {
+    const TYPE_NAME: &'static str = "TextEffect";
+
+    fn from_dsl_str(value: &str) -> Option<Self> {
+        str_to_text_effect(value)
+    }
+
+    fn from_variant(variant: &str) -> Option<Self> {
+        Some(match variant {
+            "Strike" => Self::Strike,
+            "UnderLine" => Self::UnderLine,
+            "FontItalic" => Self::FontItalic,
+            "FontBlold" => Self::FontBlold,
+            _ => return None,
+        })
+    }
+}
+
+impl DslEnum for Dimension {
+    const TYPE_NAME: &'static str = "Dimension";
+
+    fn from_dsl_str(value: &str) -> Option<Self> {
+        str_to_dim(value)
+    }
+
+    fn from_variant(variant: &str) -> Option<Self> {
+        Some(match variant {
+            "Width" => Self::Width,
+            "Height" => Self::Height,
+            _ => return None,
+        })
+    }
+}
+
+impl DslEnum for QamMethod {
+    const TYPE_NAME: &'static str = "QamMethod";
+
+    fn from_dsl_str(value: &str) -> Option<Self> {
+        Some(match value {
+            "quotient" => Self::Quotient,
+            "modulo" => Self::Mod,
+            _ => return None,
+        })
+    }
+
+    fn from_variant(variant: &str) -> Option<Self> {
+        Some(match variant {
+            "Quotient" => Self::Quotient,
+            "Mod" => Self::Mod,
+            _ => return None,
+        })
     }
 }
 //dim helper

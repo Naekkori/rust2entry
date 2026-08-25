@@ -232,7 +232,12 @@ fn analyze_expr(expr: &Expr, out: &mut VariableAnalysis) {
             analyze_expr(rhs, out);
         }
         Expr::UnaryOp(_, inner) => analyze_expr(inner, out),
-        Expr::Int(_) | Expr::Float(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Func(_) => {}
+        Expr::Int(_)
+        | Expr::Float(_)
+        | Expr::Str(_)
+        | Expr::Bool(_)
+        | Expr::Path(_)
+        | Expr::Func(_) => {}
     }
 }
 
@@ -314,7 +319,12 @@ pub(crate) fn collect_vars_expr(e: &Expr, out: &mut Vec<String>) {
             collect_vars_expr(l, out);
             collect_vars_expr(r, out);
         }
-        Expr::Int(_) | Expr::Float(_) | Expr::Str(_) | Expr::Bool(_) | Expr::Func(_) => {}
+        Expr::Int(_)
+        | Expr::Float(_)
+        | Expr::Str(_)
+        | Expr::Bool(_)
+        | Expr::Path(_)
+        | Expr::Func(_) => {}
     }
 }
 

@@ -112,8 +112,12 @@ pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
             ))
         }
         Expr::Path(p) => {
-            let name = path_to_name(&p.path)?;
-            Ok(IrExpr::Var(name))
+            let segments = path_to_segments(&p.path)?;
+            if segments.len() == 1 {
+                Ok(IrExpr::Var(segments.into_iter().next().unwrap()))
+            } else {
+                Ok(IrExpr::Path(segments))
+            }
         }
         Expr::Paren(p) => convert_expr(*p.expr),
         Expr::Range(r) => {
@@ -141,4 +145,16 @@ fn path_to_name(path: &syn::Path) -> Result<String> {
         .last()
         .map(|s| s.ident.to_string())
         .ok_or_else(|| ParseUnsupported("empty path".into()))
+}
+
+fn path_to_segments(path: &syn::Path) -> Result<Vec<String>> {
+    let segments: Vec<String> = path
+        .segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect();
+    if segments.is_empty() {
+        return Err(ParseUnsupported("empty path".into()));
+    }
+    Ok(segments)
 }

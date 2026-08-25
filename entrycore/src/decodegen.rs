@@ -324,6 +324,9 @@ fn emit_expr(expr: &Expr, out: &mut String) -> Result<()> {
         Expr::Var(name) => {
             out.push_str(name);
         }
+        Expr::Path(segments) => {
+            out.push_str(&segments.join("::"));
+        }
         Expr::BinOp(op, lhs, rhs) => {
             out.push('(');
             emit_expr(lhs, out)?;

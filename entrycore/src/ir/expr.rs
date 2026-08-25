@@ -16,6 +16,9 @@ pub enum Expr {
     /// 변수 참조.
     Var(String),
 
+    /// Rust 한정 경로 (예: `TextEffect::Strike`).
+    Path(Vec<String>),
+
     /// 이항 연산 (op, lhs, rhs).
     BinOp(BinOp, Box<Expr>, Box<Expr>),
 
