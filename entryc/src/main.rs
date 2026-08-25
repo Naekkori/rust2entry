@@ -379,6 +379,7 @@ struct Project {
     name: String,
     objects: Vec<Object>,
     var_map: entrycore::VarMap,
+    asset_map: entrycore::AssetMap,
     /// project.json 의 scripts 필드 (extract 시 미매핑 집계용)
     scripts_value: serde_json::Value,
 }
@@ -421,6 +422,7 @@ fn load_project(temp_dir: &Path) -> Result<Project, String> {
             .get("variables")
             .unwrap_or(&serde_json::Value::Null),
     );
+    let asset_map = entrycore::AssetMap::from_project_value(&raw_value);
 
     let mut objects = Vec::with_capacity(raw_proj.objects.len());
     for o in raw_proj.objects {
@@ -446,6 +448,7 @@ fn load_project(temp_dir: &Path) -> Result<Project, String> {
         name: raw_proj.name,
         objects,
         var_map,
+        asset_map,
         scripts_value: raw_value
             .get("scripts")
             .cloned()
@@ -483,9 +486,11 @@ fn write_object_scripts(project: &Project, out_dir: &Path) -> Result<(), String>
                         .ok()
                         .and_then(|v| serde_json::to_string_pretty(&v).ok())
                         .unwrap_or_else(|| s.clone());
-                    match entrycore::deparse::program_from_script_string_with_vars(
+                    match entrycore::deparse::program_from_script_string_with_vars_and_assets(
                         s,
                         &project.var_map,
+                        &project.asset_map,
+                        &o.name,
                     ) {
                         Ok(program) => match entrycore::decodegen::emit_with_var_map(
                             &program,
@@ -517,9 +522,11 @@ fn write_object_scripts(project: &Project, out_dir: &Path) -> Result<(), String>
                     }
                 }
                 Some(v) => {
-                    match entrycore::deparse::program_from_script_value_with_vars(
+                    match entrycore::deparse::program_from_script_value_with_vars_and_assets(
                         v,
                         &project.var_map,
+                        &project.asset_map,
+                        &o.name,
                     ) {
                         Ok(program) => match entrycore::decodegen::emit_with_var_map(
                             &program,

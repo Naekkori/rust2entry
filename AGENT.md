@@ -153,7 +153,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ✅ = 매핑됨. `deparse.rs::block_from_value` 의 매치 arm 기준.
 
-### 시작 (13/13) — 내부용 13개 제외 후 완료
+### 시작 (13/13) ✅ 완료 — 내부용 13개 제외
 - ✅ `when_run_button_click` / `when_run` → `WhenStart` (→ `fn when_start()`)
 - ✅ `when_object_click` / `when_click` → `WhenClick` (→ `fn when_click()`)
 - ✅ `when_clone_start` → `WhenCloneStart` (→ `fn when_clone_start()`)
@@ -169,7 +169,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `start_neighbor_scene` → `StartNeighborScene` (→ `start_next_scene();` / `start_prev_scene();`)
 - 제외 (내부용, 매핑 대상 아님): `check_object_property`, `check_block_execution`, `switch_scope`, `is_answer_submited`, `check_lecture_goal`, `check_variable_by_name`, `show_prompt`, `check_goal_success`, `positive_number`, `negative_number`, `wildcard_string`, `wildcard_boolean`, `register_score`
 
-### 흐름 (14/14) — when_clone_start 중복 외 repeat_while_true 미적용
+### 흐름 (14/14) ✅ 완료 — when_clone_start 중복 외 repeat_while_true 미적용
 - ✅ `repeat_basic` → `Repeat` (for-range 펼침)
 - ✅ `repeat_while` → `While`
 - ✅ `repeat_inf` / `repeat_forever` → `Forever`
@@ -186,7 +186,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `delete_clone` — 이 복제본 삭제하기 (→ `delete_clone()`)
 - ✅ `remove_all_clones` — 모든 복제본 삭제하기 (→ `remove_all_clones()`)
 
-### 움직임 (19/19)
+### 움직임 (19/19) ✅ 완료
 - ✅ `locate_xy_time` — □ 초 동안 x:□ y:□ 위치로 이동하기 (→ `locate_xy_time(1.0, 100.0, -50.0)`)
 - ✅ `move_direction` — 이동 방향으로 □ 만큼 움직이기 (→ `move_direction("forward", 10.0)`)
 - ✅ `bounce_wall` — 화면 끝에 닿으면 튕기기 (→ `bounce_wall()`)
@@ -201,7 +201,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `see_angle_object` — □ 쪽 바라보기 (→ `see_angle_object("mouse")` / `see_angle_object("Sprite1")`)
 - ✅ `move_to_angle` — □ 방향으로 □ 만큼 움직이기 (→ `move_to_angle(45.0, 10.0)`)
 
-### 형태 (17/17)
+### 형태 (17/17) ✅ 완료
 - ✅ `show` — 모양 보이기 (→ `show()`)
 - ✅ `hide` — 모양 숨기기 (→ `hide()`)
 - ✅ `dialog` — □ 을(를) □ □ (말하기) (→ `say(text)`)
@@ -223,7 +223,7 @@ fn greet(a: StringParam, b: BoolParam) {
 > EntryJS 의 `flip_x` 는 setScaleY 부호 반전 (좌우), `flip_y` 는 setScaleX 부호 반전 (상하). EntryJS 변수명과 동작이 반대 — EntryJS 호환을 위해 그대로 매핑.
 - ✅ `change_object_index` — □ 보내기 (레이어) (→ `change_object_index("front")` / `change_object_index("back")`)
 
-### 붓 (12/13)
+### 붓 (13/13) ✅ 완료
 - ✅ `brush_stamp` — 도장 찍기 (→ `brush_stamp()`)
 - ✅ `start_drawing` / `stop_drawing` — 그리기 시작/멈추기 (→ `start_drawing()` / `stop_drawing()`)
 - ✅ `start_fill` / `stop_fill` — 채우기 시작/멈추기 (→ `start_fill()` / `stop_fill()`)
@@ -305,7 +305,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ⬜ `change_hex_to_rgb` — HEX → R/G/B
 - ⬜ `get_boolean_value` — 값 슬롯 (boolean)
 
-### 변수 (19/19)
+### 변수 (19/19) ✅ 완료
 - ✅ `set_variable` → `SetVar`
 - ✅ `change_variable` → `ChangeVar`
 - ✅ `get_variable` → `GetVar`

@@ -5926,3 +5926,72 @@ fn compile_text_style_blocks_validation() {
         assert!(compile(&[("obj", src)], &empty_project()).is_err());
     }
 }
+
+/// 현재 오브젝트의 이미지·소리 자산은 이름과 ID를 양방향으로 조회한다.
+#[test]
+fn asset_map_is_scoped_per_object_and_bidirectional() {
+    let project = json!({
+        "objects": [
+            {"name": "hero", "sprite": {
+                "pictures": [{"id": "picture-walk", "name": "walk"}],
+                "sounds": [{"id": "sound-jump", "name": "jump"}]
+            }},
+            {"name": "enemy", "sprite": {
+                "pictures": [{"id": "picture-enemy-walk", "name": "walk"}],
+                "sounds": [{"id": "sound-enemy-jump", "name": "jump"}]
+            }}
+        ]
+    });
+    let assets = entrycore::AssetMap::from_project_value(&project);
+
+    assert_eq!(assets.picture_id_by_name("hero", "walk"), Some("picture-walk"));
+    assert_eq!(assets.picture_name_by_id("hero", "picture-walk"), Some("walk"));
+    assert_eq!(assets.sound_id_by_name("hero", "jump"), Some("sound-jump"));
+    assert_eq!(assets.sound_name_by_id("hero", "sound-jump"), Some("jump"));
+    assert_eq!(assets.picture_id_by_name("enemy", "walk"), Some("picture-enemy-walk"));
+    assert_eq!(assets.sound_id_by_name("enemy", "jump"), Some("sound-enemy-jump"));
+}
+
+/// 이미지 이름은 build에서 자산 ID로 저장되고 extract에서 다시 이름으로 복원된다.
+#[test]
+fn compile_shape_change_uses_picture_id_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars_and_assets;
+    use entrycore::ir::{Expr, Stmt};
+
+    let mut base = empty_project();
+    base["objects"] = json!([{
+        "id": "hero-object",
+        "name": "hero",
+        "objectType": "sprite",
+        "scene": "scene1",
+        "script": "[]",
+        "sprite": {
+            "name": "hero",
+            "pictures": [{"id": "picture-walk", "name": "walk"}],
+            "sounds": [{"id": "sound-jump", "name": "jump"}]
+        },
+        "entity": {"x": 0, "y": 0, "visible": true}
+    }]);
+    let assets = entrycore::AssetMap::from_project_value(&base);
+    let src = r#"fn when_start() { change_to_some_shape("walk"); }"#;
+    let compiled = compile(&[("hero", src)], &base).expect("compile").0;
+    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let value: Value = serde_json::from_str(script).expect("script JSON");
+    assert_eq!(value[0][1]["params"][0], "picture-walk");
+
+    let program = program_from_script_string_with_vars_and_assets(
+        script,
+        &entrycore::VarMap::new(),
+        &assets,
+        "hero",
+    )
+    .expect("deparse");
+    let Stmt::FuncDef { body, .. } = &program.stmts[0] else {
+        panic!("expected when_start");
+    };
+    let Stmt::Expr(Expr::Call(fref, args)) = &body[0] else {
+        panic!("expected shape call");
+    };
+    assert_eq!(fref.name, "change_to_some_shape");
+    assert!(matches!(&args[0], Expr::Str(name) if name == "walk"));
+}

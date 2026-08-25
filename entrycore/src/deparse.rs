@@ -2781,6 +2781,17 @@ pub fn program_from_script_string_with_vars(s: &str, vars: &VarMap) -> Result<cr
     program_from_script_value_with_vars(&v, vars)
 }
 
+/// Entry 오브젝트 script를 복원하며 현재 오브젝트의 자산 ID를 이름으로 바꾼다.
+pub fn program_from_script_string_with_vars_and_assets(
+    s: &str,
+    vars: &VarMap,
+    assets: &crate::AssetMap,
+    object_name: &str,
+) -> Result<crate::ir::Program> {
+    let program = program_from_script_string_with_vars(s, vars)?;
+    Ok(resolve_asset_ids(program, assets, object_name))
+}
+
 /// Entry 오브젝트 `script` (`Value::String` 안의 JSON) -> IR `Program`.
 pub fn program_from_script_value(v: &Value) -> Result<crate::ir::Program> {
     program_from_script_value_with_vars(v, &VarMap::new())
@@ -2790,6 +2801,49 @@ pub fn program_from_script_value(v: &Value) -> Result<crate::ir::Program> {
 pub fn program_from_script_value_with_vars(v: &Value, vars: &VarMap) -> Result<crate::ir::Program> {
     let stmts = from_script(v, vars)?;
     Ok(crate::ir::Program { stmts })
+}
+
+/// Entry 오브젝트 script Value를 복원하며 현재 오브젝트의 자산 ID를 이름으로 바꾼다.
+pub fn program_from_script_value_with_vars_and_assets(
+    v: &Value,
+    vars: &VarMap,
+    assets: &crate::AssetMap,
+    object_name: &str,
+) -> Result<crate::ir::Program> {
+    let program = program_from_script_value_with_vars(v, vars)?;
+    Ok(resolve_asset_ids(program, assets, object_name))
+}
+
+/// 자산 ID를 DSL에서 사용할 자산 이름으로 복원한다.
+fn resolve_asset_ids(
+    mut program: crate::ir::Program,
+    assets: &crate::AssetMap,
+    object_name: &str,
+) -> crate::ir::Program {
+    fn resolve_stmts(stmts: &mut [Stmt], assets: &crate::AssetMap, object_name: &str) {
+        for stmt in stmts {
+            match stmt {
+                Stmt::Expr(Expr::Call(fref, args)) if fref.name == "change_to_some_shape" => {
+                    if let Some(Expr::Str(id)) = args.first_mut() {
+                        if let Some(name) = assets.picture_name_by_id(object_name, id) {
+                            *id = name.to_string();
+                        }
+                    }
+                }
+                Stmt::FuncDef { body, .. } => resolve_stmts(body, assets, object_name),
+                Stmt::If { then_body, else_body, .. } => {
+                    resolve_stmts(then_body, assets, object_name);
+                    resolve_stmts(else_body, assets, object_name);
+                }
+                Stmt::While { body, .. } | Stmt::Repeat { body, .. } | Stmt::For { body, .. } => {
+                    resolve_stmts(body, assets, object_name);
+                }
+                _ => {}
+            }
+        }
+    }
+    resolve_stmts(&mut program.stmts, assets, object_name);
+    program
 }
 
 /// scripts Value (`[[block, ...], ...]` 형태) 를 순회하며 매핑 안 되는 블록 타입을 집계.

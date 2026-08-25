@@ -1,6 +1,7 @@
 //! 코어 라이브러리: Rust 소스 -> IR / IR -> Entry 블록 직렬화.
 //! + Entry 블록 -> IR 역변환.
 
+pub mod asset;
 pub mod block;
 pub mod codegen;
 pub mod decodegen;
@@ -11,6 +12,7 @@ pub mod parse;
 pub mod var;
 
 pub use error::{Error, Result};
+pub use asset::AssetMap;
 pub use var::{VarInfo, VarInit, VarKind, VarMap};
 use serde_json::{Value, json};
 
@@ -60,6 +62,7 @@ pub fn compile_with_options(
     options: &CompileOptions,
 ) -> Result<(Value, Vec<String>)> {
     let mut unmapped: Vec<String> = Vec::new();
+    let assets = AssetMap::from_project_value(base);
     // 1. 각 rs 를 두 가지로 파싱한다:
     //    - `parse::parse` (트리거 body 평탄화 포함) -> variables 집계용 Program
     //    - `parse::parse_with_triggers` (트리거 분리) -> object.script thread 구성용
@@ -74,7 +77,7 @@ pub fn compile_with_options(
         merged_stmts.extend(flat_program.stmts.clone());
         // object.script thread: 트리거별 분리
         let (non_trigger_program, triggers) = parse::parse_with_triggers(src)?;
-        let mut tah = build_threads(&triggers, &non_trigger_program, &mut unmapped)?;
+        let mut tah = build_threads(&triggers, &non_trigger_program, &mut unmapped, &assets, name)?;
         all_helpers.append(&mut tah.helpers);
         all_messages.append(&mut tah.messages);
         per_source.push((name.to_string(), tah));
@@ -841,6 +844,8 @@ fn build_threads(
     triggers: &[parse::TriggerDef],
     program: &Program,
     unmapped: &mut Vec<String>,
+    assets: &AssetMap,
+    object_name: &str,
 ) -> Result<ThreadsAndHelpers> {
     let mut threads: Vec<Vec<Value>> = Vec::new();
     let mut messages: Vec<String> = Vec::new();
@@ -860,7 +865,7 @@ fn build_threads(
             }
         }
         let mut thread = Vec::new();
-        match crate::block::to_value(&trigger_block) {
+        match crate::block::to_value_with_assets(&trigger_block, assets, object_name) {
             Ok(v) => thread.push(v),
             Err(Error::UnmappedBlock(m)) => unmapped.push(m),
             Err(e) => return Err(e),
@@ -874,7 +879,7 @@ fn build_threads(
                 }
                 Err(e) => return Err(e),
             };
-            match crate::block::to_value(&b) {
+            match crate::block::to_value_with_assets(&b, assets, object_name) {
                 Ok(v) => thread.push(v),
                 Err(Error::UnmappedBlock(m)) => unmapped.push(m),
                 Err(e) => return Err(e),
@@ -899,7 +904,7 @@ fn build_threads(
                     }
                     Err(e) => return Err(e),
                 };
-                match crate::block::to_value(&b) {
+                match crate::block::to_value_with_assets(&b, assets, object_name) {
                     Ok(v) => body_blocks.push(v),
                     Err(Error::UnmappedBlock(m)) => unmapped.push(m),
                     Err(e) => return Err(e),
@@ -923,7 +928,11 @@ fn build_threads(
         // `when_*` 외 비-helper top-level stmt 는 일반 Rust 문법상 불가능하지만,
         // 방어용으로 둔다.
         if triggers.is_empty() {
-            let head = crate::block::to_value(&crate::block::Block::WhenStart)?;
+            let head = crate::block::to_value_with_assets(
+                &crate::block::Block::WhenStart,
+                assets,
+                object_name,
+            )?;
             init_thread.push(head);
         }
         for s in &init_stmts {
@@ -935,7 +944,7 @@ fn build_threads(
                 }
                 Err(e) => return Err(e),
             };
-            match crate::block::to_value(&b) {
+            match crate::block::to_value_with_assets(&b, assets, object_name) {
                 Ok(v) => init_thread.push(v),
                 Err(Error::UnmappedBlock(m)) => unmapped.push(m),
                 Err(e) => return Err(e),

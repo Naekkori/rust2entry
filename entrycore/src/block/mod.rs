@@ -2047,6 +2047,21 @@ pub fn to_value(block: &Block) -> crate::Result<Value> {
     Ok(Value::Object(obj))
 }
 
+/// 오브젝트별 자산 이름을 Entry 자산 ID로 치환해 블록 JSON을 만든다.
+pub fn to_value_with_assets(
+    block: &Block,
+    assets: &crate::AssetMap,
+    object_name: &str,
+) -> crate::Result<Value> {
+    let mut value = to_value(block)?;
+    if let Block::ChangeToSomeShape { picture } = block {
+        if let Some(id) = assets.picture_id_by_name(object_name, picture) {
+            value["params"][0] = Value::String(id.to_string());
+        }
+    }
+    Ok(value)
+}
+
 /// `to_value` 내부 헬퍼. (params, Option<statements>) 분리 산출.
 fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Option<Vec<Value>>)> {
     Ok(match block {
