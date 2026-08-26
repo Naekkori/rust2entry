@@ -750,14 +750,28 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         }
         "get_sound_speed" => Block::GetSoundSpeed,
         "sound_silent_all" => {
-            let sound_name = param_at(&params, 0, vars)?;
-            Block::SoundSilentAll { sound_name }
+            let target = params
+                .as_array()
+                .and_then(|values| values.first())
+                .and_then(Value::as_str)
+                .unwrap_or("all")
+                .to_string();
+            Block::SoundSilentAll { target }
         }
         "play_bgm" => {
             let sound_name = param_at(&params, 0, vars)?;
             Block::PlayBgm { sound_name }
         }
         "stop_bgm" => Block::StopBgm,
+        "get_sound_volume" => Block::GetSoundVolume,
+        "get_sound_duration" => {
+            let sound_name = params
+                .get(1)
+                .and_then(Value::as_str)
+                .ok_or_else(|| crate::Error::Parse("get_sound_duration sound".into()))?
+                .to_string();
+            Block::GetSoundDuration { sound_name }
+        }
         // 함수
         "function_call" => {
             let name = params
@@ -945,6 +959,21 @@ fn value_to_param(v: &Value, vars: &VarMap) -> Result<ParamBlock> {
                     {
                         return Ok(ParamBlock::Text(id.to_string()));
                     }
+                }
+                "get_sound_volume" => {
+                    return Ok(ParamBlock::Sub(Box::new(Block::GetSoundVolume)));
+                }
+                "get_sound_duration" => {
+                    let sound_name = v
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|items| items.get(1))
+                        .and_then(Value::as_str)
+                        .ok_or_else(|| crate::Error::Parse("get_sound_duration sound".into()))?
+                        .to_string();
+                    return Ok(ParamBlock::Sub(Box::new(Block::GetSoundDuration {
+                        sound_name,
+                    })));
                 }
                 _ => {}
             }
@@ -2594,15 +2623,14 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
-        Block::SoundSilentAll { sound_name } => {
-            let sound_name = expr_from_param(sound_name, vars)?;
+        Block::SoundSilentAll { target } => {
             stmts.push(Stmt::Expr(Expr::Call(
                 ir::FuncRef {
                     name: "sound_silent_all".to_string(),
                     arity: 1,
                     raw: None,
                 },
-                vec![sound_name],
+                vec![Expr::Str(target.clone())],
             )));
             Ok(())
         }
@@ -2626,6 +2654,28 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                     raw: None,
                 },
                 Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::GetSoundVolume => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "get_sound_volume".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::GetSoundDuration { sound_name } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "get_sound_duration".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![Expr::Str(sound_name.clone())],
             )));
             Ok(())
         }
@@ -3159,15 +3209,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![am],
             ))
         }
-        Block::SoundSilentAll { sound_name } => {
-            let sound_name = expr_from_param(sound_name, vars)?;
+        Block::SoundSilentAll { target } => {
             Ok(Expr::Call(
                 ir::FuncRef {
                     name: "sound_silent_all".to_string(),
                     arity: 1,
                     raw: None,
                 },
-                vec![sound_name],
+                vec![Expr::Str(target.clone())],
             ))
         }
         Block::PlayBgm { sound_name } => {
@@ -3188,6 +3237,22 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 raw: None,
             },
             Vec::new(),
+        )),
+        Block::GetSoundVolume => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "get_sound_volume".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
+        Block::GetSoundDuration { sound_name } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "get_sound_duration".to_string(),
+                arity: 1,
+                raw: None,
+            },
+            vec![Expr::Str(sound_name.clone())],
         )),
     }
 }
@@ -3266,9 +3331,26 @@ fn resolve_asset_ids(
     assets: &crate::AssetMap,
     object_name: &str,
 ) -> crate::ir::Program {
+    fn resolve_expr(expr: &mut Expr, assets: &crate::AssetMap, object_name: &str) {
+        if let Expr::Call(fref, args) = expr {
+            if fref.name == "get_sound_duration" {
+                if let Some(Expr::Str(id)) = args.first_mut() {
+                    if let Some(name) = assets.sound_name_by_id(object_name, id) {
+                        *id = name.to_string();
+                    }
+                }
+            }
+            for arg in args {
+                resolve_expr(arg, assets, object_name);
+            }
+        }
+    }
     fn resolve_stmts(stmts: &mut [Stmt], assets: &crate::AssetMap, object_name: &str) {
         for stmt in stmts {
             match stmt {
+                Stmt::SetVar(_, expr) | Stmt::VarDecl(_, expr, _, _) => {
+                    resolve_expr(expr, assets, object_name);
+                }
                 Stmt::Expr(Expr::Call(fref, args)) if fref.name == "change_to_some_shape" => {
                     if let Some(Expr::Str(id)) = args.first_mut() {
                         if let Some(name) = assets.picture_name_by_id(object_name, id) {
@@ -3285,8 +3367,8 @@ fn resolve_asset_ids(
                             | "sound_something_wait_with_block"
                             | "sound_something_second_wait_with_block"
                             | "sound_from_to_and_wait"
-                            | "sound_silent_all"
                             | "play_bgm"
+                            | "get_sound_duration"
                     ) =>
                 {
                     if let Some(Expr::Str(id)) = args.first_mut() {

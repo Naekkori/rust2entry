@@ -485,12 +485,16 @@ pub enum Block {
     },
     GetSoundSpeed,
     SoundSilentAll {
-        sound_name: ParamBlock,
+        target: String,
     },
     PlayBgm {
         sound_name: ParamBlock,
     },
     StopBgm,
+    GetSoundVolume,
+    GetSoundDuration {
+        sound_name: String,
+    },
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -692,6 +696,8 @@ impl Block {
             Block::SoundSilentAll { .. } => "sound_silent_all",
             Block::PlayBgm { .. } => "play_bgm",
             Block::StopBgm => "stop_bgm",
+            Block::GetSoundVolume => "get_sound_volume",
+            Block::GetSoundDuration { .. } => "get_sound_duration",
         }
     }
 
@@ -834,6 +840,8 @@ impl Block {
             Block::SoundSilentAll { .. } => Category::Sound,
             Block::PlayBgm { .. } => Category::Sound,
             Block::StopBgm => Category::Sound,
+            Block::GetSoundVolume => Category::Sound,
+            Block::GetSoundDuration { .. } => Category::Sound,
         }
     }
 }
@@ -1706,8 +1714,11 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         if args.len() != 1 {
                             return Err(SyntaxError("sound_silent_all needs 1 arg".into()));
                         }
-                        let sound_name = from_expr(&args[0])?;
-                        return Ok(Block::SoundSilentAll { sound_name });
+                        let target = match &args[0] {
+                            Expr::Str(target) => target.clone(),
+                            _ => return Err(SyntaxError("sound_silent_all arg must be string".into())),
+                        };
+                        return Ok(Block::SoundSilentAll { target });
                     }
                     if fref.name == "play_bgm" {
                         if args.len() != 1 {
@@ -2015,6 +2026,22 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 }
                 return Ok(ParamBlock::Sub(Box::new(Block::GetSoundSpeed)));
             }
+            if fref.name == "get_sound_volume" {
+                if args.len() > 0 {
+                    return Err(SyntaxError("get_sound_volume not needs args".into()));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::GetSoundVolume)));
+            }
+            if fref.name == "get_sound_duration" {
+                if args.len() != 1 {
+                    return Err(SyntaxError("get_sound_duration needs 1 arg".into()));
+                }
+                let sound_name = match &args[0] {
+                    Expr::Str(sound_name) => sound_name.clone(),
+                    _ => return Err(SyntaxError("get_sound_duration arg must be string".into())),
+                };
+                return Ok(ParamBlock::Sub(Box::new(Block::GetSoundDuration { sound_name })));
+            }
             // 하드웨어 getter 블럭 (소스맵 인덱스) — 값으로 사용.
             if crate::block::registry::is_hw_block(&fref.name) {
                 let raw = if let Some(r) = &fref.raw {
@@ -2107,10 +2134,7 @@ pub fn to_value_with_assets(
         // 소리 선택도 EntryJS의 `get_sounds` 값 블록으로 저장한다.
         value["params"][0] = json!({ "type": "get_sounds", "params": [id] });
     }
-    if let Block::SoundSilentAll {
-        sound_name: ParamBlock::Text(sound_name),
-    }
-    | Block::PlayBgm {
+    if let Block::PlayBgm {
         sound_name: ParamBlock::Text(sound_name),
     } = block
     {
@@ -2121,6 +2145,40 @@ pub fn to_value_with_assets(
             })?;
         value["params"][0] = json!({ "type": "get_sounds", "params": [id] });
     }
+    if let Block::GetSoundDuration { sound_name } = block {
+        if let Some(id) = assets.sound_id_by_name(object_name, sound_name) {
+            value["params"][1] = Value::String(id.to_string());
+        }
+    }
+    fn resolve_nested_sound_duration(
+        value: &mut Value,
+        assets: &crate::AssetMap,
+        object_name: &str,
+    ) {
+        if let Some(obj) = value.as_object_mut() {
+            if obj.get("type").and_then(Value::as_str) == Some("get_sound_duration") {
+                if let Some(Value::String(name)) = obj
+                    .get("params")
+                    .and_then(Value::as_array)
+                    .and_then(|params| params.get(1))
+                {
+                    if let Some(id) = assets.sound_id_by_name(object_name, name) {
+                        if let Some(params) = obj.get_mut("params").and_then(Value::as_array_mut) {
+                            params[1] = Value::String(id.to_string());
+                        }
+                    }
+                }
+            }
+            for child in obj.values_mut() {
+                resolve_nested_sound_duration(child, assets, object_name);
+            }
+        } else if let Some(items) = value.as_array_mut() {
+            for child in items {
+                resolve_nested_sound_duration(child, assets, object_name);
+            }
+        }
+    }
+    resolve_nested_sound_duration(&mut value, assets, object_name);
     Ok(value)
 }
 
@@ -2595,11 +2653,16 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::GetSoundSpeed => (vec![], None),
         Block::SoundSpeedChange { amount } => (vec![param_to_value(amount), Value::Null], None),
         Block::SoundSpeedSet { amount } => (vec![param_to_value(amount), Value::Null], None),
-        Block::SoundSilentAll { sound_name } => {
-            (vec![param_to_value(sound_name), Value::Null], None)
+        Block::SoundSilentAll { target } => {
+            (vec![Value::String(target.clone()), Value::Null], None)
         }
         Block::PlayBgm { sound_name } => (vec![param_to_value(sound_name), Value::Null], None),
         Block::StopBgm => (vec![], None),
+        Block::GetSoundVolume => (vec![], None),
+        Block::GetSoundDuration { sound_name } => (
+            vec![Value::Null, Value::String(sound_name.clone()), Value::Null],
+            None,
+        ),
     })
 }
 

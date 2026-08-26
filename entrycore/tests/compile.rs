@@ -6190,17 +6190,16 @@ fn compile_sound_stop_and_bgm_blocks_roundtrip() {
     }]);
     let assets = entrycore::AssetMap::from_project_value(&base);
     let src = r#"fn when_start() {
-        sound_silent_all("jump");
+        sound_silent_all("all");
         play_bgm("jump");
         stop_bgm();
     }"#;
     let compiled = compile(&[("hero", src)], &base).expect("compile").0;
     let script = compiled["objects"][0]["script"].as_str().expect("script string");
     let value: Value = serde_json::from_str(script).expect("script JSON");
-    for block in [&value[0][1], &value[0][2]] {
-        assert_eq!(block["params"][0]["type"], "get_sounds");
-        assert_eq!(block["params"][0]["params"][0], "sound-jump");
-    }
+    assert_eq!(value[0][1]["params"][0], "all");
+    assert_eq!(value[0][2]["params"][0]["type"], "get_sounds");
+    assert_eq!(value[0][2]["params"][0]["params"][0], "sound-jump");
     assert_eq!(value[0][3]["type"], "stop_bgm");
 
     let program = program_from_script_string_with_vars_and_assets(
@@ -6218,10 +6217,65 @@ fn compile_sound_stop_and_bgm_blocks_roundtrip() {
             panic!("expected sound stop or bgm call");
         };
         assert_eq!(fref.name, expected_name);
-        if expected_name != "stop_bgm" {
+        if expected_name == "sound_silent_all" {
+            assert!(matches!(&args[0], Expr::Str(name) if name == "all"));
+        } else if expected_name != "stop_bgm" {
             assert!(matches!(&args[0], Expr::Str(name) if name == "jump"));
         }
     }
+}
+
+/// 소리 크기와 길이 값 블록의 인자와 왕복을 검증한다.
+#[test]
+fn compile_sound_value_blocks_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars_and_assets;
+    use entrycore::ir::{Expr, Stmt};
+
+    let mut base = empty_project();
+    base["objects"] = json!([{
+        "id": "hero-object",
+        "name": "hero",
+        "objectType": "sprite",
+        "scene": "scene1",
+        "script": "[]",
+        "sprite": {
+            "name": "hero",
+            "pictures": [],
+            "sounds": [{"id": "sound-jump", "name": "jump"}]
+        },
+        "entity": {"x": 0, "y": 0, "visible": true}
+    }]);
+    let assets = entrycore::AssetMap::from_project_value(&base);
+    let src = r#"fn when_start() {
+        let volume = get_sound_volume();
+        let duration = get_sound_duration("jump");
+    }"#;
+    let compiled = compile(&[("hero", src)], &base).expect("compile").0;
+    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let value: Value = serde_json::from_str(script).expect("script JSON");
+    assert_eq!(value[0][1]["type"], "set_variable");
+    assert_eq!(value[0][1]["params"][1]["type"], "get_sound_volume");
+    assert_eq!(value[0][2]["params"][1]["type"], "get_sound_duration");
+    assert_eq!(value[0][2]["params"][1]["params"][1], "sound-jump");
+
+    let program = program_from_script_string_with_vars_and_assets(
+        script,
+        &entrycore::VarMap::new(),
+        &assets,
+        "hero",
+    )
+    .expect("deparse");
+    let Stmt::FuncDef { body, .. } = &program.stmts[0] else {
+        panic!("expected when_start");
+    };
+    let Stmt::SetVar(_, volume) = &body[0] else {
+        panic!("expected volume let");
+    };
+    assert!(matches!(volume, Expr::Call(fref, args) if fref.name == "get_sound_volume" && args.is_empty()));
+    let Stmt::SetVar(_, duration) = &body[1] else {
+        panic!("expected duration let");
+    };
+    assert!(matches!(duration, Expr::Call(fref, args) if fref.name == "get_sound_duration" && matches!(&args[0], Expr::Str(name) if name == "jump")));
 }
 
 #[test]
