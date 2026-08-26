@@ -263,7 +263,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `get_sound_volume` — 소리 크기 값
 - ✅ `get_sound_duration` — 소리 길이 값
 
-### 판단 (8/12)
+### 판단 (9/12)
 - ✅ `boolean_basic` → `Compare`
 - ✅ `boolean_basic_operator` → `Compare`
 - ✅ `boolean_and_or` → `BoolOp`
@@ -272,7 +272,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `is_object_clicked` — 오브젝트 클릭했는가? (→ `is_object_clicked()`)
 - ✅ `is_press_some_key` — 키 눌렸는가? (→ `is_press_some_key("space")`)
 - ✅ `reach_something` — □ 에 닿았는가? (→ `reach_something("enemy")` / `reach_something()` self)
-- ⬜ `is_type` — 타입 체크 (숫자/문자/리스트)
+- ✅ `is_type` — 타입 체크 (숫자/영문/한글)
 - ⬜ `is_boost_mode` — 부스트 모드인가?
 - ⬜ `is_current_device_type` — □ 에서 실행하는가?
 - ⬜ `is_touch_supported` — 터치 가능한가?
@@ -523,7 +523,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 **126/334** 매핑됨 (약 37.7%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 8/12, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 9/12, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
