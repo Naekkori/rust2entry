@@ -6350,3 +6350,25 @@ fn compile_sound_speed_blocks_roundtrip() {
         assert!(matches!(args[0], Expr::Float(value) if value == expected_value));
     }
 }
+#[test]
+fn compile_is_type_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+
+    let src = r#"fn when_start() {
+        if is_type(123, "number") {
+        }
+    }"#;
+    let compiled = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let value: Value = serde_json::from_str(script).expect("script JSON");
+    assert_eq!(value[0][1]["type"], "if");
+    assert_eq!(value[0][1]["params"][0]["type"], "is_type");
+    assert_eq!(value[0][1]["params"][0]["params"][2], "number");
+
+    let program = program_from_script_string_with_vars(script, &entrycore::VarMap::new())
+        .expect("deparse");
+    let Stmt::FuncDef { body, .. } = &program.stmts[0] else { panic!("expected when_start"); };
+    let Stmt::If { cond, .. } = &body[0] else { panic!("expected if"); };
+    assert!(matches!(cond, Expr::Call(fref, args) if fref.name == "is_type" && args.len() == 2));
+}

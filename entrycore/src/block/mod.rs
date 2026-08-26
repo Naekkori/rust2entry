@@ -46,7 +46,13 @@ pub enum DialogMode {
     Say,
     Think,
 }
-
+// 엔트리 타입
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EntryType {
+    Number,
+    En,
+    Ko,
+}
 // 효과 타입
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffectType {
@@ -109,66 +115,7 @@ pub enum Block {
         direction: String,
     },
 
-    // ── 변수 (출력: set_variable, change_variable, get_variable) ──
-    SetVar {
-        variable: String,
-        value: ParamBlock,
-    },
-    ChangeVar {
-        variable: String,
-        value: ParamBlock,
-    },
-    GetVar {
-        variable: String,
-    },
-    ShowVar {
-        variable: String,
-    },
-    HideVar {
-        variable: String,
-    },
-    SetVisibleProjectTimer {
-        value: bool,
-    },
-    SetVisibleAnswer {
-        value: bool,
-    },
-    ListValueAt {
-        index: ParamBlock,
-        list: String,
-    },
-    AddValueToList {
-        value: ParamBlock,
-        list: String,
-    },
-    RemoveValueFromList {
-        index: ParamBlock,
-        list: String,
-    },
-    InsertValueToList {
-        value: ParamBlock,
-        index: ParamBlock,
-        list: String,
-    },
-    ChangeValueListIndex {
-        index: ParamBlock,
-        value: ParamBlock,
-        list: String,
-    },
-    LengthOfList {
-        list: String,
-    },
-    ShowList {
-        list: String,
-    },
-    HideList {
-        list: String,
-    },
-    IsIncludedInList {
-        list: String,
-        value: ParamBlock,
-    },
-    // ── 흐름 (제어) ──
+    // ── 흐름 / 제어 ──
     If {
         cond: ParamBlock,
         body: Vec<Block>,
@@ -205,182 +152,8 @@ pub enum Block {
     GetCanvasInputValue {},
     DeleteClone,
     RemoveAllClones,
-    // --- 판단 ---
-    IsPressSomeKey {
-        key: String,
-    },
-    ReachSomeThing {
-        target: String,
-    },
-    IsClicked,
-    IsObjectClicked,
-    // ── 산술 / 비교 / 논리 ──
-    CalcBinOp {
-        op: BinOp,
-        lhs: ParamBlock,
-        rhs: ParamBlock,
-    },
-    Compare {
-        op: BinOp,
-        lhs: ParamBlock,
-        rhs: ParamBlock,
-    },
-    BoolOp {
-        op: BinOp,
-        lhs: ParamBlock,
-        rhs: ParamBlock,
-    },
-    UnaryOp {
-        op: UnaryOp,
-        expr: ParamBlock,
-    },
-    CalcOperation {
-        op: MathOperation,
-        expr: ParamBlock,
-    },
-    CalcRand {
-        min: ParamBlock,
-        max: ParamBlock,
-    },
-    ChooseProjectTimerAction {
-        action: String, // start, stop, reset
-    },
-    GetProjectTimerValue {},
-    QuotientAndMod {
-        a: ParamBlock,
-        b: ParamBlock,
-        mode: QamMethod,
-    },
-    // ── 리터럴 (단독 값) ──
-    Number(f64),
-    Text(String),
-    Boolean(bool),
-    Angle(f64),
-    Color(String),
-    // ── 문자열 ──
-    StringConcat {
-        parts: Vec<ParamBlock>,
-    },
-    StringIncludes {
-        haystack: ParamBlock,
-        needle: ParamBlock,
-    },
 
-    // ── 함수 ──
-    FuncCall {
-        name: String,
-        args: Vec<ParamBlock>,
-    },
-    FuncDef {
-        name: String,
-        params: Vec<String>,
-        body: Vec<Block>,
-    },
-    Return {
-        value: Option<ParamBlock>,
-    },
-
-    // --- 모양 ---
-    Show {},
-    Hide {},
-    Dialog {
-        mode: DialogMode,
-        content: ParamBlock,
-    },
-    DialogTime {
-        mode: DialogMode,
-        content: ParamBlock,
-        time: ParamBlock,
-    },
-    ChangeToSomeShape {
-        picture: String,
-    },
-    ChangeToNextShape {},
-    RemoveDialog {},
-    AddEffectAmount {
-        effect: EffectType,
-        amount: ParamBlock,
-    },
-    ChangeEffectAmount {
-        effect: EffectType,
-        amount: ParamBlock,
-    },
-    EraseAllEffects {},
-    ChangeScaleSize {
-        amount: ParamBlock,
-    },
-    SetScaleSize {
-        amount: ParamBlock,
-    },
-    ResetScaleSize {},
-    FlipX {}, //상하로 뒤집힘
-    FlipY {}, //좌우로 뒤집힘
-    ChangeObjectIndex {
-        direction: String,
-    },
-    StretchScaleSize {
-        dim: Dimension,
-        value: ParamBlock,
-    },
-    CreateClone {
-        target: String,
-    },
-    // ---   붓   ---
-    BrushStamp,
-    StartDrawing,
-    StopDrawing,
-    StartFill,
-    StopFill,
-    SetColor {
-        r: ParamBlock,
-        g: ParamBlock,
-        b: ParamBlock,
-    },
-    SetRandomColor,
-    SetFillColor {
-        color: ParamBlock,
-    },
-    ChangeThickness {
-        amount: ParamBlock,
-    },
-    SetThickness {
-        value: ParamBlock,
-    },
-    ChangeBrushTransparency {
-        amount: ParamBlock,
-    },
-    SetBrushTranparency {
-        value: ParamBlock,
-    },
-    BrushEraseAll,
-    // --- 글상자 ---
-    TextRead {
-        value: ParamBlock,
-    },
-    TextWrite {
-        content: ParamBlock,
-    },
-    TextAppend {
-        content: ParamBlock,
-    },
-    TextPrepend {
-        content: ParamBlock,
-    },
-    TextChangeEffect {
-        effect: TextEffect,
-        mode: bool,
-    },
-    TextFlush,
-    TextChangeFont {
-        font: String,
-    },
-    TextChangeFontColor {
-        color: ParamBlock,
-    },
-    TextChangeBgColor {
-        color: ParamBlock,
-    },
-    // --- 움직임 ---
+    // ── 움직임 ──
     MoveDirection {
         direction: String,
         amount: ParamBlock,
@@ -446,7 +219,111 @@ pub enum Block {
         angle: ParamBlock,
         distance: ParamBlock,
     },
-    /// --- 소리 ---
+
+    // ── 형태 ──
+    Show {},
+    Hide {},
+    Dialog {
+        mode: DialogMode,
+        content: ParamBlock,
+    },
+    DialogTime {
+        mode: DialogMode,
+        content: ParamBlock,
+        time: ParamBlock,
+    },
+    ChangeToSomeShape {
+        picture: String,
+    },
+    ChangeToNextShape {},
+    RemoveDialog {},
+    AddEffectAmount {
+        effect: EffectType,
+        amount: ParamBlock,
+    },
+    ChangeEffectAmount {
+        effect: EffectType,
+        amount: ParamBlock,
+    },
+    EraseAllEffects {},
+    ChangeScaleSize {
+        amount: ParamBlock,
+    },
+    SetScaleSize {
+        amount: ParamBlock,
+    },
+    ResetScaleSize {},
+    FlipX {}, //상하로 뒤집힘
+    FlipY {}, //좌우로 뒤집힘
+    ChangeObjectIndex {
+        direction: String,
+    },
+    StretchScaleSize {
+        dim: Dimension,
+        value: ParamBlock,
+    },
+    CreateClone {
+        target: String,
+    },
+
+    // ── 붓 ──
+    BrushStamp,
+    StartDrawing,
+    StopDrawing,
+    StartFill,
+    StopFill,
+    SetColor {
+        r: ParamBlock,
+        g: ParamBlock,
+        b: ParamBlock,
+    },
+    SetRandomColor,
+    SetFillColor {
+        color: ParamBlock,
+    },
+    ChangeThickness {
+        amount: ParamBlock,
+    },
+    SetThickness {
+        value: ParamBlock,
+    },
+    ChangeBrushTransparency {
+        amount: ParamBlock,
+    },
+    SetBrushTranparency {
+        value: ParamBlock,
+    },
+    BrushEraseAll,
+
+    // ── 글상자 ──
+    TextRead {
+        value: ParamBlock,
+    },
+    TextWrite {
+        content: ParamBlock,
+    },
+    TextAppend {
+        content: ParamBlock,
+    },
+    TextPrepend {
+        content: ParamBlock,
+    },
+    TextChangeEffect {
+        effect: TextEffect,
+        mode: bool,
+    },
+    TextFlush,
+    TextChangeFont {
+        font: String,
+    },
+    TextChangeFontColor {
+        color: ParamBlock,
+    },
+    TextChangeBgColor {
+        color: ParamBlock,
+    },
+
+    // ── 소리 ──
     SoundSomethingWithBlock {
         sound_name: ParamBlock,
     },
@@ -495,7 +372,151 @@ pub enum Block {
     GetSoundDuration {
         sound_name: String,
     },
-    /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
+
+    // ── 판단 ──
+    IsPressSomeKey {
+        key: String,
+    },
+    ReachSomeThing {
+        target: String,
+    },
+    IsClicked,
+    IsObjectClicked,
+    IsType {
+        value: ParamBlock,
+        type_name: EntryType,
+    },
+
+    // ── 산술 / 비교 / 논리 ──
+    CalcBinOp {
+        op: BinOp,
+        lhs: ParamBlock,
+        rhs: ParamBlock,
+    },
+    Compare {
+        op: BinOp,
+        lhs: ParamBlock,
+        rhs: ParamBlock,
+    },
+    BoolOp {
+        op: BinOp,
+        lhs: ParamBlock,
+        rhs: ParamBlock,
+    },
+    UnaryOp {
+        op: UnaryOp,
+        expr: ParamBlock,
+    },
+    CalcOperation {
+        op: MathOperation,
+        expr: ParamBlock,
+    },
+    CalcRand {
+        min: ParamBlock,
+        max: ParamBlock,
+    },
+    ChooseProjectTimerAction {
+        action: String, // start, stop, reset
+    },
+    GetProjectTimerValue {},
+    QuotientAndMod {
+        a: ParamBlock,
+        b: ParamBlock,
+        mode: QamMethod,
+    },
+
+    // ── 변수 ──
+    SetVar {
+        variable: String,
+        value: ParamBlock,
+    },
+    ChangeVar {
+        variable: String,
+        value: ParamBlock,
+    },
+    GetVar {
+        variable: String,
+    },
+    ShowVar {
+        variable: String,
+    },
+    HideVar {
+        variable: String,
+    },
+    SetVisibleProjectTimer {
+        value: bool,
+    },
+    SetVisibleAnswer {
+        value: bool,
+    },
+    ListValueAt {
+        index: ParamBlock,
+        list: String,
+    },
+    AddValueToList {
+        value: ParamBlock,
+        list: String,
+    },
+    RemoveValueFromList {
+        index: ParamBlock,
+        list: String,
+    },
+    InsertValueToList {
+        value: ParamBlock,
+        index: ParamBlock,
+        list: String,
+    },
+    ChangeValueListIndex {
+        index: ParamBlock,
+        value: ParamBlock,
+        list: String,
+    },
+    LengthOfList {
+        list: String,
+    },
+    ShowList {
+        list: String,
+    },
+    HideList {
+        list: String,
+    },
+    IsIncludedInList {
+        list: String,
+        value: ParamBlock,
+    },
+
+    // ── 함수 ──
+    FuncCall {
+        name: String,
+        args: Vec<ParamBlock>,
+    },
+    FuncDef {
+        name: String,
+        params: Vec<String>,
+        body: Vec<Block>,
+    },
+    Return {
+        value: Option<ParamBlock>,
+    },
+
+    // ── 리터럴 (단독 값) ──
+    Number(f64),
+    Text(String),
+    Boolean(bool),
+    Angle(f64),
+    Color(String),
+
+    // ── 문자열 ──
+    StringConcat {
+        parts: Vec<ParamBlock>,
+    },
+    StringIncludes {
+        haystack: ParamBlock,
+        needle: ParamBlock,
+    },
+
+    // ── 하드웨어 ──
+    /// 소스맵 기반 동적 블록. `raw`는 원본 .ent 블록 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
     Raw {
@@ -645,6 +666,7 @@ impl Block {
             Block::DirectionRelative { .. } => "direction_relative",
             Block::IsClicked => "is_clicked",
             Block::IsObjectClicked => "is_object_clicked",
+            Block::IsType { .. } => "is_type",
             Block::MoveXyTime { .. } => "move_xy_time",
             Block::LocateX { .. } => "locate_x",
             Block::LocateY { .. } => "locate_y",
@@ -791,6 +813,7 @@ impl Block {
             Block::DirectionRelative { .. } => Category::Movement,
             Block::IsClicked => Category::Judgment,
             Block::IsObjectClicked => Category::Judgment,
+            Block::IsType { .. } => Category::Judgment,
             Block::MoveXyTime { .. } => Category::Movement,
             Block::LocateX { .. } => Category::Movement,
             Block::LocateY { .. } => Category::Movement,
@@ -1236,6 +1259,22 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             return Err(SyntaxError("is_object_clicked needs no args".into()));
                         }
                         return Ok(Block::IsObjectClicked);
+                    }
+                    if fref.name == "is_type" {
+                        if args.len() != 2 {
+                            return Err(SyntaxError("is_type needs 2 args".into()));
+                        }
+                        let value = from_expr(&args[0])?;
+                        let type_name = match &args[1] {
+                            Expr::Str(value) => match value.as_str() {
+                                "number" => EntryType::Number,
+                                "en" => EntryType::En,
+                                "ko" => EntryType::Ko,
+                                _ => return Err(SyntaxError("is_type invalid type".into())),
+                            },
+                            _ => return Err(SyntaxError("is_type type must be string".into())),
+                        };
+                        return Ok(Block::IsType { value, type_name });
                     }
                     if fref.name == "create_clone" {
                         let target = match &args.len() {
@@ -1716,7 +1755,11 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         }
                         let target = match &args[0] {
                             Expr::Str(target) => target.clone(),
-                            _ => return Err(SyntaxError("sound_silent_all arg must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "sound_silent_all arg must be string".into(),
+                                ));
+                            }
                         };
                         return Ok(Block::SoundSilentAll { target });
                     }
@@ -2011,6 +2054,25 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 };
                 return Ok(ParamBlock::Sub(Box::new(Block::ReachSomeThing { target })));
             }
+            if fref.name == "is_type" {
+                if args.len() != 2 {
+                    return Err(SyntaxError("is_type needs 2 args".into()));
+                }
+                let value = from_expr(&args[0])?;
+                let type_name = match &args[1] {
+                    Expr::Str(value) => match value.as_str() {
+                        "number" => EntryType::Number,
+                        "en" => EntryType::En,
+                        "ko" => EntryType::Ko,
+                        _ => return Err(SyntaxError("is_type invalid type".into())),
+                    },
+                    _ => return Err(SyntaxError("is_type type must be string".into())),
+                };
+                return Ok(ParamBlock::Sub(Box::new(Block::IsType {
+                    value,
+                    type_name,
+                })));
+            }
             // --- 글상자 ---
             if fref.name == "text_read" {
                 if args.len() != 1 {
@@ -2040,7 +2102,9 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     Expr::Str(sound_name) => sound_name.clone(),
                     _ => return Err(SyntaxError("get_sound_duration arg must be string".into())),
                 };
-                return Ok(ParamBlock::Sub(Box::new(Block::GetSoundDuration { sound_name })));
+                return Ok(ParamBlock::Sub(Box::new(Block::GetSoundDuration {
+                    sound_name,
+                })));
             }
             // 하드웨어 getter 블럭 (소스맵 인덱스) — 값으로 사용.
             if crate::block::registry::is_hw_block(&fref.name) {
@@ -2507,6 +2571,19 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::DirectionRelative { angle } => (vec![param_to_value(angle), Value::Null], None),
         Block::IsClicked => (vec![], None),
         Block::IsObjectClicked => (vec![], None),
+        Block::IsType { value, type_name } => (
+            vec![
+                param_to_value(value),
+                Value::Null,
+                Value::String(match type_name {
+                    EntryType::Number => "number",
+                    EntryType::En => "en",
+                    EntryType::Ko => "ko",
+                }.to_string()),
+                Value::Null,
+            ],
+            None,
+        ),
         Block::MoveXyTime { duration, dx, dy } => (
             vec![
                 param_to_value(duration),

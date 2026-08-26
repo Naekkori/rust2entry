@@ -486,6 +486,16 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         }
         "is_clicked" => Block::IsClicked,
         "is_object_clicked" => Block::IsObjectClicked,
+        "is_type" => {
+            let value = param_at(&params, 0, vars)?;
+            let type_name = match params.get(2).and_then(Value::as_str).unwrap_or("number") {
+                "number" => crate::block::EntryType::Number,
+                "en" => crate::block::EntryType::En,
+                "ko" => crate::block::EntryType::Ko,
+                _ => return Err(crate::Error::Parse("is_type invalid type".into())),
+            };
+            Block::IsType { value, type_name }
+        }
         "reach_something" => {
             let target = params
                 .get(0)
@@ -2049,6 +2059,25 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::IsType { value, type_name } => {
+            let value = expr_from_param(value, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "is_type".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![
+                    value,
+                    Expr::Str(match type_name {
+                        crate::block::EntryType::Number => "number",
+                        crate::block::EntryType::En => "en",
+                        crate::block::EntryType::Ko => "ko",
+                    }.to_string()),
+                ],
+            )));
+            Ok(())
+        }
         Block::MoveXyTime { duration, dx, dy } => {
             let duration = expr_from_param(duration, vars)?;
             let dx = expr_from_param(dx, vars)?;
@@ -3021,6 +3050,24 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             Vec::new(),
         )),
+        Block::IsType { value, type_name } => {
+            let value = expr_from_param(value, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "is_type".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![
+                    value,
+                    Expr::Str(match type_name {
+                        crate::block::EntryType::Number => "number",
+                        crate::block::EntryType::En => "en",
+                        crate::block::EntryType::Ko => "ko",
+                    }.to_string()),
+                ],
+            ))
+        }
         Block::TextRead { value } => {
             let v = expr_from_param(value, vars)?;
             Ok(Expr::Call(
