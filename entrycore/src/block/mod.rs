@@ -454,6 +454,11 @@ pub enum Block {
         sound_name: ParamBlock,
         seconds: ParamBlock,
     },
+    SoundFromTo {
+        sound_name: ParamBlock,
+        start: ParamBlock,
+        end: ParamBlock,
+    },
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -641,6 +646,7 @@ impl Block {
             Block::TextChangeBgColor { .. } => "text_change_bg_color",
             Block::SoundSomethingWithBlock { .. } => "sound_something_with_block",
             Block::SoundSomethingSecondWithBlock { .. } => "sound_something_second_with_block",
+            Block::SoundFromTo { .. } => "sound_from_to",
         }
     }
 
@@ -771,6 +777,7 @@ impl Block {
             Block::TextChangeBgColor { .. } => Category::Text,
             Block::SoundSomethingWithBlock { .. } => Category::Sound,
             Block::SoundSomethingSecondWithBlock { .. } => Category::Sound,
+            Block::SoundFromTo { .. } => Category::Sound,
         }
     }
 }
@@ -1562,6 +1569,19 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             seconds,
                         });
                     }
+                    if fref.name == "sound_from_to" {
+                        if args.len() != 3 {
+                            return Err(SyntaxError("sound_from_to needs 3 args".into()));
+                        }
+                        let sound_name = from_expr(&args[0])?;
+                        let start = from_expr(&args[1])?;
+                        let end = from_expr(&args[2])?;
+                        return Ok(Block::SoundFromTo {
+                            sound_name,
+                            start,
+                            end,
+                        });
+                    }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
                         let raw = if let Some(r) = &fref.raw {
@@ -2101,11 +2121,17 @@ pub fn to_value_with_assets(
     | Block::SoundSomethingSecondWithBlock {
         sound_name: ParamBlock::Text(sound_name),
         ..
+    }
+    | Block::SoundFromTo {
+        sound_name: ParamBlock::Text(sound_name),
+        ..
     } = block
     {
-        let id = assets.sound_id_by_name(object_name, sound_name).ok_or_else(|| {
-            crate::Error::Semantic(format!("{object_name}: sound not found: {sound_name}"))
-        })?;
+        let id = assets
+            .sound_id_by_name(object_name, sound_name)
+            .ok_or_else(|| {
+                crate::Error::Semantic(format!("{object_name}: sound not found: {sound_name}"))
+            })?;
         // 소리 선택도 EntryJS의 `get_sounds` 값 블록으로 저장한다.
         value["params"][0] = json!({ "type": "get_sounds", "params": [id] });
     }
@@ -2534,6 +2560,19 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             vec![
                 param_to_value(sound_name),
                 param_to_value(seconds),
+                Value::Null,
+            ],
+            None,
+        ),
+        Block::SoundFromTo {
+            sound_name,
+            start,
+            end,
+        } => (
+            vec![
+                param_to_value(sound_name),
+                param_to_value(start),
+                param_to_value(end),
                 Value::Null,
             ],
             None,

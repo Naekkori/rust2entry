@@ -700,6 +700,16 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 seconds,
             }
         }
+        "sound_from_to" => {
+            let sound_name = param_at(&params, 0, vars)?;
+            let start = param_at(&params, 1, vars)?;
+            let end = param_at(&params, 2, vars)?;
+            Block::SoundFromTo {
+                sound_name,
+                start,
+                end,
+            }
+        }
         // 함수
         "function_call" => {
             let name = params
@@ -2412,6 +2422,25 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::SoundFromTo {
+            sound_name,
+            start,
+            end,
+        } => {
+            let sn = expr_from_param(sound_name, vars)?;
+            let from = expr_from_param(start, vars)?;
+            let to = expr_from_param(end, vars)?;
+
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_from_to".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![sn, from, to],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2829,6 +2858,24 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![sn, sec],
             ))
         }
+        Block::SoundFromTo {
+            sound_name,
+            start,
+            end,
+        } => {
+            let sn = expr_from_param(sound_name, vars)?;
+            let from = expr_from_param(start, vars)?;
+            let to = expr_from_param(end, vars)?;
+
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_from_to".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![sn, from, to],
+            ))
+        }
     }
 }
 
@@ -2919,7 +2966,9 @@ fn resolve_asset_ids(
                 Stmt::Expr(Expr::Call(fref, args))
                     if matches!(
                         fref.name.as_str(),
-                        "sound_something_with_block" | "sound_something_second_with_block"
+                        "sound_something_with_block"
+                            | "sound_something_second_with_block"
+                            | "sound_from_to"
                     ) =>
                 {
                     if let Some(Expr::Str(id)) = args.first_mut() {

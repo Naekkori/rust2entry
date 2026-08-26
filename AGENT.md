@@ -245,10 +245,10 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `text_change_font_color` — 글씨 색 변경 (→ `text_change_font_color("#112233")`; 색상 값 블록 + Indicator 슬롯)
 - ✅ `text_change_bg_color` — 글상자 배경색 변경 (→ `text_change_bg_color("#445566")`; 색상 값 블록 + Indicator 슬롯)
 
-### 소리 (2/16)
+### 소리 (3/16)
 - ✅ `sound_something_with_block` — 소리 □ 재생하기
 - ✅ `sound_something_second_with_block` — 소리 □ □ 초 재생하기
-- ⬜ `sound_from_to` — 소리 □ □ 초 부터 □ 초까지 재생하기
+- ✅ `sound_from_to` — 소리 □ □ 초 부터 □ 초까지 재생하기
 - ⬜ `sound_something_wait_with_block` — 소리 □ 재생하고 기다리기
 - ⬜ `sound_something_second_wait_with_block` — 소리 □ □ 초 재생하고 기다리기
 - ⬜ `sound_from_to_and_wait` — 소리 □ □ 초 부터 □ 초까지 재생하고 기다리기

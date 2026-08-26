@@ -6058,3 +6058,54 @@ fn compile_sound_blocks_use_sound_id_roundtrip() {
     };
     assert!(matches!(second_args[1], Expr::Float(value) if value == 1.5));
 }
+
+/// 구간 재생도 소리 이름과 ID를 양방향으로 변환한다.
+#[test]
+fn compile_sound_from_to_uses_sound_id_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars_and_assets;
+    use entrycore::ir::{Expr, Stmt};
+
+    let mut base = empty_project();
+    base["objects"] = json!([{
+        "id": "hero-object",
+        "name": "hero",
+        "objectType": "sprite",
+        "scene": "scene1",
+        "script": "[]",
+        "sprite": {
+            "name": "hero",
+            "pictures": [],
+            "sounds": [{"id": "sound-jump", "name": "jump"}]
+        },
+        "entity": {"x": 0, "y": 0, "visible": true}
+    }]);
+    let assets = entrycore::AssetMap::from_project_value(&base);
+    let src = r#"fn when_start() { sound_from_to("jump", 0.5, 2.0); }"#;
+    let compiled = compile(&[("hero", src)], &base).expect("compile").0;
+    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let value: Value = serde_json::from_str(script).expect("script JSON");
+    let block = &value[0][1];
+    assert_eq!(block["type"], "sound_from_to");
+    assert_eq!(block["params"][0]["type"], "get_sounds");
+    assert_eq!(block["params"][0]["params"][0], "sound-jump");
+    assert_eq!(block["params"][1]["params"][0], 0.5);
+    assert_eq!(block["params"][2]["params"][0], 2.0);
+
+    let program = program_from_script_string_with_vars_and_assets(
+        script,
+        &entrycore::VarMap::new(),
+        &assets,
+        "hero",
+    )
+    .expect("deparse");
+    let Stmt::FuncDef { body, .. } = &program.stmts[0] else {
+        panic!("expected when_start");
+    };
+    let Stmt::Expr(Expr::Call(fref, args)) = &body[0] else {
+        panic!("expected sound_from_to call");
+    };
+    assert_eq!(fref.name, "sound_from_to");
+    assert!(matches!(&args[0], Expr::Str(name) if name == "jump"));
+    assert!(matches!(args[1], Expr::Float(value) if value == 0.5));
+    assert!(matches!(args[2], Expr::Float(value) if value == 2.0));
+}
