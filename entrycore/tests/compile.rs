@@ -6166,3 +6166,40 @@ fn compile_sound_wait_blocks_roundtrip() {
         assert!(matches!(&args[0], Expr::Str(name) if name == "jump"));
     }
 }
+
+/// 소리 크기 변경·설정 블록의 JSON과 Rust 왕복을 검증한다.
+#[test]
+fn compile_sound_volume_blocks_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
+
+    let src = r#"fn when_start() {
+        sound_volume_change(10.0);
+        sound_volume_set(75.0);
+    }"#;
+    let compiled = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let value: Value = serde_json::from_str(script).expect("script JSON");
+    assert_eq!(value[0][1]["type"], "sound_volume_change");
+    assert_eq!(value[0][1]["params"][0]["type"], "number");
+    assert_eq!(value[0][1]["params"][0]["params"][0], 10.0);
+    assert_eq!(value[0][2]["type"], "sound_volume_set");
+    assert_eq!(value[0][2]["params"][0]["type"], "number");
+    assert_eq!(value[0][2]["params"][0]["params"][0], 75.0);
+
+    let program = program_from_script_string_with_vars(script, &entrycore::VarMap::new())
+        .expect("deparse");
+    let Stmt::FuncDef { body, .. } = &program.stmts[0] else {
+        panic!("expected when_start");
+    };
+    for (stmt, (expected_name, expected_value)) in body.iter().zip([
+        ("sound_volume_change", 10.0),
+        ("sound_volume_set", 75.0),
+    ]) {
+        let Stmt::Expr(Expr::Call(fref, args)) = stmt else {
+            panic!("expected sound volume call");
+        };
+        assert_eq!(fref.name, expected_name);
+        assert!(matches!(args[0], Expr::Float(value) if value == expected_value));
+    }
+}

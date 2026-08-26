@@ -732,6 +732,14 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 end,
             }
         }
+        "sound_volume_change" => {
+            let amount = param_at(&params, 0, vars)?;
+            Block::SoundVolumeChange { amount }
+        }
+        "sound_volume_set" => {
+            let amount = param_at(&params, 0, vars)?;
+            Block::SoundVolumeSet { amount }
+        }
         // 함수
         "function_call" => {
             let name = params
@@ -2509,6 +2517,30 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::SoundVolumeChange { amount } => {
+            let am = expr_from_param(amount, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_volume_change".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![am],
+            )));
+            Ok(())
+        }
+        Block::SoundVolumeSet { amount } => {
+            let am = expr_from_param(amount, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_volume_set".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![am],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2985,6 +3017,28 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![sn, start, end],
+            ))
+        }
+        Block::SoundVolumeChange { amount } => {
+            let am = expr_from_param(amount, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_volume_change".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![am],
+            ))
+        }
+        Block::SoundVolumeSet { amount } => {
+            let am = expr_from_param(amount, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_volume_set".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![am],
             ))
         }
     }

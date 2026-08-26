@@ -471,6 +471,12 @@ pub enum Block {
         start: ParamBlock,
         end: ParamBlock,
     },
+    SoundVolumeChange {
+        amount: ParamBlock,
+    },
+    SoundVolumeSet {
+        amount: ParamBlock,
+    },
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -664,6 +670,8 @@ impl Block {
                 "sound_something_second_wait_with_block"
             }
             Block::SoundFromToAndWait { .. } => "sound_from_to_and_wait",
+            Block::SoundVolumeChange { .. } => "sound_volume_change",
+            Block::SoundVolumeSet { .. } => "sound_volume_set",
         }
     }
 
@@ -798,6 +806,8 @@ impl Block {
             Block::SoundSomethingWaitWithBlock { .. } => Category::Sound,
             Block::SoundSomethingSecondWaitWithBlock { .. } => Category::Sound,
             Block::SoundFromToAndWait { .. } => Category::Sound,
+            Block::SoundVolumeChange { .. } => Category::Sound,
+            Block::SoundVolumeSet { .. } => Category::Sound,
         }
     }
 }
@@ -1637,6 +1647,20 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             start,
                             end,
                         });
+                    }
+                    if fref.name == "sound_volume_change" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("sound_volume_change needs 1 args".into()));
+                        }
+                        let amount = from_expr(&args[0])?;
+                        return Ok(Block::SoundVolumeChange { amount });
+                    }
+                    if fref.name == "sound_volume_set" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("sound_volume_set needs 1 args".into()));
+                        }
+                        let amount = from_expr(&args[0])?;
+                        return Ok(Block::SoundVolumeSet { amount });
                     }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
@@ -2671,6 +2695,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
+        Block::SoundVolumeChange { amount } => (vec![param_to_value(amount), Value::Null], None),
+        Block::SoundVolumeSet { amount } => (vec![param_to_value(amount), Value::Null], None),
     })
 }
 
