@@ -6109,3 +6109,60 @@ fn compile_sound_from_to_uses_sound_id_roundtrip() {
     assert!(matches!(args[1], Expr::Float(value) if value == 0.5));
     assert!(matches!(args[2], Expr::Float(value) if value == 2.0));
 }
+
+/// 기다리기 포함 소리 블록 3종도 이름과 ID를 양방향으로 변환한다.
+#[test]
+fn compile_sound_wait_blocks_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars_and_assets;
+    use entrycore::ir::{Expr, Stmt};
+
+    let mut base = empty_project();
+    base["objects"] = json!([{
+        "id": "hero-object",
+        "name": "hero",
+        "objectType": "sprite",
+        "scene": "scene1",
+        "script": "[]",
+        "sprite": {
+            "name": "hero",
+            "pictures": [],
+            "sounds": [{"id": "sound-jump", "name": "jump"}]
+        },
+        "entity": {"x": 0, "y": 0, "visible": true}
+    }]);
+    let assets = entrycore::AssetMap::from_project_value(&base);
+    let src = r#"fn when_start() {
+        sound_something_wait_with_block("jump");
+        sound_something_second_wait_with_block("jump", 1.5);
+        sound_from_to_and_wait("jump", 0.5, 2.0);
+    }"#;
+    let compiled = compile(&[("hero", src)], &base).expect("compile").0;
+    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let value: Value = serde_json::from_str(script).expect("script JSON");
+    for block in [&value[0][1], &value[0][2], &value[0][3]] {
+        assert_eq!(block["params"][0]["type"], "get_sounds");
+        assert_eq!(block["params"][0]["params"][0], "sound-jump");
+    }
+
+    let program = program_from_script_string_with_vars_and_assets(
+        script,
+        &entrycore::VarMap::new(),
+        &assets,
+        "hero",
+    )
+    .expect("deparse");
+    let Stmt::FuncDef { body, .. } = &program.stmts[0] else {
+        panic!("expected when_start");
+    };
+    for (stmt, expected_name) in body.iter().zip([
+        "sound_something_wait_with_block",
+        "sound_something_second_wait_with_block",
+        "sound_from_to_and_wait",
+    ]) {
+        let Stmt::Expr(Expr::Call(fref, args)) = stmt else {
+            panic!("expected waiting sound call");
+        };
+        assert_eq!(fref.name, expected_name);
+        assert!(matches!(&args[0], Expr::Str(name) if name == "jump"));
+    }
+}

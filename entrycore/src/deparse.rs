@@ -710,6 +710,28 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 end,
             }
         }
+        "sound_something_wait_with_block" => {
+            let sound_name = param_at(&params, 0, vars)?;
+            Block::SoundSomethingWaitWithBlock { sound_name }
+        }
+        "sound_something_second_wait_with_block" => {
+            let sound_name = param_at(&params, 0, vars)?;
+            let seconds = param_at(&params, 1, vars)?;
+            Block::SoundSomethingSecondWaitWithBlock {
+                sound_name,
+                seconds,
+            }
+        }
+        "sound_from_to_and_wait" => {
+            let sound_name = param_at(&params, 0, vars)?;
+            let start = param_at(&params, 1, vars)?;
+            let end = param_at(&params, 2, vars)?;
+            Block::SoundFromToAndWait {
+                sound_name,
+                start,
+                end,
+            }
+        }
         // 함수
         "function_call" => {
             let name = params
@@ -2441,6 +2463,52 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::SoundSomethingWaitWithBlock { sound_name } => {
+            let sn = expr_from_param(sound_name, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_something_wait_with_block".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![sn],
+            )));
+            Ok(())
+        }
+        Block::SoundSomethingSecondWaitWithBlock {
+            sound_name,
+            seconds,
+        } => {
+            let sn = expr_from_param(sound_name, vars)?;
+            let sec = expr_from_param(seconds, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_something_second_wait_with_block".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![sn, sec],
+            )));
+            Ok(())
+        }
+        Block::SoundFromToAndWait {
+            sound_name,
+            start,
+            end,
+        } => {
+            let sn = expr_from_param(sound_name, vars)?;
+            let from = expr_from_param(start, vars)?;
+            let to = expr_from_param(end, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_from_to_and_wait".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![sn, from, to],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -2876,6 +2944,49 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![sn, from, to],
             ))
         }
+        Block::SoundSomethingWaitWithBlock { sound_name } => {
+            let sn = expr_from_param(sound_name, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_something_second_wait_with_block".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![sn],
+            ))
+        }
+        Block::SoundSomethingSecondWaitWithBlock {
+            sound_name,
+            seconds,
+        } => {
+            let sn = expr_from_param(sound_name, vars)?;
+            let sec = expr_from_param(seconds, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_something_wait_with_block".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![sn, sec],
+            ))
+        }
+        Block::SoundFromToAndWait {
+            sound_name,
+            start,
+            end,
+        } => {
+            let sn = expr_from_param(sound_name, vars)?;
+            let start = expr_from_param(start, vars)?;
+            let end = expr_from_param(end, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_from_to_and_wait".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![sn, start, end],
+            ))
+        }
     }
 }
 
@@ -2969,6 +3080,9 @@ fn resolve_asset_ids(
                         "sound_something_with_block"
                             | "sound_something_second_with_block"
                             | "sound_from_to"
+                            | "sound_something_wait_with_block"
+                            | "sound_something_second_wait_with_block"
+                            | "sound_from_to_and_wait"
                     ) =>
                 {
                     if let Some(Expr::Str(id)) = args.first_mut() {

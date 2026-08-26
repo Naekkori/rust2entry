@@ -459,6 +459,18 @@ pub enum Block {
         start: ParamBlock,
         end: ParamBlock,
     },
+    SoundSomethingWaitWithBlock {
+        sound_name: ParamBlock,
+    },
+    SoundSomethingSecondWaitWithBlock {
+        sound_name: ParamBlock,
+        seconds: ParamBlock,
+    },
+    SoundFromToAndWait {
+        sound_name: ParamBlock,
+        start: ParamBlock,
+        end: ParamBlock,
+    },
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -647,6 +659,11 @@ impl Block {
             Block::SoundSomethingWithBlock { .. } => "sound_something_with_block",
             Block::SoundSomethingSecondWithBlock { .. } => "sound_something_second_with_block",
             Block::SoundFromTo { .. } => "sound_from_to",
+            Block::SoundSomethingWaitWithBlock { .. } => "sound_something_wait_with_block",
+            Block::SoundSomethingSecondWaitWithBlock { .. } => {
+                "sound_something_second_wait_with_block"
+            }
+            Block::SoundFromToAndWait { .. } => "sound_from_to_and_wait",
         }
     }
 
@@ -778,6 +795,9 @@ impl Block {
             Block::SoundSomethingWithBlock { .. } => Category::Sound,
             Block::SoundSomethingSecondWithBlock { .. } => Category::Sound,
             Block::SoundFromTo { .. } => Category::Sound,
+            Block::SoundSomethingWaitWithBlock { .. } => Category::Sound,
+            Block::SoundSomethingSecondWaitWithBlock { .. } => Category::Sound,
+            Block::SoundFromToAndWait { .. } => Category::Sound,
         }
     }
 }
@@ -1582,6 +1602,42 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             end,
                         });
                     }
+                    if fref.name == "sound_something_wait_with_block" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError(
+                                "sound_something_wait_with_block needs 1 args".into(),
+                            ));
+                        }
+                        let sound_name = from_expr(&args[0])?;
+                        return Ok(Block::SoundSomethingWaitWithBlock { sound_name });
+                    }
+                    if fref.name == "sound_something_second_wait_with_block" {
+                        if args.len() != 2 {
+                            return Err(SyntaxError(
+                                "sound_something_second_wait_with_block needs 2 args".into(),
+                            ));
+                        }
+                        let sound_name = from_expr(&args[0])?;
+                        let seconds = from_expr(&args[1])?;
+                        return Ok(Block::SoundSomethingSecondWaitWithBlock {
+                            sound_name,
+                            seconds,
+                        });
+                    }
+                    if fref.name == "sound_from_to_and_wait" {
+                        if args.len() != 3 {
+                            return Err(SyntaxError("sound_from_to_and_wait needs 3 args".into()));
+                        }
+                        let sound_name = from_expr(&args[0])?;
+                        let start = from_expr(&args[1])?;
+                        let end = from_expr(&args[2])?;
+
+                        return Ok(Block::SoundFromToAndWait {
+                            sound_name,
+                            start,
+                            end,
+                        });
+                    }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
                         let raw = if let Some(r) = &fref.raw {
@@ -2125,6 +2181,17 @@ pub fn to_value_with_assets(
     | Block::SoundFromTo {
         sound_name: ParamBlock::Text(sound_name),
         ..
+    }
+    | Block::SoundSomethingWaitWithBlock {
+        sound_name: ParamBlock::Text(sound_name),
+    }
+    | Block::SoundSomethingSecondWaitWithBlock {
+        sound_name: ParamBlock::Text(sound_name),
+        ..
+    }
+    | Block::SoundFromToAndWait {
+        sound_name: ParamBlock::Text(sound_name),
+        ..
     } = block
     {
         let id = assets
@@ -2565,6 +2632,33 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             None,
         ),
         Block::SoundFromTo {
+            sound_name,
+            start,
+            end,
+        } => (
+            vec![
+                param_to_value(sound_name),
+                param_to_value(start),
+                param_to_value(end),
+                Value::Null,
+            ],
+            None,
+        ),
+        Block::SoundSomethingWaitWithBlock { sound_name } => {
+            (vec![param_to_value(sound_name), Value::Null], None)
+        }
+        Block::SoundSomethingSecondWaitWithBlock {
+            sound_name,
+            seconds,
+        } => (
+            vec![
+                param_to_value(sound_name),
+                param_to_value(seconds),
+                Value::Null,
+            ],
+            None,
+        ),
+        Block::SoundFromToAndWait {
             sound_name,
             start,
             end,
