@@ -245,7 +245,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `text_change_font_color` — 글씨 색 변경 (→ `text_change_font_color("#112233")`; 색상 값 블록 + Indicator 슬롯)
 - ✅ `text_change_bg_color` — 글상자 배경색 변경 (→ `text_change_bg_color("#445566")`; 색상 값 블록 + Indicator 슬롯)
 
-### 소리 (9/16)
+### 소리 (11/16)
 - ✅ `sound_something_with_block` — 소리 □ 재생하기
 - ✅ `sound_something_second_with_block` — 소리 □ □ 초 재생하기
 - ✅ `sound_from_to` — 소리 □ □ 초 부터 □ 초까지 재생하기
@@ -255,8 +255,8 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `sound_volume_change` — 소리 크기만큼 바꾸기
 - ✅ `sound_volume_set` — 소리 크기를 □로 정하기
 - ✅ `get_sound_speed` — 소리 빠르기
-- ⬜ `sound_speed_change` — 소리 빠르기만큼 바꾸기
-- ⬜ `sound_speed_set` — 소리 빠르기를 □로 정하기
+- ✅ `sound_speed_change` — 소리 빠르기만큼 바꾸기
+- ✅ `sound_speed_set` — 소리 빠르기를 □로 정하기
 - ⬜ `sound_silent_all` — □ 소리 멈추기
 - ⬜ `play_bgm` — 배경음악 재생하기
 - ⬜ `stop_bgm` — 배경음악 멈추기

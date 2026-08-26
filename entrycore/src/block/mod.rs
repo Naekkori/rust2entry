@@ -477,6 +477,12 @@ pub enum Block {
     SoundVolumeSet {
         amount: ParamBlock,
     },
+    SoundSpeedChange {
+        amount: ParamBlock,
+    },
+    SoundSpeedSet {
+        amount: ParamBlock,
+    },
     GetSoundSpeed,
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
@@ -674,6 +680,8 @@ impl Block {
             Block::SoundVolumeChange { .. } => "sound_volume_change",
             Block::SoundVolumeSet { .. } => "sound_volume_set",
             Block::GetSoundSpeed => "get_sound_speed",
+            Block::SoundSpeedChange { .. } => "sound_speed_change",
+            Block::SoundSpeedSet { .. } => "sound_speed_set",
         }
     }
 
@@ -811,6 +819,8 @@ impl Block {
             Block::SoundVolumeChange { .. } => Category::Sound,
             Block::SoundVolumeSet { .. } => Category::Sound,
             Block::GetSoundSpeed => Category::Sound,
+            Block::SoundSpeedChange { .. } => Category::Sound,
+            Block::SoundSpeedSet { .. } => Category::Sound,
         }
     }
 }
@@ -1664,6 +1674,20 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         }
                         let amount = from_expr(&args[0])?;
                         return Ok(Block::SoundVolumeSet { amount });
+                    }
+                    if fref.name == "sound_speed_change" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("sound_speed_change needs 1 args".into()));
+                        }
+                        let amount = from_expr(&args[0])?;
+                        return Ok(Block::SoundSpeedChange { amount });
+                    }
+                    if fref.name == "sound_speed_set" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("sound_speed_set needs 1 args".into()));
+                        }
+                        let amount = from_expr(&args[0])?;
+                        return Ok(Block::SoundSpeedSet { amount });
                     }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
@@ -2522,6 +2546,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::SoundVolumeChange { amount } => (vec![param_to_value(amount), Value::Null], None),
         Block::SoundVolumeSet { amount } => (vec![param_to_value(amount), Value::Null], None),
         Block::GetSoundSpeed => (vec![], None),
+        Block::SoundSpeedChange { amount } => (vec![param_to_value(amount), Value::Null], None),
+        Block::SoundSpeedSet { amount } => (vec![param_to_value(amount), Value::Null], None),
     })
 }
 
