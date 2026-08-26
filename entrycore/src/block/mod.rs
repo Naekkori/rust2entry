@@ -484,6 +484,13 @@ pub enum Block {
         amount: ParamBlock,
     },
     GetSoundSpeed,
+    SoundSilentAll {
+        sound_name: ParamBlock,
+    },
+    PlayBgm {
+        sound_name: ParamBlock,
+    },
+    StopBgm,
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -682,6 +689,9 @@ impl Block {
             Block::GetSoundSpeed => "get_sound_speed",
             Block::SoundSpeedChange { .. } => "sound_speed_change",
             Block::SoundSpeedSet { .. } => "sound_speed_set",
+            Block::SoundSilentAll { .. } => "sound_silent_all",
+            Block::PlayBgm { .. } => "play_bgm",
+            Block::StopBgm => "stop_bgm",
         }
     }
 
@@ -821,6 +831,9 @@ impl Block {
             Block::GetSoundSpeed => Category::Sound,
             Block::SoundSpeedChange { .. } => Category::Sound,
             Block::SoundSpeedSet { .. } => Category::Sound,
+            Block::SoundSilentAll { .. } => Category::Sound,
+            Block::PlayBgm { .. } => Category::Sound,
+            Block::StopBgm => Category::Sound,
         }
     }
 }
@@ -1689,6 +1702,26 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         let amount = from_expr(&args[0])?;
                         return Ok(Block::SoundSpeedSet { amount });
                     }
+                    if fref.name == "sound_silent_all" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("sound_silent_all needs 1 arg".into()));
+                        }
+                        let sound_name = from_expr(&args[0])?;
+                        return Ok(Block::SoundSilentAll { sound_name });
+                    }
+                    if fref.name == "play_bgm" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("play_bgm needs 1 arg".into()));
+                        }
+                        let sound_name = from_expr(&args[0])?;
+                        return Ok(Block::PlayBgm { sound_name });
+                    }
+                    if fref.name == "stop_bgm" {
+                        if args.len() > 0 {
+                            return Err(SyntaxError("stop_bgm not needs args".into()));
+                        }
+                        return Ok(Block::StopBgm);
+                    }
                     // 하드웨어 블럭 (소스맵 인덱스) — @hwraw 주석 우선, 없으면 스키마+args 구성.
                     if crate::block::registry::is_hw_block(&fref.name) {
                         let raw = if let Some(r) = &fref.raw {
@@ -2072,6 +2105,20 @@ pub fn to_value_with_assets(
                 crate::Error::Semantic(format!("{object_name}: sound not found: {sound_name}"))
             })?;
         // 소리 선택도 EntryJS의 `get_sounds` 값 블록으로 저장한다.
+        value["params"][0] = json!({ "type": "get_sounds", "params": [id] });
+    }
+    if let Block::SoundSilentAll {
+        sound_name: ParamBlock::Text(sound_name),
+    }
+    | Block::PlayBgm {
+        sound_name: ParamBlock::Text(sound_name),
+    } = block
+    {
+        let id = assets
+            .sound_id_by_name(object_name, sound_name)
+            .ok_or_else(|| {
+                crate::Error::Semantic(format!("{object_name}: sound not found: {sound_name}"))
+            })?;
         value["params"][0] = json!({ "type": "get_sounds", "params": [id] });
     }
     Ok(value)
@@ -2548,6 +2595,11 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::GetSoundSpeed => (vec![], None),
         Block::SoundSpeedChange { amount } => (vec![param_to_value(amount), Value::Null], None),
         Block::SoundSpeedSet { amount } => (vec![param_to_value(amount), Value::Null], None),
+        Block::SoundSilentAll { sound_name } => {
+            (vec![param_to_value(sound_name), Value::Null], None)
+        }
+        Block::PlayBgm { sound_name } => (vec![param_to_value(sound_name), Value::Null], None),
+        Block::StopBgm => (vec![], None),
     })
 }
 

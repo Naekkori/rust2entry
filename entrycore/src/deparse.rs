@@ -749,6 +749,15 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::SoundSpeedSet { amount }
         }
         "get_sound_speed" => Block::GetSoundSpeed,
+        "sound_silent_all" => {
+            let sound_name = param_at(&params, 0, vars)?;
+            Block::SoundSilentAll { sound_name }
+        }
+        "play_bgm" => {
+            let sound_name = param_at(&params, 0, vars)?;
+            Block::PlayBgm { sound_name }
+        }
+        "stop_bgm" => Block::StopBgm,
         // 함수
         "function_call" => {
             let name = params
@@ -2585,6 +2594,41 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::SoundSilentAll { sound_name } => {
+            let sound_name = expr_from_param(sound_name, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_silent_all".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![sound_name],
+            )));
+            Ok(())
+        }
+        Block::PlayBgm { sound_name } => {
+            let sound_name = expr_from_param(sound_name, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "play_bgm".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![sound_name],
+            )));
+            Ok(())
+        }
+        Block::StopBgm => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "stop_bgm".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -3115,6 +3159,36 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![am],
             ))
         }
+        Block::SoundSilentAll { sound_name } => {
+            let sound_name = expr_from_param(sound_name, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "sound_silent_all".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![sound_name],
+            ))
+        }
+        Block::PlayBgm { sound_name } => {
+            let sound_name = expr_from_param(sound_name, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "play_bgm".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![sound_name],
+            ))
+        }
+        Block::StopBgm => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "stop_bgm".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
     }
 }
 
@@ -3211,6 +3285,8 @@ fn resolve_asset_ids(
                             | "sound_something_wait_with_block"
                             | "sound_something_second_wait_with_block"
                             | "sound_from_to_and_wait"
+                            | "sound_silent_all"
+                            | "play_bgm"
                     ) =>
                 {
                     if let Some(Expr::Str(id)) = args.first_mut() {
