@@ -477,6 +477,7 @@ pub enum Block {
     SoundVolumeSet {
         amount: ParamBlock,
     },
+    GetSoundSpeed,
     /// 하드웨어 블럭 (소스맵 기반 동적 블럭). `raw` 는 원본 .ent 블럭 JSON
     /// (`{type, params, statements}`) 을 그대로 보존해 손실 없는 왕복을 보장한다.
     /// type_id 는 하드웨어 블럭 type 문자열 (예: `pyocoding_serial_set`).
@@ -672,6 +673,7 @@ impl Block {
             Block::SoundFromToAndWait { .. } => "sound_from_to_and_wait",
             Block::SoundVolumeChange { .. } => "sound_volume_change",
             Block::SoundVolumeSet { .. } => "sound_volume_set",
+            Block::GetSoundSpeed => "get_sound_speed",
         }
     }
 
@@ -808,6 +810,7 @@ impl Block {
             Block::SoundFromToAndWait { .. } => Category::Sound,
             Block::SoundVolumeChange { .. } => Category::Sound,
             Block::SoundVolumeSet { .. } => Category::Sound,
+            Block::GetSoundSpeed => Category::Sound,
         }
     }
 }
@@ -1867,101 +1870,6 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     expr: from_expr(arg)?,
                 })));
             }
-            if fref.name == "change_scale_size" {
-                let arg = args
-                    .first()
-                    .ok_or_else(|| SyntaxError("change_scale_size needs arg".into()))?;
-                return Ok(ParamBlock::Sub(Box::new(Block::ChangeScaleSize {
-                    amount: from_expr(arg)?,
-                })));
-            }
-            if fref.name == "move_x" {
-                if args.len() != 1 {
-                    return Err(SyntaxError("move_x needs 1 arg".into()));
-                }
-                let amount = from_expr(&args[0])?;
-                return Ok(ParamBlock::Sub(Box::new(Block::MoveX { amount })));
-            }
-            if fref.name == "move_y" {
-                if args.len() != 1 {
-                    return Err(SyntaxError("move_y needs 1 arg".into()));
-                }
-                let amount = from_expr(&args[0])?;
-                return Ok(ParamBlock::Sub(Box::new(Block::MoveY { amount })));
-            }
-            if fref.name == "bounce_wall" {
-                return Ok(ParamBlock::Sub(Box::new(Block::BounceWall)));
-            }
-            if fref.name == "set_scale_size" {
-                let arg = args
-                    .first()
-                    .ok_or_else(|| SyntaxError("set_scale_size needs arg".into()))?;
-                return Ok(ParamBlock::Sub(Box::new(Block::SetScaleSize {
-                    amount: from_expr(arg)?,
-                })));
-            }
-            if fref.name == "reset_scale_size" {
-                return Ok(ParamBlock::Sub(Box::new(Block::ResetScaleSize {})));
-            }
-            if fref.name == "move_direction" {
-                if args.len() != 2 {
-                    return Err(SyntaxError("move_direction needs 2 args".into()));
-                }
-                let direction = match &args[0] {
-                    Expr::Str(s) => s.clone(),
-                    _ => {
-                        return Err(SyntaxError(
-                            "move_direction direction must be string".into(),
-                        ));
-                    }
-                };
-                let amount = from_expr(&args[1])?;
-                return Ok(ParamBlock::Sub(Box::new(Block::MoveDirection {
-                    direction,
-                    amount,
-                })));
-            }
-            if fref.name == "direction_relative" {
-                if args.len() != 1 {
-                    return Err(SyntaxError("direction_relative needs 1 arg".into()));
-                }
-                let angle = from_expr(&args[0])?;
-                return Ok(ParamBlock::Sub(Box::new(Block::DirectionRelative {
-                    angle,
-                })));
-            }
-            if fref.name == "erase_all_effects" {
-                return Ok(ParamBlock::Sub(Box::new(Block::EraseAllEffects {})));
-            }
-            if fref.name == "remove_dialog" {
-                return Ok(ParamBlock::Sub(Box::new(Block::RemoveDialog {})));
-            }
-            if fref.name == "delete_clone" {
-                return Ok(ParamBlock::Sub(Box::new(Block::DeleteClone)));
-            }
-            if fref.name == "remove_all_clones" {
-                return Ok(ParamBlock::Sub(Box::new(Block::RemoveAllClones)));
-            }
-            if fref.name == "flip_x" {
-                return Ok(ParamBlock::Sub(Box::new(Block::FlipX {})));
-            }
-            if fref.name == "flip_y" {
-                return Ok(ParamBlock::Sub(Box::new(Block::FlipY {})));
-            }
-            if fref.name == "change_object_index" {
-                let arg = args
-                    .first()
-                    .ok_or_else(|| SyntaxError("change_object_index needs arg".into()))?;
-                let direction = match arg {
-                    Expr::Str(s) => s.clone(),
-                    _ => {
-                        return Err(SyntaxError("change_object_index arg must be string".into()));
-                    }
-                };
-                return Ok(ParamBlock::Sub(Box::new(Block::ChangeObjectIndex {
-                    direction,
-                })));
-            }
             if fref.name == "value_of_index_from_list" {
                 if args.len() != 2 {
                     return Err(SyntaxError("value_of_index_from_list needs 2 args".into()));
@@ -2035,104 +1943,20 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 };
                 return Ok(ParamBlock::Sub(Box::new(Block::ReachSomeThing { target })));
             }
-            // --- 붓(expr) ---
-            if fref.name == "brush_stamp" {
-                if args.len() > 0 {
-                    return Err(SyntaxError("brush_stamp not needs arg".into()));
-                }
-                return Ok(ParamBlock::Sub(Box::new(Block::BrushStamp)));
-            }
-            if fref.name == "start_drawing" {
-                if args.len() > 0 {
-                    return Err(SyntaxError("start_drawing not needs arg".into()));
-                }
-                return Ok(ParamBlock::Sub(Box::new(Block::StartDrawing)));
-            }
-            if fref.name == "stop_drawing" {
-                if args.len() > 0 {
-                    return Err(SyntaxError("stop_drawing not needs arg".into()));
-                }
-                return Ok(ParamBlock::Sub(Box::new(Block::StopDrawing)));
-            }
-            if fref.name == "start_fill" {
-                if args.len() > 0 {
-                    return Err(SyntaxError("start_fill not needs arg".into()));
-                }
-                return Ok(ParamBlock::Sub(Box::new(Block::StartFill)));
-            }
-            if fref.name == "stop_fill" {
-                if args.len() > 0 {
-                    return Err(SyntaxError("stop_fill not needs arg".into()));
-                }
-                return Ok(ParamBlock::Sub(Box::new(Block::StopFill)));
-            }
-            if fref.name == "set_color" {
-                if args.len() != 3 {
-                    return Err(SyntaxError("set_color needs 3 args".into()));
-                }
-                let r = from_expr(&args[0])?;
-                let g = from_expr(&args[1])?;
-                let b = from_expr(&args[2])?;
-                return Ok(ParamBlock::Sub(Box::new(Block::SetColor { r, g, b })));
-            }
-            if fref.name == "set_random_color" {
-                if args.len() > 0 {
-                    return Err(SyntaxError("set_random_color not needs arg".into()));
-                }
-                return Ok(ParamBlock::Sub(Box::new(Block::SetRandomColor)));
-            }
-            if fref.name == "set_fill_color" {
-                if args.len() != 1 {
-                    return Err(SyntaxError("set_fill_color needs 1 arg".into()));
-                }
-                let color = from_expr(&args[0])?;
-                return Ok(ParamBlock::Sub(Box::new(Block::SetFillColor { color })));
-            }
-            if fref.name == "change_thickness" {
-                if args.len() != 1 {
-                    return Err(SyntaxError("change_thickness needs 1 arg".into()));
-                }
-                let amount = from_expr(&args[0])?;
-                return Ok(ParamBlock::Sub(Box::new(Block::ChangeThickness { amount })));
-            }
-            if fref.name == "set_thickness" {
-                if args.len() != 1 {
-                    return Err(SyntaxError("set_thickness needs 1 arg".into()));
-                }
-                let value = from_expr(&args[0])?;
-                return Ok(ParamBlock::Sub(Box::new(Block::SetThickness { value })));
-            }
-            if fref.name == "change_brush_transparency" {
-                if args.len() != 1 {
-                    return Err(SyntaxError("change_brush_transparency needs 1 arg".into()));
-                }
-                let amount = from_expr(&args[0])?;
-                return Ok(ParamBlock::Sub(Box::new(Block::ChangeBrushTransparency {
-                    amount,
-                })));
-            }
-            if fref.name == "set_brush_tranparency" {
-                if args.len() != 1 {
-                    return Err(SyntaxError("set_brush_tranparency needs 1 arg".into()));
-                }
-                let value = from_expr(&args[0])?;
-                return Ok(ParamBlock::Sub(Box::new(Block::SetBrushTranparency {
-                    value,
-                })));
-            }
-            if fref.name == "brush_erase_all" {
-                if args.len() > 0 {
-                    return Err(SyntaxError("brush_erase_all not needs arg".into()));
-                }
-                return Ok(ParamBlock::Sub(Box::new(Block::BrushEraseAll)));
-            }
-            // --- 글상자(stmt) ---
+            // --- 글상자 ---
             if fref.name == "text_read" {
                 if args.len() != 1 {
                     return Err(SyntaxError("text_read needs 1 arg".into()));
                 }
                 let value = from_expr(&args[0])?;
                 return Ok(ParamBlock::Sub(Box::new(Block::TextRead { value })));
+            }
+            // --- 소리 ---
+            if fref.name == "get_sound_speed" {
+                if args.len() > 0 {
+                    return Err(SyntaxError("get_sound_speed not needs args".into()));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::GetSoundSpeed)));
             }
             // 하드웨어 getter 블럭 (소스맵 인덱스) — 값으로 사용.
             if crate::block::registry::is_hw_block(&fref.name) {
@@ -2697,6 +2521,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         ),
         Block::SoundVolumeChange { amount } => (vec![param_to_value(amount), Value::Null], None),
         Block::SoundVolumeSet { amount } => (vec![param_to_value(amount), Value::Null], None),
+        Block::GetSoundSpeed => (vec![], None),
     })
 }
 

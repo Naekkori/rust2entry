@@ -740,6 +740,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let amount = param_at(&params, 0, vars)?;
             Block::SoundVolumeSet { amount }
         }
+        "get_sound_speed" => Block::GetSoundSpeed,
         // 함수
         "function_call" => {
             let name = params
@@ -2541,6 +2542,17 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::GetSoundSpeed => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "get_sound_speed".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -3041,6 +3053,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![am],
             ))
         }
+        Block::GetSoundSpeed => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "get_sound_speed".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
     }
 }
 
