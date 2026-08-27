@@ -263,7 +263,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `get_sound_volume` — 소리 크기 값
 - ✅ `get_sound_duration` — 소리 길이 값
 
-### 판단 (9/12)
+### 판단 (11/12)
 - ✅ `boolean_basic` → `Compare`
 - ✅ `boolean_basic_operator` → `Compare`
 - ✅ `boolean_and_or` → `BoolOp`
@@ -273,9 +273,9 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `is_press_some_key` — 키 눌렸는가? (→ `is_press_some_key("space")`)
 - ✅ `reach_something` — □ 에 닿았는가? (→ `reach_something("enemy")` / `reach_something()` self)
 - ✅ `is_type` — 타입 체크 (숫자/영문/한글)
-- ⬜ `is_boost_mode` — 부스트 모드인가?
+- ✅ `is_boost_mode` — 부스트 모드인가? (→ `is_boost_mode()`; EntryJS 의 `Entry.options.useWebGL` 반환. EntryRS 듀얼엔진 CappucinoVM / OmochaEngine 에서 파라미터 폴백 용도)
+- ✅ `is_touch_supported` — 터치 가능한가? (→ `is_touch_supported()`; 터치/마우스 UI 분기용)
 - ⬜ `is_current_device_type` — □ 에서 실행하는가?
-- ⬜ `is_touch_supported` — 터치 가능한가?
 
 ### 연산 (12/26)
 - ✅ `calc_basic` → `CalcBinOp` (사칙연산)
@@ -521,9 +521,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**126/334** 매핑됨 (약 37.7%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**128/334** 매핑됨 (약 38.3%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 9/12, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 11/12, 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -588,6 +588,8 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 텍스트: `text_change_effect` (텍스트에 효과) — `Block::TextChangeEffect { effect: TextEffect, mode: bool }`. `TextEffect` enum (Strike/UnderLine/FontItalic/FontBlold) + `text_effect_to_str`/`str_to_text_effect` helper. `text_change_effect("strike", true)` 및 `text_change_effect(TextEffect::Strike, true)` 신택스 (effect=string 또는 TextEffect variant, mode=bool). params = `["strike", "on", null]` (Dropdown 슬롯 2개 + Indicator). 문자열/enum 공통 dropdown 변환 규약으로 `EffectType`, `Dimension`, `QamMethod`에도 동일하게 적용. deparse 라운드트립에서 mode string ("on"/"off") ↔ bool 변환. 테스트 7개 (basic/enum/mixed/all_enum/roundtrip/arity_check/type_check). **텍스트 5/9.**
   - [x] 텍스트: `text_flush` (텍스트 모두 지우기) — no-arg statement. `Block::TextFlush` unit variant. EntryJS `def: { params: [null] }` 가 `.ent` 에선 빈 배열로 emit → params = `[]`. deparse 라운드트립에서 `Call(text_flush, [])` 복원. 테스트 3개 (basic/roundtrip/arity_check). **텍스트 6/9.**
   - [x] 텍스트: `text_change_font` / `text_change_font_color` / `text_change_bg_color` — 글씨체는 동적 드롭다운 문자열, 글씨 색·배경색은 색상 값 블록으로 emit. 세 블록의 기본 변환·라운드트립·인자 검증 테스트 추가. `text_change_effect` 비활성 값의 deparse 오타 (`"of"` → `"off"`) 수정. **텍스트 9/9 완료.**
+  - [x] 판단: `is_boost_mode` (no-arg, EntryJS 의 `Entry.options.useWebGL`. EntryRS 듀얼엔진 CappucinoVM / OmochaEngine 폴백 용도)
+  - [x] 판단: `is_touch_supported` (no-arg, 터치/마우스 UI 분기)
 - [ ] 중기
   - [ ] Timer/Answer 전용 블록 신택스 (`start_timer()` 등)
   - [x] Cloud/RealTime 변수 신택스 (`let x: CloudVar = ""` / `: RealtimeVar = ""`)
@@ -605,10 +607,10 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
-- `fed2f16 refactor(error): add Error::ParseUnsupported variant; move op errors to SyntaxError`
-- `eca22ef feat(brush): start_drawing/stop_drawing 매핑 + Error 분기 (Timer/Answer 는 UnmappedBlock 유지)`
-- `51d4b82 feat(brush): start_fill/stop_fill 매핑 (no-arg statement, statement 블록 from_expr 일관성)`
-- `65f1940 feat(brush): set_color(r, g, b) 매핑 + 테스트 + deparse block_from_value 누락 fix`
+- `84e7838 feat(judgment): add is_boost_mode and is_touch_supported blocks`
+- `f0b01ac docs: mark is_type complete`
+- `543d929 feat(judgment): add is_type block`
+- `1254684 feat(sound): complete sound value blocks`
 
 **빌드/테스트 명령**:
 ```
@@ -627,7 +629,7 @@ cargo build                 # 빌드만
 - `block::Dimension` (Width/Height) vs `codegen/schema.rs::Dimension` (picture width/height i64) — 이름 겹침. 현재는 모듈이 달라 컴파일 되지만 codegen 에서 둘 다 쓰면 alias 강제됨. `ScaleAxis` 로 rename 권장 (참조 ~7곳)
 
 **다음 할 일 추천 순서**:
-1. 판단 — 남은 4개 블록을 스키마 기준으로 매핑
+1. 판단 — 남은 1개 (`is_current_device_type`) 매핑 후 12/12 완료
 2. 연산 — 남은 값 블록을 우선 매핑
 
 ## 디렉토리
