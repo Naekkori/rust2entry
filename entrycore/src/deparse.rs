@@ -486,6 +486,8 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         }
         "is_clicked" => Block::IsClicked,
         "is_object_clicked" => Block::IsObjectClicked,
+        "is_boost_mode" => Block::IsBoostMode,
+        "is_touch_supported" => Block::IsTouchSupported,
         "is_type" => {
             let value = param_at(&params, 0, vars)?;
             let type_name = match params.get(2).and_then(Value::as_str).unwrap_or("number") {
@@ -2069,11 +2071,14 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 },
                 vec![
                     value,
-                    Expr::Str(match type_name {
-                        crate::block::EntryType::Number => "number",
-                        crate::block::EntryType::En => "en",
-                        crate::block::EntryType::Ko => "ko",
-                    }.to_string()),
+                    Expr::Str(
+                        match type_name {
+                            crate::block::EntryType::Number => "number",
+                            crate::block::EntryType::En => "en",
+                            crate::block::EntryType::Ko => "ko",
+                        }
+                        .to_string(),
+                    ),
                 ],
             )));
             Ok(())
@@ -2708,6 +2713,28 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::IsBoostMode => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "is_boost_mode".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::IsTouchSupported => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "is_touch_supported".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
+                Vec::new(),
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -3060,11 +3087,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 },
                 vec![
                     value,
-                    Expr::Str(match type_name {
-                        crate::block::EntryType::Number => "number",
-                        crate::block::EntryType::En => "en",
-                        crate::block::EntryType::Ko => "ko",
-                    }.to_string()),
+                    Expr::Str(
+                        match type_name {
+                            crate::block::EntryType::Number => "number",
+                            crate::block::EntryType::En => "en",
+                            crate::block::EntryType::Ko => "ko",
+                        }
+                        .to_string(),
+                    ),
                 ],
             ))
         }
@@ -3256,16 +3286,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![am],
             ))
         }
-        Block::SoundSilentAll { target } => {
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "sound_silent_all".to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![Expr::Str(target.clone())],
-            ))
-        }
+        Block::SoundSilentAll { target } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "sound_silent_all".to_string(),
+                arity: 1,
+                raw: None,
+            },
+            vec![Expr::Str(target.clone())],
+        )),
         Block::PlayBgm { sound_name } => {
             let sound_name = expr_from_param(sound_name, vars)?;
             Ok(Expr::Call(
@@ -3300,6 +3328,22 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 raw: None,
             },
             vec![Expr::Str(sound_name.clone())],
+        )),
+        Block::IsBoostMode => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "is_boost_mode".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
+        Block::IsTouchSupported => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "is_touch_supported".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
         )),
     }
 }

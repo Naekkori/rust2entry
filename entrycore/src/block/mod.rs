@@ -386,7 +386,8 @@ pub enum Block {
         value: ParamBlock,
         type_name: EntryType,
     },
-
+    IsBoostMode,
+    IsTouchSupported,
     // ── 산술 / 비교 / 논리 ──
     CalcBinOp {
         op: BinOp,
@@ -720,6 +721,8 @@ impl Block {
             Block::StopBgm => "stop_bgm",
             Block::GetSoundVolume => "get_sound_volume",
             Block::GetSoundDuration { .. } => "get_sound_duration",
+            Block::IsBoostMode => "is_boost_mode",
+            Block::IsTouchSupported => "is_touch_supported",
         }
     }
 
@@ -865,6 +868,8 @@ impl Block {
             Block::StopBgm => Category::Sound,
             Block::GetSoundVolume => Category::Sound,
             Block::GetSoundDuration { .. } => Category::Sound,
+            Block::IsBoostMode => Category::Judgment,
+            Block::IsTouchSupported => Category::Judgment,
         }
     }
 }
@@ -1275,6 +1280,18 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             _ => return Err(SyntaxError("is_type type must be string".into())),
                         };
                         return Ok(Block::IsType { value, type_name });
+                    }
+                    if fref.name == "is_boost_mode" {
+                        if args.len() > 0 {
+                            return Err(SyntaxError("is_boost_mode not needs args".into()));
+                        }
+                        return Ok(Block::IsBoostMode);
+                    }
+                    if fref.name == "is_touch_supported" {
+                        if args.len() > 0 {
+                            return Err(SyntaxError("is_touch_supported not needs args".into()));
+                        }
+                        return Ok(Block::IsTouchSupported);
                     }
                     if fref.name == "create_clone" {
                         let target = match &args.len() {
@@ -2073,6 +2090,20 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     type_name,
                 })));
             }
+            // is_boost_mode(부스트 모드) — EntryJS func 본문: `return !!Entry.options.useWebGL;`
+            // EntryRS 듀얼엔진 (CappucinoVM / OmochaEngine) 에서 잘못된 파라미터 사용 시 폴백값으로 쓰는 용도.
+            if fref.name == "is_boost_mode" {
+                if args.len() > 0 {
+                    return Err(SyntaxError("is_boost_mode not needs args".into()));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::IsBoostMode)));
+            }
+            if fref.name == "is_touch_supported" {
+                if args.len() > 0 {
+                    return Err(SyntaxError("is_touch_supported not needs args".into()));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::IsTouchSupported)));
+            }
             // --- 글상자 ---
             if fref.name == "text_read" {
                 if args.len() != 1 {
@@ -2575,11 +2606,14 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             vec![
                 param_to_value(value),
                 Value::Null,
-                Value::String(match type_name {
-                    EntryType::Number => "number",
-                    EntryType::En => "en",
-                    EntryType::Ko => "ko",
-                }.to_string()),
+                Value::String(
+                    match type_name {
+                        EntryType::Number => "number",
+                        EntryType::En => "en",
+                        EntryType::Ko => "ko",
+                    }
+                    .to_string(),
+                ),
                 Value::Null,
             ],
             None,
@@ -2740,6 +2774,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             vec![Value::Null, Value::String(sound_name.clone()), Value::Null],
             None,
         ),
+        Block::IsBoostMode => (vec![], None),
+        Block::IsTouchSupported => (vec![], None),
     })
 }
 

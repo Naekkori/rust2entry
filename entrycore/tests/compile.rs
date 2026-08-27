@@ -6372,3 +6372,107 @@ fn compile_is_type_roundtrip() {
     let Stmt::If { cond, .. } = &body[0] else { panic!("expected if"); };
     assert!(matches!(cond, Expr::Call(fref, args) if fref.name == "is_type" && args.len() == 2));
 }
+
+// --- is_boost_mode (부스트 모드) ---
+
+/// `is_boost_mode();` → `is_boost_mode` 블록, params = [].
+#[test]
+fn compile_is_boost_mode() {
+    let src = r#"fn when_start() { is_boost_mode(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "is_boost_mode");
+    assert_eq!(thread[1]["params"].as_array().unwrap().len(), 0);
+}
+
+/// 라운드트립.
+#[test]
+fn compile_is_boost_mode_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { is_boost_mode(); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "is_boost_mode");
+                    assert_eq!(args.len(), 0);
+                }
+                other => panic!("expected Call(is_boost_mode), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `is_boost_mode("foo")` 인자 전달 시 SyntaxError.
+#[test]
+fn compile_is_boost_mode_arity_check() {
+    use entrycore::compile;
+    let src = r#"fn when_start() { is_boost_mode("foo"); }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}
+
+// --- is_touch_supported (터치 지원 여부) ---
+
+/// `is_touch_supported();` → `is_touch_supported` 블록, params = [].
+#[test]
+fn compile_is_touch_supported() {
+    let src = r#"fn when_start() { is_touch_supported(); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert_eq!(thread[1]["type"], "is_touch_supported");
+    assert_eq!(thread[1]["params"].as_array().unwrap().len(), 0);
+}
+
+/// 라운드트립.
+#[test]
+fn compile_is_touch_supported_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { is_touch_supported(); }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::Expr(Expr::Call(fref, args)) => {
+                    assert_eq!(fref.name, "is_touch_supported");
+                    assert_eq!(args.len(), 0);
+                }
+                other => panic!("expected Call(is_touch_supported), got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `is_touch_supported("foo")` 인자 전달 시 SyntaxError.
+#[test]
+fn compile_is_touch_supported_arity_check() {
+    use entrycore::compile;
+    let src = r#"fn when_start() { is_touch_supported("foo"); }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}
