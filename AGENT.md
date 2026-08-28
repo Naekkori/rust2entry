@@ -664,9 +664,34 @@ AGENT.md     이 문서
 
 ## 최근 옵코드 파라미터 감사
 
-- [x] EntryJS 원본과 기존 옵코드의 파라미터 슬롯 대조
-- [x] `reach_something` 슬롯 수정: `[Indicator, DropdownDynamic, Indicator]`
-- [x] 구형 `reach_something` 2슬롯 입력 역호환 처리
-- [x] `is_boost_mode` IR arity 수정: `1` → `0`
-- [x] 소리 대기 블럭 역변환 함수명 교정
-- [x] 전체 테스트 및 스키마 검증 통과
+EntryJS 원본 블럭 정의와 Rust의 `Block` 직렬화(`build_params_and_statements`), 역변환(`block_from_value`), IR 변환(`from_block_owned`/`expr_from_block`)을 서로 대조함. 파라미터 값의 의미뿐 아니라 `.ent` JSON 배열의 위치와 IR 함수의 인자 개수까지 확인함.
+
+### `reach_something`
+
+- EntryJS 정의의 실제 슬롯은 `[Indicator, DropdownDynamic, Indicator]`임.
+- 충돌 대상은 `params[1]`에 저장되며, 앞뒤 슬롯은 화면 표시용 indicator임.
+- 기존 코드는 `[target, null]`을 생성하고 `params[0]`을 읽어서 EntryJS와 위치가 어긋났음.
+- 현재는 `[null, target, null]`을 생성하고 역변환도 `params[1]`을 읽음.
+- 기존에 이미 생성된 `[target, null]` 형식은 `params[0]` fallback으로 읽어서 하위 호환함.
+- 인자를 생략한 `reach_something()`은 기존 동작대로 `self`를 사용함.
+
+### `is_boost_mode`
+
+- EntryJS의 `is_boost_mode`는 인자를 받지 않는 값 블럭임.
+- `from_block_owned`의 IR 메타데이터가 `arity: 1`로 잘못 기록되어 실제 호출 인자 수 `0`과 불일치했음.
+- 현재 `arity: 0`으로 수정해 `expr_from_block`과 일치시킴.
+
+### 소리 대기 블럭 역변환
+
+- `SoundSomethingWaitWithBlock`은 `sound_something_wait_with_block(sound)`으로 변환되어야 함.
+- `SoundSomethingSecondWaitWithBlock`은 `sound_something_second_wait_with_block(sound, seconds)`로 변환되어야 함.
+- 기존 `expr_from_block`에서 두 함수명이 서로 뒤바뀌어 있었음.
+- 현재 블럭 이름, 함수 이름, 인자 개수가 모두 일치함.
+
+### 검증 결과
+
+- `reach_something` 대상·기본값·라운드트립 테스트 3개 통과
+- 전체 `cargo test -- --test-threads=1` 통과
+- EntryJS 스키마 검증 테스트 4개 통과
+- `git diff --check` 통과
+- 아직 구현하지 않은 `coordinate_mouse`, `coordinate_object`는 이번 감사 범위에 포함하지 않으며 별도 구현 대상으로 남김.
