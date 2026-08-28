@@ -8,8 +8,8 @@ use std::vec;
 
 use crate::Error::{SyntaxError, UnmappedBlock};
 use crate::block::{
-    Block, DialogMode, Dimension, EffectType, MathOperation, ParamBlock, QamMethod, dim_to_dsl_str,
-    effect_to_str, str_to_text_effect, text_effect_to_str,
+    Block, DialogMode, Dimension, EffectType, MathOperation, ParamBlock, QamMethod,
+    device_type_to_str, dim_to_dsl_str, effect_to_str, str_to_text_effect, text_effect_to_str,
 };
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
@@ -2735,6 +2735,18 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::IsCurrentDeviceType { device_type } => {
+            let dt = device_type_to_str(*device_type);
+            stmts.push(Stmt::Expr(Expr::Call(
+                ir::FuncRef {
+                    name: "is_current_device_type".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![Expr::Str(dt.to_string())],
+            )));
+            Ok(())
+        }
     }
 }
 
@@ -3345,6 +3357,17 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             Vec::new(),
         )),
+        Block::IsCurrentDeviceType { device_type } => {
+            let dt = device_type_to_str(*device_type);
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "is_current_device_type".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![Expr::Str(dt.to_string())],
+            ))
+        }
     }
 }
 

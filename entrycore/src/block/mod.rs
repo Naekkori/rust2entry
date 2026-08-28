@@ -53,6 +53,13 @@ pub enum EntryType {
     En,
     Ko,
 }
+// 디바이스 타입
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeviceType {
+    Desktop,
+    Table,
+    Mobile,
+}
 // 효과 타입
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffectType {
@@ -388,6 +395,9 @@ pub enum Block {
     },
     IsBoostMode,
     IsTouchSupported,
+    IsCurrentDeviceType {
+        device_type: DeviceType,
+    },
     // ── 산술 / 비교 / 논리 ──
     CalcBinOp {
         op: BinOp,
@@ -723,6 +733,7 @@ impl Block {
             Block::GetSoundDuration { .. } => "get_sound_duration",
             Block::IsBoostMode => "is_boost_mode",
             Block::IsTouchSupported => "is_touch_supported",
+            Block::IsCurrentDeviceType { .. } => "is_current_device_type",
         }
     }
 
@@ -870,6 +881,7 @@ impl Block {
             Block::GetSoundDuration { .. } => Category::Sound,
             Block::IsBoostMode => Category::Judgment,
             Block::IsTouchSupported => Category::Judgment,
+            Block::IsCurrentDeviceType { .. } => Category::Judgment,
         }
     }
 }
@@ -1292,6 +1304,13 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                             return Err(SyntaxError("is_touch_supported not needs args".into()));
                         }
                         return Ok(Block::IsTouchSupported);
+                    }
+                    if fref.name == "is_current_device_type" {
+                        if args.len() != 1 {
+                            return Err(SyntaxError("is_current_device_type needs 1 args".into()));
+                        }
+                        let device_type = parse_enum_arg::<DeviceType>(&args[0], "device")?;
+                        return Ok(Block::IsCurrentDeviceType { device_type });
                     }
                     if fref.name == "create_clone" {
                         let target = match &args.len() {
@@ -2090,6 +2109,15 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     type_name,
                 })));
             }
+            if fref.name == "is_current_device_type" {
+                if args.len() != 1 {
+                    return Err(SyntaxError("is_current_device_type needs 1 args".into()));
+                }
+                let device_type = parse_enum_arg::<DeviceType>(&args[0], "device")?;
+                return Ok(ParamBlock::Sub(Box::new(Block::IsCurrentDeviceType {
+                    device_type,
+                })));
+            }
             // is_boost_mode(부스트 모드) — EntryJS func 본문: `return !!Entry.options.useWebGL;`
             // EntryRS 듀얼엔진 (CappucinoVM / OmochaEngine) 에서 잘못된 파라미터 사용 시 폴백값으로 쓰는 용도.
             if fref.name == "is_boost_mode" {
@@ -2776,6 +2804,13 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         ),
         Block::IsBoostMode => (vec![], None),
         Block::IsTouchSupported => (vec![], None),
+        Block::IsCurrentDeviceType { device_type } => (
+            vec![
+                Value::String(device_type_to_str(*device_type).to_string()),
+                Value::Null,
+            ],
+            None,
+        ),
     })
 }
 
@@ -2940,6 +2975,23 @@ pub fn text_effect_to_str(t: TextEffect) -> &'static str {
     }
 }
 
+// 디바이스타입
+pub fn str_to_device_type(s: &str) -> Option<DeviceType> {
+    Some(match s {
+        "desktop" => DeviceType::Desktop,
+        "tablet" => DeviceType::Table,
+        "mobile" => DeviceType::Mobile,
+        _ => return None,
+    })
+}
+
+pub fn device_type_to_str(device: DeviceType) -> &'static str {
+    match device {
+        DeviceType::Desktop => "desktop",
+        DeviceType::Table => "tablet",
+        DeviceType::Mobile => "mobile",
+    }
+}
 /// 문자열 리터럴과 Rust enum 경로를 함께 받는 dropdown enum 규약.
 trait DslEnum: Sized {
     const TYPE_NAME: &'static str;
@@ -3036,6 +3088,23 @@ impl DslEnum for QamMethod {
         Some(match variant {
             "Quotient" => Self::Quotient,
             "Mod" => Self::Mod,
+            _ => return None,
+        })
+    }
+}
+
+impl DslEnum for DeviceType {
+    const TYPE_NAME: &'static str = "DeviceType";
+
+    fn from_dsl_str(value: &str) -> Option<Self> {
+        str_to_device_type(value)
+    }
+
+    fn from_variant(variant: &str) -> Option<Self> {
+        Some(match variant {
+            "Desktop" => Self::Desktop,
+            "Table" => Self::Table,
+            "Mobile" => Self::Mobile,
             _ => return None,
         })
     }
