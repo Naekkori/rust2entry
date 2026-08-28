@@ -286,12 +286,29 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `color` → `Color` 리터럴 (색상 슬롯)
 - ✅ `calc_rand` — □ 부터 □ 사이의 무작위 수 (→ `calc_rand(min, max)`)
 - ✅ `get_project_timer_value` — 타이머 값 (→ `get_project_timer_value()`)
-- ✅ `choose_project_timer_action` — 타이머 시작/정지/리셋 (→ `start_timer()` / `stop_timer()` / `reset_timer()`)
-- ✅ `set_visible_project_timer` — 타이머 보이기/숨기기 (→ `show_timer()` / `hide_timer()`)
+- ✅ `choose_project_timer_action` — 타이머 동작
+  - `start_timer()` — 시작
+  - `stop_timer()` — 정지
+  - `reset_timer()` — 리셋
+- ✅ `set_visible_project_timer` — 타이머 표시
+  - `show_timer()` — 보이기
+  - `hide_timer()` — 숨기기
 - ⬜ `coordinate_mouse` — 마우스 x/y 좌표
 - ⬜ `coordinate_object` — 오브젝트 x/y 좌표
 - ✅ `quotient_and_mod` — □ 를 □ 로 나눈 몫/나머지 (→ `quotient_and_mod(a, b, "quotient"|"modulo")`)
-- ✅ `calc_operation` — 삼각함수/절댓값/제곱/제곱근 (→ `abs(x)` / `sqrt(x)` / `sin(x)` / `cos(x)` / `tan(x)` / `asin(x)` / `acos(x)` / `atan(x)` / `ln(x)` / `log(x)` / `exp(x)` / `pow10(x)`)
+- ✅ `calc_operation` — 수학 함수
+  - `abs(x)` — 절댓값
+  - `sqrt(x)` — 제곱근
+  - `sin(x)` — 사인
+  - `cos(x)` — 코사인
+  - `tan(x)` — 탄젠트
+  - `asin(x)` — 아크사인
+  - `acos(x)` — 아크코사인
+  - `atan(x)` — 아크탄젠트
+  - `ln(x)` — 자연로그
+  - `log(x)` — 상용로그
+  - `exp(x)` — 지수
+  - `pow10(x)` — 10의 거듭제곱
 - ⬜ `get_date` — 날짜/시/분/초
 - ⬜ `distance_something` — 두 점 사이 거리
 - ⬜ `get_user_name` — 아이디
@@ -644,3 +661,12 @@ target/      빌드 산출물
 entryjs-basic-blocks-v2.md  EntryJS 블럭 카탈로그 (187개 사용자용 중, 80개 매핑; 원본 203개 중 내부용 16개 제외)
 AGENT.md     이 문서
 ```
+
+## 최근 옵코드 파라미터 감사
+
+- [x] EntryJS 원본과 기존 옵코드의 파라미터 슬롯 대조
+- [x] `reach_something` 슬롯 수정: `[Indicator, DropdownDynamic, Indicator]`
+- [x] 구형 `reach_something` 2슬롯 입력 역호환 처리
+- [x] `is_boost_mode` IR arity 수정: `1` → `0`
+- [x] 소리 대기 블럭 역변환 함수명 교정
+- [x] 전체 테스트 및 스키마 검증 통과

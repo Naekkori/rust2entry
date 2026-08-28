@@ -2186,7 +2186,7 @@ fn compile_reach_something_target() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "reach_something");
-    assert_eq!(thread[1]["params"][0].as_str(), Some("enemy"));
+    assert_eq!(thread[1]["params"][1].as_str(), Some("enemy"));
 }
 
 /// `reach_something();` → self (인자 없으면 "self" fallback).
@@ -2197,7 +2197,7 @@ fn compile_reach_something_self() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "reach_something");
-    assert_eq!(thread[1]["params"][0].as_str(), Some("self"));
+    assert_eq!(thread[1]["params"][1].as_str(), Some("self"));
 }
 
 /// 라운드트립.

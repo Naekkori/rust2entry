@@ -2621,7 +2621,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::RemoveAllClones => (vec![], None),
         Block::IsPressSomeKey { key } => (vec![Value::String(key.clone()), Value::Null], None),
         Block::ReachSomeThing { target } => {
-            (vec![Value::String(target.clone()), Value::Null], None)
+            // EntryJS 슬롯은 [Indicator, DropdownDynamic, Indicator]
+            (vec![Value::Null, Value::String(target.clone()), Value::Null], None)
         }
         Block::BounceWall => (vec![], None),
         Block::MoveX { amount } => (vec![param_to_value(amount), Value::Null], None),

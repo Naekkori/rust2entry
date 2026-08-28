@@ -500,8 +500,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         }
         "reach_something" => {
             let target = params
-                .get(0)
+                // EntryJS 슬롯은 [Indicator, DropdownDynamic, Indicator]
+                .get(1)
                 .and_then(Value::as_str)
+                // 이전에 생성된 2슬롯 형식([target, Indicator])도 읽음
+                .or_else(|| params.get(0).and_then(Value::as_str))
                 .unwrap_or("self")
                 .to_string();
             Block::ReachSomeThing { target }
@@ -2717,7 +2720,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             stmts.push(Stmt::Expr(Expr::Call(
                 ir::FuncRef {
                     name: "is_boost_mode".to_string(),
-                    arity: 1,
+                    arity: 0,
                     raw: None,
                 },
                 Vec::new(),
@@ -3207,7 +3210,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             let sn = expr_from_param(sound_name, vars)?;
             Ok(Expr::Call(
                 ir::FuncRef {
-                    name: "sound_something_second_wait_with_block".to_string(),
+                    name: "sound_something_wait_with_block".to_string(),
                     arity: 1,
                     raw: None,
                 },
@@ -3222,7 +3225,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             let sec = expr_from_param(seconds, vars)?;
             Ok(Expr::Call(
                 ir::FuncRef {
-                    name: "sound_something_wait_with_block".to_string(),
+                    name: "sound_something_second_wait_with_block".to_string(),
                     arity: 2,
                     raw: None,
                 },
