@@ -277,7 +277,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `is_touch_supported` — 터치 가능한가? (→ `is_touch_supported()`; 터치/마우스 UI 분기용)
 - ✅ `is_current_device_type` — □ 에서 실행하는가?
 
-### 연산 (12/26)
+### 연산 (14/26)
 - ✅ `calc_basic` → `CalcBinOp` (사칙연산)
 - ✅ `number` → `Number` 리터럴
 - ✅ `text` → `Text` 리터럴
@@ -293,8 +293,8 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `set_visible_project_timer` — 타이머 표시
   - `show_timer()` — 보이기
   - `hide_timer()` — 숨기기
-- ⬜ `coordinate_mouse` — 마우스 x/y 좌표
-- ⬜ `coordinate_object` — 오브젝트 x/y 좌표
+- ✅ `coordinate_mouse` — 마우스 x/y 좌표 (→ `coordinate_mouse("x"|"y")`; 값 블럭)
+- ✅ `coordinate_object` — 오브젝트 속성값 (→ `coordinate_object("self"|"오브젝트이름", "x"|"y"|"rotation"|"direction"|"size"|"picture_index"|"picture_name")`; 값 블럭)
 - ✅ `quotient_and_mod` — □ 를 □ 로 나눈 몫/나머지 (→ `quotient_and_mod(a, b, "quotient"|"modulo")`)
 - ✅ `calc_operation` — 수학 함수
   - `abs(x)` — 절댓값
@@ -694,4 +694,35 @@ EntryJS 원본 블럭 정의와 Rust의 `Block` 직렬화(`build_params_and_stat
 - 전체 `cargo test -- --test-threads=1` 통과
 - EntryJS 스키마 검증 테스트 4개 통과
 - `git diff --check` 통과
-- 아직 구현하지 않은 `coordinate_mouse`, `coordinate_object`는 이번 감사 범위에 포함하지 않으며 별도 구현 대상으로 남김.
+- `coordinate_mouse`는 값 블럭으로 구현 완료했으며, `coordinate_object`는 별도 구현 대상으로 남김.
+
+## 다음 모델 전달 작업: `from_block_owned` 값 블럭 정리
+
+`from_block_owned`는 실행형 statement를 IR statement로 바꾸는 함수임. 값만 반환하는 블럭을 단독 statement로 변환하면 EntryJS에서 의미 없는 실행이 만들어지므로, 아래 값 블럭들은 statement 위치에서 오류를 반환하도록 정리해야 함.
+
+### 정리 대상
+
+- 변수·리스트 값: `GetVar`, `ListValueAt`, `LengthOfList`, `IsIncludedInList`
+- 입력·타이머 값: `GetCanvasInputValue`, `GetProjectTimerValue`
+- 계산 값: `CalcRand`, `CalcBinOp`, `Compare`, `BoolOp`, `UnaryOp`, `CalcOperation`, `QuotientAndMod`
+- 판단 값: `IsClicked`, `IsObjectClicked`, `IsPressSomeKey`, `ReachSomeThing`, `IsType`, `IsBoostMode`, `IsTouchSupported`, `IsCurrentDeviceType`
+- 소리 값: `GetSoundSpeed`, `GetSoundVolume`, `GetSoundDuration`
+- 리터럴·문자열 값: `Number`, `Text`, `Boolean`, `Angle`, `Color`, `StringConcat`, `StringIncludes`
+- `CoordinateMouse`
+
+### 구현 정책
+
+1. 값 블럭은 `from_expr`/`expr_from_block`에서만 허용함.
+2. `from_block_owned`에는 exhaustive match용 오류 분기를 둠.
+3. 오류 메시지는 `value block cannot be used as a statement` 의미를 포함함.
+4. 기존에 값 블럭을 단독 statement로 허용하던 테스트는 성공 컴파일 기대를 제거하고 오류 검증으로 변경함.
+5. 값 블럭이 `let`, 다른 함수 인자, 조건식 안에 들어가는 기존 테스트는 계속 통과해야 함.
+6. 각 대상 블럭의 `.ent` 파라미터 슬롯과 역변환 라운드트립은 변경하지 않음.
+
+### 완료 조건
+
+- [ ] 위 목록의 모든 값 블럭에 statement 오류 분기 추가
+- [ ] 값 컨텍스트 컴파일·역변환 테스트 유지
+- [ ] 단독 statement 오류 테스트 추가
+- [ ] `cargo test -- --test-threads=1` 전체 통과
+- [ ] `git diff --check` 통과

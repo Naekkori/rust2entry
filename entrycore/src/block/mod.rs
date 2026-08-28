@@ -60,6 +60,65 @@ pub enum DeviceType {
     Table,
     Mobile,
 }
+
+// 마우스 좌표
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MouseAxis {
+    X,
+    Y,
+}
+
+pub fn mouse_axis_to_str(axis: MouseAxis) -> &'static str {
+    match axis {
+        MouseAxis::X => "x",
+        MouseAxis::Y => "y",
+    }
+}
+
+pub fn str_to_mouse_axis(s: &str) -> Option<MouseAxis> {
+    match s {
+        "x" => Some(MouseAxis::X),
+        "y" => Some(MouseAxis::Y),
+        _ => None,
+    }
+}
+
+// 오브젝트 의 좌표
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObjectCoordinate {
+    X,
+    Y,
+    Rotation,
+    Direction,
+    Size,
+    PictureIndex,
+    PictureName,
+}
+
+pub fn object_coord_to_str(axis: ObjectCoordinate) -> &'static str {
+    match axis {
+        ObjectCoordinate::X => "x",
+        ObjectCoordinate::Y => "y",
+        ObjectCoordinate::Rotation => "rotation",
+        ObjectCoordinate::Direction => "direction",
+        ObjectCoordinate::Size => "size",
+        ObjectCoordinate::PictureIndex => "picture_index",
+        ObjectCoordinate::PictureName => "picture_name",
+    }
+}
+
+pub fn str_to_object_coord(s: &str) -> Option<ObjectCoordinate> {
+    match s {
+        "x" => Some(ObjectCoordinate::X),
+        "y" => Some(ObjectCoordinate::Y),
+        "rotation" => Some(ObjectCoordinate::Rotation),
+        "direction" => Some(ObjectCoordinate::Direction),
+        "size" => Some(ObjectCoordinate::Size),
+        "picture_index" => Some(ObjectCoordinate::PictureIndex),
+        "picture_name" => Some(ObjectCoordinate::PictureName),
+        _ => return None,
+    }
+}
 // 효과 타입
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EffectType {
@@ -435,7 +494,13 @@ pub enum Block {
         b: ParamBlock,
         mode: QamMethod,
     },
-
+    CoordinateMouse {
+        axis: MouseAxis,
+    },
+    CoordinateObject {
+        target: String,
+        coordinate: ObjectCoordinate,
+    },
     // ── 변수 ──
     SetVar {
         variable: String,
@@ -734,6 +799,8 @@ impl Block {
             Block::IsBoostMode => "is_boost_mode",
             Block::IsTouchSupported => "is_touch_supported",
             Block::IsCurrentDeviceType { .. } => "is_current_device_type",
+            Block::CoordinateMouse { .. } => "coordinate_mouse",
+            Block::CoordinateObject { .. } => "coordinate_object",
         }
     }
 
@@ -882,6 +949,8 @@ impl Block {
             Block::IsBoostMode => Category::Judgment,
             Block::IsTouchSupported => Category::Judgment,
             Block::IsCurrentDeviceType { .. } => Category::Judgment,
+            Block::CoordinateMouse { .. } => Category::Judgment,
+            Block::CoordinateObject { .. } => Category::Judgment,
         }
     }
 }
@@ -1311,6 +1380,12 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         }
                         let device_type = parse_enum_arg::<DeviceType>(&args[0], "device")?;
                         return Ok(Block::IsCurrentDeviceType { device_type });
+                    }
+                    if fref.name == "coordinate_mouse" {
+                        return Err(SyntaxError(
+                            "coordinate_mouse is a value block and cannot be used as a statement"
+                                .into(),
+                        ));
                     }
                     if fref.name == "create_clone" {
                         let target = match &args.len() {
@@ -2118,6 +2193,45 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     device_type,
                 })));
             }
+            if fref.name == "coordinate_mouse" {
+                if args.len() != 1 {
+                    return Err(SyntaxError("coordinate_mouse needs 1 arg".into()));
+                }
+                let axis = match &args[0] {
+                    Expr::Str(value) => str_to_mouse_axis(value).ok_or_else(|| {
+                        SyntaxError("coordinate_mouse axis must be x or y".into())
+                    })?,
+                    _ => return Err(SyntaxError("coordinate_mouse axis must be string".into())),
+                };
+                return Ok(ParamBlock::Sub(Box::new(Block::CoordinateMouse { axis })));
+            }
+            if fref.name == "coordinate_object" {
+                if args.len() != 2 {
+                    return Err(SyntaxError("coordinate_object needs 2 args".into()));
+                }
+                let target = match &args[0] {
+                    Expr::Str(value) => value.clone(),
+                    Expr::Var(name) => name.clone(),
+                    _ => {
+                        return Err(SyntaxError(
+                            "coordinate_object target must be string or variable".into(),
+                        ));
+                    }
+                };
+                let coordinate = match &args[1] {
+                    Expr::Str(value) => str_to_object_coord(value)
+                        .ok_or_else(|| SyntaxError("invalid coordinate type".into()))?,
+                    _ => {
+                        return Err(SyntaxError(
+                            "coordinate_object coordinate must be string".into(),
+                        ));
+                    }
+                };
+                return Ok(ParamBlock::Sub(Box::new(Block::CoordinateObject {
+                    target,
+                    coordinate,
+                })));
+            }
             // is_boost_mode(부스트 모드) — EntryJS func 본문: `return !!Entry.options.useWebGL;`
             // EntryRS 듀얼엔진 (CappucinoVM / OmochaEngine) 에서 잘못된 파라미터 사용 시 폴백값으로 쓰는 용도.
             if fref.name == "is_boost_mode" {
@@ -2398,7 +2512,12 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
                 MathOperation::Pow10 => "pow10",
             };
             (
-                vec![Value::Null, param_to_value(expr), Value::Null, json!(op_str)],
+                vec![
+                    Value::Null,
+                    param_to_value(expr),
+                    Value::Null,
+                    json!(op_str),
+                ],
                 None,
             )
         }
@@ -2483,15 +2602,30 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::Show {} => (vec![], None),
         Block::Hide {} => (vec![], None),
         Block::ChooseProjectTimerAction { action } => (
-            vec![Value::Null, json!(action.to_ascii_uppercase()), Value::Null, Value::Null],
+            vec![
+                Value::Null,
+                json!(action.to_ascii_uppercase()),
+                Value::Null,
+                Value::Null,
+            ],
             None,
         ),
         Block::SetVisibleProjectTimer { value } => (
-            vec![Value::Null, json!(if *value { "SHOW" } else { "HIDE" }), Value::Null, Value::Null],
+            vec![
+                Value::Null,
+                json!(if *value { "SHOW" } else { "HIDE" }),
+                Value::Null,
+                Value::Null,
+            ],
             None,
         ),
         Block::SetVisibleAnswer { value } => (
-            vec![Value::Null, json!(if *value { "SHOW" } else { "HIDE" }), Value::Null, Value::Null],
+            vec![
+                Value::Null,
+                json!(if *value { "SHOW" } else { "HIDE" }),
+                Value::Null,
+                Value::Null,
+            ],
             None,
         ),
         Block::QuotientAndMod { a, b, mode } => {
@@ -2650,7 +2784,10 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::IsPressSomeKey { key } => (vec![Value::String(key.clone()), Value::Null], None),
         Block::ReachSomeThing { target } => {
             // EntryJS 슬롯은 [Indicator, DropdownDynamic, Indicator]
-            (vec![Value::Null, Value::String(target.clone()), Value::Null], None)
+            (
+                vec![Value::Null, Value::String(target.clone()), Value::Null],
+                None,
+            )
         }
         Block::BounceWall => (vec![], None),
         Block::MoveX { amount } => (vec![param_to_value(amount), Value::Null], None),
@@ -2837,6 +2974,23 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             vec![
                 Value::String(device_type_to_str(*device_type).to_string()),
                 Value::Null,
+            ],
+            None,
+        ),
+        Block::CoordinateMouse { axis } => (
+            vec![
+                Value::Null,
+                Value::String(mouse_axis_to_str(*axis).to_string()),
+                Value::Null,
+            ],
+            None,
+        ),
+        Block::CoordinateObject { target, coordinate } => (
+            vec![
+                Value::Null,
+                Value::String(target.clone()),
+                Value::Null,
+                Value::String(object_coord_to_str(*coordinate).to_string()),
             ],
             None,
         ),

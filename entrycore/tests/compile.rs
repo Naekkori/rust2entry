@@ -1932,6 +1932,31 @@ fn compile_is_object_clicked_roundtrip() {
     }
 }
 
+/// `coordinate_mouse("x")`는 값 슬롯에 좌표 축을 보존한다.
+#[test]
+fn compile_coordinate_mouse_value() {
+    let src = r#"fn when_start() { let x = coordinate_mouse("x"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let thread = first_thread(&v["objects"][0]);
+    let set = thread.iter().find(|b| b["type"] == "set_variable").expect("set_variable");
+    let block = &set["params"][1];
+    assert_eq!(block["type"], "coordinate_mouse");
+    assert_eq!(block["params"][1], "x");
+}
+
+/// `coordinate_object`는 대상과 속성을 각각 EntryJS 슬롯에 보존한다.
+#[test]
+fn compile_coordinate_object_value() {
+    let src = r#"fn when_start() { let x = coordinate_object("enemy", "direction"); }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let thread = first_thread(&v["objects"][0]);
+    let set = thread.iter().find(|b| b["type"] == "set_variable").expect("set_variable");
+    let block = &set["params"][1];
+    assert_eq!(block["type"], "coordinate_object");
+    assert_eq!(block["params"][1], "enemy");
+    assert_eq!(block["params"][3], "direction");
+}
+
 // ── ask_and_wait ──
 
 /// `change_object_index("front");` → `change_object_index`, params[0] = "front".

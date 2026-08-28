@@ -8,8 +8,10 @@ use std::vec;
 
 use crate::Error::{SyntaxError, UnmappedBlock};
 use crate::block::{
-    Block, DialogMode, Dimension, EffectType, MathOperation, ParamBlock, QamMethod,
-    device_type_to_str, dim_to_dsl_str, effect_to_str, str_to_text_effect, text_effect_to_str,
+    Block, DialogMode, Dimension, EffectType, MathOperation, ParamBlock,
+    QamMethod, device_type_to_str, dim_to_dsl_str, effect_to_str, mouse_axis_to_str,
+    object_coord_to_str, str_to_mouse_axis, str_to_object_coord, str_to_text_effect,
+    text_effect_to_str,
 };
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
@@ -509,6 +511,27 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 .to_string();
             Block::ReachSomeThing { target }
         }
+        "coordinate_object" => {
+            let target = params
+                .get(1)
+                .and_then(Value::as_str)
+                .ok_or_else(|| crate::Error::Parse("coordinate_object target".into()))?
+                .to_string();
+            let coordinate = params
+                .get(3)
+                .and_then(Value::as_str)
+                .and_then(str_to_object_coord)
+                .ok_or_else(|| crate::Error::Parse("coordinate_object coordinate".into()))?;
+            Block::CoordinateObject { target, coordinate }
+        }
+        "coordinate_mouse" => {
+            let axis = params
+                .get(1)
+                .and_then(Value::as_str)
+                .and_then(str_to_mouse_axis)
+                .ok_or_else(|| crate::Error::Parse("coordinate_mouse axis".into()))?;
+            Block::CoordinateMouse { axis }
+        }
         "boolean_and_or" => {
             let lhs = param_at(&params, 0, vars)?;
             let op = op_at(&params, 1)?;
@@ -521,11 +544,19 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::CalcRand { min, max }
         }
         "set_visible_project_timer" => {
-            let value = params.get(1).and_then(Value::as_str).map(|v| v == "SHOW").unwrap_or(true);
+            let value = params
+                .get(1)
+                .and_then(Value::as_str)
+                .map(|v| v == "SHOW")
+                .unwrap_or(true);
             Block::SetVisibleProjectTimer { value }
         }
         "set_visible_answer" => {
-            let value = params.get(1).and_then(Value::as_str).map(|v| v == "SHOW").unwrap_or(true);
+            let value = params
+                .get(1)
+                .and_then(Value::as_str)
+                .map(|v| v == "SHOW")
+                .unwrap_or(true);
             Block::SetVisibleAnswer { value }
         }
         "calc_unary" => {
@@ -1984,6 +2015,9 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::CoordinateMouse { .. } => Err(SyntaxError(
+            "coordinate_mouse is a value block and cannot be used as a statement".into(),
+        )),
         Block::BounceWall => {
             stmts.push(Stmt::Expr(Expr::Call(
                 ir::FuncRef {
@@ -2751,6 +2785,9 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        Block::CoordinateObject { .. } => Err(SyntaxError(
+            "coordinate_object is a value block and cannot be used as a statement".into(),
+        )),
     }
 }
 
@@ -2842,6 +2879,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 args,
             ))
         }
+        Block::CoordinateMouse { axis } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "coordinate_mouse".to_string(),
+                arity: 1,
+                raw: None,
+            },
+            vec![Expr::Str(mouse_axis_to_str(*axis).to_string())],
+        )),
         Block::StringIncludes { haystack, needle } => {
             let h = expr_from_param(haystack, vars)?;
             let n = expr_from_param(needle, vars)?;
@@ -3372,6 +3417,19 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![Expr::Str(dt.to_string())],
             ))
         }
+        Block::CoordinateObject { target, coordinate } => {
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "coordinate_object".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![
+                    Expr::Str(target.clone()),
+                    Expr::Str(object_coord_to_str(*coordinate).to_string()),
+                ],
+            ))
+        },
     }
 }
 
