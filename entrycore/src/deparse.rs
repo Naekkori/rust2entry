@@ -6,12 +6,12 @@
 
 use std::vec;
 
-use crate::Error::{SyntaxError, UnmappedBlock};
+use crate::Error::{Parse, SyntaxError, UnmappedBlock};
 use crate::block::{
-    Block, DialogMode, Dimension, EffectType, MathOperation, ParamBlock,
-    QamMethod, device_type_to_str, dim_to_dsl_str, effect_to_str, mouse_axis_to_str,
-    object_coord_to_str, str_to_mouse_axis, str_to_object_coord, str_to_text_effect,
-    text_effect_to_str,
+    Block, DateKind, DeviceType, DialogMode, Dimension, EffectType, MathOperation, ParamBlock,
+    QamMethod, date_kind_to_str, device_type_to_str, dim_to_dsl_str, effect_to_str,
+    mouse_axis_to_str, object_coord_to_str, str_to_mouse_axis, str_to_object_coord,
+    str_to_text_effect, text_effect_to_str,
 };
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
@@ -499,6 +499,19 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 _ => return Err(crate::Error::Parse("is_type invalid type".into())),
             };
             Block::IsType { value, type_name }
+        }
+        "get_date" => {
+            let kind_str = params.get(1).and_then(Value::as_str).unwrap_or("YEAR");
+            let kind = match kind_str {
+                "YEAR" => DateKind::Year,
+                "MONTH" => DateKind::Month,
+                "DAY" => DateKind::Day,
+                "HOUR" => DateKind::Hour,
+                "MINUTE" => DateKind::Minute,
+                "SECOND" => DateKind::Second,
+                _ => return Err(Parse("get_date invalid kind".into())),
+            };
+            Block::GetDate { kind }
         }
         "reach_something" => {
             let target = params
@@ -2788,6 +2801,9 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::CoordinateObject { .. } => Err(SyntaxError(
             "coordinate_object is a value block and cannot be used as a statement".into(),
         )),
+        Block::GetDate { .. } => Err(SyntaxError(
+            "get_date is a value block and cannot be used as a statement".into(),
+        )),
     }
 }
 
@@ -3417,19 +3433,25 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![Expr::Str(dt.to_string())],
             ))
         }
-        Block::CoordinateObject { target, coordinate } => {
-            Ok(Expr::Call(
-                ir::FuncRef {
-                    name: "coordinate_object".to_string(),
-                    arity: 2,
-                    raw: None,
-                },
-                vec![
-                    Expr::Str(target.clone()),
-                    Expr::Str(object_coord_to_str(*coordinate).to_string()),
-                ],
-            ))
-        },
+        Block::CoordinateObject { target, coordinate } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "coordinate_object".to_string(),
+                arity: 2,
+                raw: None,
+            },
+            vec![
+                Expr::Str(target.clone()),
+                Expr::Str(object_coord_to_str(*coordinate).to_string()),
+            ],
+        )),
+        Block::GetDate { kind } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "get_date".to_string(),
+                arity: 1,
+                raw: None,
+            },
+            vec![Expr::Str(date_kind_to_str(*kind).to_string())],
+        )),
     }
 }
 

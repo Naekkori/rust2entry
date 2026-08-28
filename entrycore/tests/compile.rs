@@ -6501,3 +6501,80 @@ fn compile_is_touch_supported_arity_check() {
     let src = r#"fn when_start() { is_touch_supported("foo"); }"#;
     assert!(compile(&[("obj", src)], &empty_project()).is_err());
 }
+
+// --- get_date (날짜/시/분/초) ---
+
+/// `let y = get_date("year");` → `get_date` 블록, params = [null, "YEAR", null].
+#[test]
+fn compile_get_date() {
+    let src = r#"fn when_start() {
+        let y = get_date("year");
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    // thread[0] = when_run, thread[1] = let y = ...
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    assert_eq!(set_var["params"][1]["type"], "get_date");
+    assert_eq!(set_var["params"][1]["params"][1], "YEAR");
+}
+
+/// 라운드트립.
+#[test]
+fn compile_get_date_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() {
+        let y = get_date("year");
+    }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::SetVar(_, rhs) => match rhs {
+                    Expr::Call(fref, args) => {
+                        assert_eq!(fref.name, "get_date");
+                        assert_eq!(args.len(), 1);
+                        assert!(matches!(&args[0], Expr::Str(s) if s == "YEAR"));
+                    }
+                    other => panic!("expected Call(get_date), got {other:?}"),
+                },
+                other => panic!("expected SetVar, got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `get_date()` (인자 없음) 또는 `get_date("a", "b")` (2개) → SyntaxError.
+#[test]
+fn compile_get_date_arity_check() {
+    use entrycore::compile;
+    let src0 = r#"fn when_start() {
+        let y = get_date();
+    }"#;
+    assert!(compile(&[("obj", src0)], &empty_project()).is_err());
+    let src2 = r#"fn when_start() {
+        let y = get_date("year", "month");
+    }"#;
+    assert!(compile(&[("obj", src2)], &empty_project()).is_err());
+}
+
+/// `get_date("year");` 단독 statement → SyntaxError (값 블럭).
+#[test]
+fn compile_get_date_statement_error() {
+    use entrycore::compile;
+    let src = r#"fn when_start() { get_date("year"); }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}

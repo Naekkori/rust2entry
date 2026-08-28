@@ -277,7 +277,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `is_touch_supported` — 터치 가능한가? (→ `is_touch_supported()`; 터치/마우스 UI 분기용)
 - ✅ `is_current_device_type` — □ 에서 실행하는가?
 
-### 연산 (14/26)
+### 연산 (15/26)
 - ✅ `calc_basic` → `CalcBinOp` (사칙연산)
 - ✅ `number` → `Number` 리터럴
 - ✅ `text` → `Text` 리터럴
@@ -309,7 +309,7 @@ fn greet(a: StringParam, b: BoolParam) {
   - `log(x)` — 상용로그
   - `exp(x)` — 지수
   - `pow10(x)` — 10의 거듭제곱
-- ⬜ `get_date` — 날짜/시/분/초
+- ✅ `get_date` — 날짜/시/분/초 (→ `get_date("year"|"month"|"day"|"hour"|"minute"|"second")`; 값 블럭. `DateKind` enum + `date_kind_to_str` / `str_to_date_kind` helper. from_stmt 에서 statement 자리 거부)
 - ⬜ `distance_something` — 두 점 사이 거리
 - ⬜ `get_user_name` — 아이디
 - ⬜ `get_nickname` — 닉네임
@@ -538,9 +538,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**128/334** 매핑됨 (약 38.3%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**129/334** 매핑됨 (약 38.6%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 12/12 (완료), 연산 12/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 12/12 (완료), 연산 15/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -607,6 +607,8 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 텍스트: `text_change_font` / `text_change_font_color` / `text_change_bg_color` — 글씨체는 동적 드롭다운 문자열, 글씨 색·배경색은 색상 값 블록으로 emit. 세 블록의 기본 변환·라운드트립·인자 검증 테스트 추가. `text_change_effect` 비활성 값의 deparse 오타 (`"of"` → `"off"`) 수정. **텍스트 9/9 완료.**
   - [x] 판단: `is_boost_mode` (no-arg, EntryJS 의 `Entry.options.useWebGL`. EntryRS 듀얼엔진 CappucinoVM / OmochaEngine 폴백 용도)
   - [x] 판단: `is_touch_supported` (no-arg, 터치/마우스 UI 분기)
+  - [x] 연산: `get_date` — `get_date("year"|"month"|"day"|"hour"|"minute"|"second")` (값 블럭). `DateKind` enum + `date_kind_to_str` / `str_to_date_kind`. params = `[null, kind, null]`. from_stmt 에서 statement 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error). **연산 15/26.**
+  - [ ] **잠재 문제**: `coordinate_mouse` / `coordinate_object` / `get_date` 의 category 가 현재 `Judgment` 인데 EntryJS source 는 모두 `block_calc.js` 안에 있음 → `Calc` 로 수정 필요. `get_date` 만 Calc 로 수정함, 나머지 2개 미정.
 - [ ] 중기
   - [ ] Timer/Answer 전용 블록 신택스 (`start_timer()` 등)
   - [x] Cloud/RealTime 변수 신택스 (`let x: CloudVar = ""` / `: RealtimeVar = ""`)
@@ -624,14 +626,14 @@ fn greet(a: StringParam, b: BoolParam) {
 **현재 working tree 상태**: clean (모든 변경 커밋됨)
 
 **마지막 커밋들**:
-- `84e7838 feat(judgment): add is_boost_mode and is_touch_supported blocks`
-- `f0b01ac docs: mark is_type complete`
-- `543d929 feat(judgment): add is_type block`
-- `1254684 feat(sound): complete sound value blocks`
+- `85e2af4 feat: add coordinate object value block`
+- `fa7c08c fix: align multi-parameter opcode slots`
+- `25a0c9f docs: document opcode audit details`
+- `b0d9175 fix: align opcode parameter slots`
 
 **빌드/테스트 명령**:
 ```
-cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 255 + parse 26 + 회귀 3 = 299 통과)
+cargo test                  # 전체 (entryc build 6 + codegen 9 + compile 302 + parse 26 + 회귀 3 = 351 통과)
 cargo test -p entrycore     # entrycore 만
 cargo test -p entryc        # entryc 만
 cargo build                 # 빌드만

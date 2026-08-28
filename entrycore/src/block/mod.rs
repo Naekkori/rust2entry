@@ -139,6 +139,39 @@ pub enum TextEffect {
     FontItalic,
     FontBlold,
 }
+/// 날짜
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DateKind {
+    Year,
+    Month,
+    Day,
+    Hour,
+    Minute,
+    Second,
+}
+
+pub fn date_kind_to_str(k: DateKind) -> &'static str {
+    match k {
+        DateKind::Year => "YEAR",
+        DateKind::Month => "MONTH",
+        DateKind::Day => "DAY",
+        DateKind::Hour => "HOUR",
+        DateKind::Minute => "MINUTE",
+        DateKind::Second => "SECOND",
+    }
+}
+
+pub fn str_to_date_kind(s: &str) -> Result<DateKind> {
+    match s {
+        "year" => Ok(DateKind::Year),
+        "month" => Ok(DateKind::Month),
+        "day" => Ok(DateKind::Day),
+        "hour" => Ok(DateKind::Hour),
+        "minute" => Ok(DateKind::Minute),
+        "second" => Ok(DateKind::Second),
+        _ => Err(SyntaxError("invalid date kind".into())),
+    }
+}
 /// 모든 Entry 블록의 통합 표현.
 #[derive(Debug, Clone)]
 pub enum Block {
@@ -560,7 +593,9 @@ pub enum Block {
         list: String,
         value: ParamBlock,
     },
-
+    GetDate {
+        kind: DateKind,
+    },
     // ── 함수 ──
     FuncCall {
         name: String,
@@ -801,6 +836,7 @@ impl Block {
             Block::IsCurrentDeviceType { .. } => "is_current_device_type",
             Block::CoordinateMouse { .. } => "coordinate_mouse",
             Block::CoordinateObject { .. } => "coordinate_object",
+            Block::GetDate { .. } => "get_date",
         }
     }
 
@@ -951,6 +987,7 @@ impl Block {
             Block::IsCurrentDeviceType { .. } => Category::Judgment,
             Block::CoordinateMouse { .. } => Category::Judgment,
             Block::CoordinateObject { .. } => Category::Judgment,
+            Block::GetDate { .. } => Category::Calc,
         }
     }
 }
@@ -1385,6 +1422,11 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         return Err(SyntaxError(
                             "coordinate_mouse is a value block and cannot be used as a statement"
                                 .into(),
+                        ));
+                    }
+                    if fref.name == "get_date" {
+                        return Err(SyntaxError(
+                            "get_date is a value block and cannot be used as a statement".into(),
                         ));
                     }
                     if fref.name == "create_clone" {
@@ -2246,6 +2288,16 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 }
                 return Ok(ParamBlock::Sub(Box::new(Block::IsTouchSupported)));
             }
+            if fref.name == "get_date" {
+                if args.len() != 1 {
+                    return Err(SyntaxError("get_date needs 1 arg".into()));
+                }
+                let kind = match &args[0] {
+                    Expr::Str(s) => str_to_date_kind(s)?,
+                    _ => return Err(SyntaxError("get_date kind must be string".into())),
+                };
+                return Ok(ParamBlock::Sub(Box::new(Block::GetDate { kind })));
+            }
             // --- 글상자 ---
             if fref.name == "text_read" {
                 if args.len() != 1 {
@@ -2991,6 +3043,14 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
                 Value::String(target.clone()),
                 Value::Null,
                 Value::String(object_coord_to_str(*coordinate).to_string()),
+            ],
+            None,
+        ),
+        Block::GetDate { kind } => (
+            vec![
+                Value::Null,
+                Value::String(date_kind_to_str(*kind).to_string()),
+                Value::Null,
             ],
             None,
         ),
