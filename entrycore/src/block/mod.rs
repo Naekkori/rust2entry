@@ -2397,7 +2397,10 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
                 MathOperation::Exp => "exp",
                 MathOperation::Pow10 => "pow10",
             };
-            (vec![json!(op_str), param_to_value(expr)], None)
+            (
+                vec![Value::Null, param_to_value(expr), Value::Null, json!(op_str)],
+                None,
+            )
         }
         Block::Number(n) => (vec![Value::from(*n)], None),
         Block::Text(s) => (vec![Value::String(s.clone())], None),
@@ -2464,22 +2467,47 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         }
         Block::WaitSeconds { time } => (vec![param_to_value(time)], None),
         Block::WaitUntilTrue { cond } => (vec![param_to_value(cond), Value::Null], None),
-        Block::CalcRand { min, max } => (vec![param_to_value(min), param_to_value(max)], None),
+        Block::CalcRand { min, max } => (
+            vec![
+                Value::Null,
+                param_to_value(min),
+                Value::Null,
+                param_to_value(max),
+                Value::Null,
+            ],
+            None,
+        ),
         Block::GetProjectTimerValue {} => (vec![], None),
         Block::AskAndWait { question } => (vec![param_to_value(question), Value::Null], None),
         Block::GetCanvasInputValue {} => (vec![], None),
         Block::Show {} => (vec![], None),
         Block::Hide {} => (vec![], None),
-        Block::ChooseProjectTimerAction { action } => (vec![json!(action)], None),
-        Block::SetVisibleProjectTimer { value } => (vec![Value::Bool(*value), Value::Null], None),
-        Block::SetVisibleAnswer { value } => (vec![Value::Bool(*value), Value::Null], None),
+        Block::ChooseProjectTimerAction { action } => (
+            vec![Value::Null, json!(action.to_ascii_uppercase()), Value::Null, Value::Null],
+            None,
+        ),
+        Block::SetVisibleProjectTimer { value } => (
+            vec![Value::Null, json!(if *value { "SHOW" } else { "HIDE" }), Value::Null, Value::Null],
+            None,
+        ),
+        Block::SetVisibleAnswer { value } => (
+            vec![Value::Null, json!(if *value { "SHOW" } else { "HIDE" }), Value::Null, Value::Null],
+            None,
+        ),
         Block::QuotientAndMod { a, b, mode } => {
             let mode_str = match mode {
                 QamMethod::Quotient => "quotient",
                 QamMethod::Mod => "modulo",
             };
             (
-                vec![param_to_value(a), param_to_value(b), json!(mode_str)],
+                vec![
+                    Value::Null,
+                    param_to_value(a),
+                    Value::Null,
+                    param_to_value(b),
+                    Value::Null,
+                    json!(mode_str),
+                ],
                 None,
             )
         }

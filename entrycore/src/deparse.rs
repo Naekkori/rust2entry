@@ -516,16 +516,16 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::BoolOp { op, lhs, rhs }
         }
         "calc_rand" => {
-            let min = param_at(&params, 0, vars)?;
-            let max = param_at(&params, 1, vars)?;
+            let min = param_at(&params, 1, vars)?;
+            let max = param_at(&params, 3, vars)?;
             Block::CalcRand { min, max }
         }
         "set_visible_project_timer" => {
-            let value = params.get(0).and_then(Value::as_bool).unwrap_or(true);
+            let value = params.get(1).and_then(Value::as_str).map(|v| v == "SHOW").unwrap_or(true);
             Block::SetVisibleProjectTimer { value }
         }
         "set_visible_answer" => {
-            let value = params.get(0).and_then(Value::as_bool).unwrap_or(true);
+            let value = params.get(1).and_then(Value::as_str).map(|v| v == "SHOW").unwrap_or(true);
             Block::SetVisibleAnswer { value }
         }
         "calc_unary" => {
@@ -541,7 +541,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::UnaryOp { op, expr }
         }
         "calc_operation" => {
-            let op = match params.get(0).and_then(Value::as_str) {
+            let op = match params.get(3).and_then(Value::as_str) {
                 Some("abs") => MathOperation::Abs,
                 Some("sqrt") => MathOperation::Sqrt,
                 Some("sin") => MathOperation::Sin,
@@ -575,24 +575,25 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         "get_canvas_input_value" => Block::GetCanvasInputValue {},
         "choose_project_timer_action" => Block::ChooseProjectTimerAction {
             action: params
-                .get(0)
+                .get(1)
                 .and_then(Value::as_str)
                 .unwrap_or("start")
+                .to_ascii_lowercase()
                 .to_string(),
         },
         "quotient_and_mod" => {
-            let mode = match params.get(2).and_then(Value::as_str) {
+            let mode = match params.get(5).and_then(Value::as_str) {
                 Some("quotient") => QamMethod::Quotient,
                 Some("modulo") => QamMethod::Mod,
                 _ => QamMethod::Quotient,
             };
             let a = params
-                .get(0)
+                .get(1)
                 .map(|v| value_to_param(v, vars))
                 .transpose()?
                 .unwrap_or(ParamBlock::Null);
             let b = params
-                .get(1)
+                .get(3)
                 .map(|v| value_to_param(v, vars))
                 .transpose()?
                 .unwrap_or(ParamBlock::Null);

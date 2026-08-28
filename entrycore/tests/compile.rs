@@ -396,8 +396,8 @@ fn compile_calc_rand_int() {
     let set = thread.iter().find(|b| b["type"] == "set_variable").expect("set_variable");
     // set 의 params[1] 이 calc_rand.
     assert_eq!(set["params"][1]["type"], "calc_rand");
-    assert_eq!(set["params"][1]["params"][0]["params"][0].as_f64(), Some(1.0));
-    assert_eq!(set["params"][1]["params"][1]["params"][0].as_f64(), Some(10.0));
+    assert_eq!(set["params"][1]["params"][1]["params"][0].as_f64(), Some(1.0));
+    assert_eq!(set["params"][1]["params"][3]["params"][0].as_f64(), Some(10.0));
 }
 
 /// `calc_rand(1.5, 9.5)` → 실수 보존.
@@ -408,8 +408,8 @@ fn compile_calc_rand_float() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set = thread.iter().find(|b| b["type"] == "set_variable").expect("set_variable");
-    assert_eq!(set["params"][1]["params"][0]["params"][0].as_f64(), Some(1.5));
-    assert_eq!(set["params"][1]["params"][1]["params"][0].as_f64(), Some(9.5));
+    assert_eq!(set["params"][1]["params"][1]["params"][0].as_f64(), Some(1.5));
+    assert_eq!(set["params"][1]["params"][3]["params"][0].as_f64(), Some(9.5));
 }
 
 /// `calc_rand` 의 args 가 변수일 때 dropdown 슬롯.
@@ -427,8 +427,8 @@ fn compile_calc_rand_var_args() {
     let thread = first_thread(&objects[0]);
     let set = thread.iter().rev().find(|b| b["type"] == "set_variable").expect("last set");
     assert_eq!(set["params"][1]["type"], "calc_rand");
-    assert_eq!(set["params"][1]["params"][0]["name"], "lo");
-    assert_eq!(set["params"][1]["params"][1]["name"], "hi");
+    assert_eq!(set["params"][1]["params"][1]["name"], "lo");
+    assert_eq!(set["params"][1]["params"][3]["name"], "hi");
 }
 
 /// 라운드트립: compile → deparse → IR 에 calc_rand 호출 보존.
@@ -529,7 +529,7 @@ fn compile_show_timer() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_visible_project_timer");
-    assert_eq!(thread[1]["params"][0], true);
+    assert_eq!(thread[1]["params"][1], "SHOW");
 }
 
 /// `hide_timer();` → `set_visible_project_timer`, params[0] = false.
@@ -540,7 +540,7 @@ fn compile_hide_timer() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_visible_project_timer");
-    assert_eq!(thread[1]["params"][0], false);
+    assert_eq!(thread[1]["params"][1], "HIDE");
 }
 
 /// 라운드트립: show_timer → set_visible_project_timer → deparse → show_timer 재호출.
@@ -584,7 +584,7 @@ fn compile_show_answer() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_visible_answer");
-    assert_eq!(thread[1]["params"][0], true);
+    assert_eq!(thread[1]["params"][1], "SHOW");
 }
 
 /// `hide_answer();` → `set_visible_answer`, params[0] = false.
@@ -595,7 +595,7 @@ fn compile_hide_answer() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_visible_answer");
-    assert_eq!(thread[1]["params"][0], false);
+    assert_eq!(thread[1]["params"][1], "HIDE");
 }
 
 /// 라운드트립.
@@ -3677,7 +3677,7 @@ fn compile_start_timer() {
         .iter()
         .find(|b| b["type"] == "choose_project_timer_action")
         .expect("choose_project_timer_action");
-    assert_eq!(action["params"][0], "start");
+    assert_eq!(action["params"][1], "START");
 }
 
 /// `stop_timer()` / `reset_timer()` 매핑.
@@ -3694,8 +3694,8 @@ fn compile_stop_reset_timer() {
         .filter(|b| b["type"] == "choose_project_timer_action")
         .collect();
     assert_eq!(blocks.len(), 2);
-    assert_eq!(blocks[0]["params"][0], "stop");
-    assert_eq!(blocks[1]["params"][0], "reset");
+    assert_eq!(blocks[0]["params"][1], "STOP");
+    assert_eq!(blocks[1]["params"][1], "RESET");
 }
 
 /// start_timer 라운드트립.
@@ -3773,7 +3773,7 @@ fn compile_quotient_and_mod_quotient() {
         .expect("set_variable");
     let block = &set_var["params"][1];
     assert_eq!(block["type"], "quotient_and_mod");
-    assert_eq!(block["params"][2], "quotient");
+    assert_eq!(block["params"][5], "quotient");
 }
 
 /// `quotient_and_mod(a, b, "modulo")` → params[2] = "modulo".
@@ -3791,7 +3791,7 @@ fn compile_quotient_and_mod_modulo() {
         .expect("set_variable");
     let block = &set_var["params"][1];
     assert_eq!(block["type"], "quotient_and_mod");
-    assert_eq!(block["params"][2], "modulo");
+    assert_eq!(block["params"][5], "modulo");
 }
 
 /// quotient_and_mod 라운드트립.
@@ -3844,7 +3844,7 @@ fn compile_abs() {
         .expect("set_variable");
     let block = &set_var["params"][1];
     assert_eq!(block["type"], "calc_operation");
-    assert_eq!(block["params"][0], "abs");
+    assert_eq!(block["params"][3], "abs");
 }
 
 /// sqrt 라운드트립.
@@ -3891,7 +3891,7 @@ fn compile_sin() {
         .expect("set_variable");
     let block = &set_var["params"][1];
     assert_eq!(block["type"], "calc_operation");
-    assert_eq!(block["params"][0], "sin");
+    assert_eq!(block["params"][3], "sin");
 }
 
 // ── show / hide (외형) ──
@@ -5727,7 +5727,7 @@ fn compile_enum_syntax_for_all_enum_dropdowns() {
         .find(|b| b["type"] == "set_variable")
         .expect("set_variable block");
     assert_eq!(quotient["params"][1]["type"], "quotient_and_mod");
-    assert_eq!(quotient["params"][1]["params"][2], "modulo");
+    assert_eq!(quotient["params"][1]["params"][5], "modulo");
 }
 
 /// text_change_effect 라운드트립 — codegen → deparse → IR 의 `Stmt::Expr(Call(text_change_effect, [Str("strike"), Bool(true)]))` 가 복원되는지.
