@@ -537,6 +537,8 @@ pub enum Block {
     DistanceSomething {
         target: String,
     },
+    GetUserName,
+    GetNickName,
     // ── 변수 ──
     SetVar {
         variable: String,
@@ -841,6 +843,8 @@ impl Block {
             Block::CoordinateObject { .. } => "coordinate_object",
             Block::GetDate { .. } => "get_date",
             Block::DistanceSomething { .. } => "distance_something",
+            Block::GetUserName => "get_user_name",
+            Block::GetNickName => "get_nickname",
         }
     }
 
@@ -993,6 +997,8 @@ impl Block {
             Block::CoordinateObject { .. } => Category::Judgment,
             Block::GetDate { .. } => Category::Calc,
             Block::DistanceSomething { .. } => Category::Calc,
+            Block::GetUserName => Category::Calc,
+            Block::GetNickName => Category::Calc,
         }
     }
 }
@@ -1426,6 +1432,18 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "coordinate_mouse" {
                         return Err(SyntaxError(
                             "coordinate_mouse is a value block and cannot be used as a statement"
+                                .into(),
+                        ));
+                    }
+                    if fref.name == "get_user_name" {
+                        return Err(SyntaxError(
+                            "get_user_name is a value block and cannot be used as a statement"
+                                .into(),
+                        ));
+                    }
+                    if fref.name == "get_nickname" {
+                        return Err(SyntaxError(
+                            "get_nickname is a value block and cannot be used as a statement"
                                 .into(),
                         ));
                     }
@@ -2296,8 +2314,22 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     target,
                 })));
             }
-            // is_boost_mode(부스트 모드) — EntryJS func 본문: `return !!Entry.options.useWebGL;`
-            // EntryRS 듀얼엔진 (CappucinoVM / OmochaEngine) 에서 잘못된 파라미터 사용 시 폴백값으로 쓰는 용도.
+            if fref.name == "get_user_name" {
+                if args.len() > 0 {
+                    return Err(SyntaxError("get_user_name not needs args".into()));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::GetUserName)));
+            }
+            if fref.name == "get_nickname" {
+                if args.len() > 0 {
+                    return Err(SyntaxError("get_nickname not needs args".into()));
+                }
+                return Ok(ParamBlock::Sub(Box::new(Block::GetNickName)));
+            }
+            /*
+            is_boost_mode(부스트 모드) — EntryJS func 본문: `return !!Entry.options.useWebGL;`
+            EntryRS 듀얼엔진 (CappuccinoVM / OmochaEngine) 에서 잘못된 파라미터 사용 시 폴백값으로 쓰는 용도.
+            */
             if fref.name == "is_boost_mode" {
                 if args.len() > 0 {
                     return Err(SyntaxError("is_boost_mode not needs args".into()));
@@ -2510,10 +2542,7 @@ pub fn to_value_with_assets(
     }
     // nested Sub block 안의 오브젝트 dropdown 슬롯 — name → id.
     // (예: `let d = distance_something("Sprite1")` 의 value 자리 nested block)
-    fn resolve_nested_object_target(
-        value: &mut Value,
-        assets: &crate::AssetMap,
-    ) {
+    fn resolve_nested_object_target(value: &mut Value, assets: &crate::AssetMap) {
         const OBJECT_TARGET_BLOCKS: &[&str] = &[
             "create_clone",
             "see_angle_object",
@@ -2536,7 +2565,8 @@ pub fn to_value_with_assets(
             let block_type = obj.get("type").and_then(Value::as_str).map(String::from);
             if let Some(t) = &block_type {
                 if OBJECT_TARGET_BLOCKS.contains(&t.as_str()) {
-                    let idx = TARGET_IDX.iter()
+                    let idx = TARGET_IDX
+                        .iter()
                         .find(|(name, _)| *name == t.as_str())
                         .map(|(_, i)| *i)
                         .unwrap_or(0);
@@ -3157,6 +3187,8 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             vec![Value::Null, Value::String(target.clone()), Value::Null],
             None,
         ),
+        Block::GetUserName => (vec![], None),
+        Block::GetNickName => (vec![], None),
     })
 }
 

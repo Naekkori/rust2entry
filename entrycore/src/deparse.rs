@@ -513,6 +513,8 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             };
             Block::GetDate { kind }
         }
+        "get_user_name" => Block::GetUserName,
+        "get_nickname" => Block::GetNickName,
         "reach_something" => {
             let target = params
                 // EntryJS 슬롯은 [Indicator, DropdownDynamic, Indicator]
@@ -2815,6 +2817,12 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::DistanceSomething { .. } => Err(SyntaxError(
             "distance_something is a value block and cannot be used as a statement".into(),
         )),
+        Block::GetUserName => Err(SyntaxError(
+            "get_user_name is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetNickName => Err(SyntaxError(
+            "get_nickname is a value block and cannot be used as a statement".into(),
+        )),
     }
 }
 
@@ -3470,6 +3478,22 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 raw: None,
             },
             vec![Expr::Str(target.clone())],
+        )),
+        Block::GetUserName => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "get_user_name".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
+        )),
+        Block::GetNickName => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "get_nickname".to_string(),
+                arity: 0,
+                raw: None,
+            },
+            Vec::new(),
         )),
     }
 }
