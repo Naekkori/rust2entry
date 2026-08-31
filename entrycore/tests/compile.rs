@@ -7175,3 +7175,91 @@ fn compile_combine_something_statement_error() {
     let src = r#"fn when_start() { combine_something("a", "b"); }"#;
     assert!(compile(&[("obj", src)], &empty_project()).is_err());
 }
+
+// --- char_at ---
+
+/// `char_at("hello", 2)` → 값 슬롯, params = [null, text, null, number, null].
+#[test]
+fn compile_char_at() {
+    let src = r#"fn when_start() {
+        let c = char_at("hello", 2);
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    assert_eq!(set_var["params"][1]["type"], "char_at");
+    let sub_params = set_var["params"][1]["params"].as_array().unwrap();
+    assert_eq!(sub_params.len(), 5);
+    assert!(sub_params[0].is_null());
+    assert_eq!(sub_params[1]["type"], "text");
+    assert_eq!(sub_params[1]["params"][0], "hello");
+    assert!(sub_params[2].is_null());
+    assert_eq!(sub_params[3]["type"], "number");
+    assert_eq!(
+        sub_params[3]["params"][0].as_f64().expect("number literal"),
+        2.0
+    );
+    assert!(sub_params[4].is_null());
+}
+
+/// `char_at` 라운드트립 — codegen → deparse → IR 의 `Call(char_at, [Str("hello"), Int(2)])` 복원.
+#[test]
+fn compile_char_at_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() {
+        let c = char_at("hello", 2);
+    }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            match &body[0] {
+                Stmt::SetVar(_, rhs) => match rhs {
+                    Expr::Call(fref, args) => {
+                        assert_eq!(fref.name, "char_at");
+                        assert_eq!(args.len(), 2);
+                        assert!(matches!(&args[0], Expr::Str(s) if s == "hello"));
+                        assert!(
+                            matches!(&args[1], Expr::Float(f) if *f == 2.0)
+                                || matches!(&args[1], Expr::Int(2)),
+                            "expected Int(2) or Float(2.0), got {:?}",
+                            args[1]
+                        );
+                    }
+                    other => panic!("expected Call(char_at), got {other:?}"),
+                },
+                other => panic!("expected SetVar, got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `char_at("a")` (1) / `char_at("a", 2, 3)` (3) → SyntaxError.
+#[test]
+fn compile_char_at_arity_check() {
+    use entrycore::compile;
+    let src1 = r#"fn when_start() { let c = char_at("a"); }"#;
+    assert!(compile(&[("obj", src1)], &empty_project()).is_err());
+    let src3 = r#"fn when_start() { let c = char_at("a", 2, 3); }"#;
+    assert!(compile(&[("obj", src3)], &empty_project()).is_err());
+}
+
+/// `char_at("a", 2);` 단독 statement → SyntaxError (값 슬롯).
+#[test]
+fn compile_char_at_statement_error() {
+    use entrycore::compile;
+    let src = r#"fn when_start() { char_at("a", 2); }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}

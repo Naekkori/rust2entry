@@ -549,6 +549,10 @@ pub enum Block {
         a: ParamBlock,
         b: ParamBlock,
     },
+    CharAt {
+        string: ParamBlock,
+        index: ParamBlock,
+    },
     // ── 변수 ──
     SetVar {
         variable: String,
@@ -858,6 +862,7 @@ impl Block {
             Block::LengthOfString { .. } => "length_of_string",
             Block::ReverseOfString { .. } => "reverse_of_string",
             Block::CombineSomething { .. } => "combine_something",
+            Block::CharAt { .. } => "char_at",
         }
     }
 
@@ -1015,6 +1020,7 @@ impl Block {
             Block::LengthOfString { .. } => Category::Calc,
             Block::ReverseOfString { .. } => Category::Calc,
             Block::CombineSomething { .. } => Category::Calc,
+            Block::CharAt { .. } => Category::Calc,
         }
     }
 }
@@ -1484,6 +1490,11 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         return Err(SyntaxError(
                             "combine_something is a value block and cannot be used as a statement"
                                 .into(),
+                        ));
+                    }
+                    if fref.name == "char_at" {
+                        return Err(SyntaxError(
+                            "char_at is a value block and cannot be used as a statement".into(),
                         ));
                     }
                     if fref.name == "create_clone" {
@@ -2374,6 +2385,14 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 let value = from_expr(&args[0])?;
                 return Ok(ParamBlock::Sub(Box::new(Block::ReverseOfString { value })));
             }
+            if fref.name == "char_at" {
+                if args.len() != 2 {
+                    return Err(SyntaxError("char_at needs 2 args".into()));
+                }
+                let string = from_expr(&args[0])?;
+                let index = from_expr(&args[1])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::CharAt { string, index })));
+            }
             if fref.name == "combine_something" {
                 if args.len() != 2 {
                     return Err(SyntaxError("combine_something needs 2 args".into()));
@@ -3257,6 +3276,16 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
                 param_to_value(a),
                 Value::Null,
                 param_to_value(b),
+                Value::Null,
+            ],
+            None,
+        ),
+        Block::CharAt { string, index } => (
+            vec![
+                Value::Null,
+                param_to_value(string),
+                Value::Null,
+                param_to_value(index),
                 Value::Null,
             ],
             None,

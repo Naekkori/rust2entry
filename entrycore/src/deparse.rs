@@ -528,6 +528,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let b = param_at(&params, 3, vars)?;
             Block::CombineSomething { a, b }
         }
+        "char_at" => {
+            let string = param_at(&params, 1, vars)?;
+            let index = param_at(&params, 3, vars)?;
+            Block::CharAt { string, index }
+        }
         "reach_something" => {
             let target = params
                 // EntryJS 슬롯은 [Indicator, DropdownDynamic, Indicator]
@@ -2845,6 +2850,9 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::CombineSomething { .. } => Err(SyntaxError(
             "combine_something is a value block and cannot be used as a statement".into(),
         )),
+        Block::CharAt { .. } => Err(SyntaxError(
+            "char_at is a value block and cannot be used as a statement".into(),
+        )),
     }
 }
 
@@ -3549,6 +3557,18 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![va, vb],
+            ))
+        }
+        Block::CharAt { string, index } => {
+            let s = expr_from_param(string, vars)?;
+            let i = expr_from_param(index, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "char_at".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![s, i],
             ))
         }
     }
