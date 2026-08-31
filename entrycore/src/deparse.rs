@@ -539,6 +539,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let end = param_at(&params, 5, vars)?;
             Block::Substring { string, start, end }
         }
+        "count_match_string" => {
+            let sub_str = param_at(&params, 1, vars)?;
+            let sub_pat = param_at(&params, 3, vars)?;
+            Block::CountMatchString { sub_str, sub_pat }
+        }
         "reach_something" => {
             let target = params
                 // EntryJS 슬롯은 [Indicator, DropdownDynamic, Indicator]
@@ -2862,6 +2867,9 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::Substring { .. } => Err(SyntaxError(
             "substring is a value block and cannot be used as a statement".into(),
         )),
+        Block::CountMatchString { .. } => Err(SyntaxError(
+            "count_match_string is a value block and cannot be used as a statement".into(),
+        )),
     }
 }
 
@@ -3591,6 +3599,18 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![s, st, e],
+            ))
+        }
+        Block::CountMatchString { sub_str, sub_pat } => {
+            let ss = expr_from_param(sub_str, vars)?;
+            let sp = expr_from_param(sub_pat, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "count_match_string".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![ss, sp],
             ))
         }
     }

@@ -7365,3 +7365,83 @@ fn compile_substring_statement_error() {
     let src = r#"fn when_start() { substring("a", 1, 3); }"#;
     assert!(compile(&[("obj", src)], &empty_project()).is_err());
 }
+
+// --- count_match_string ---
+
+/// `count_match_string("hello", "l")` → 값 슬롯, params = [null, text, null, text, null].
+#[test]
+fn compile_count_match_string() {
+    let src = r#"fn when_start() {
+        let n = count_match_string("hello", "l");
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    assert_eq!(set_var["params"][1]["type"], "count_match_string");
+    let sub_params = set_var["params"][1]["params"].as_array().unwrap();
+    assert_eq!(sub_params.len(), 5);
+    assert!(sub_params[0].is_null());
+    assert_eq!(sub_params[1]["type"], "text");
+    assert_eq!(sub_params[1]["params"][0], "hello");
+    assert!(sub_params[2].is_null());
+    assert_eq!(sub_params[3]["type"], "text");
+    assert_eq!(sub_params[3]["params"][0], "l");
+    assert!(sub_params[4].is_null());
+}
+
+/// `count_match_string` 라운드트립 — codegen → deparse → IR 의 `Call(count_match_string, [Str("hello"), Str("l")])` 복원.
+#[test]
+fn compile_count_match_string_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() {
+        let n = count_match_string("hello", "l");
+    }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            match &body[0] {
+                Stmt::SetVar(_, rhs) => match rhs {
+                    Expr::Call(fref, args) => {
+                        assert_eq!(fref.name, "count_match_string");
+                        assert_eq!(args.len(), 2);
+                        assert!(matches!(&args[0], Expr::Str(s) if s == "hello"));
+                        assert!(matches!(&args[1], Expr::Str(s) if s == "l"));
+                    }
+                    other => panic!("expected Call(count_match_string), got {other:?}"),
+                },
+                other => panic!("expected SetVar, got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `count_match_string("a")` (1) / `count_match_string("a", "b", "c")` (3) → SyntaxError.
+#[test]
+fn compile_count_match_string_arity_check() {
+    use entrycore::compile;
+    let src1 = r#"fn when_start() { let n = count_match_string("a"); }"#;
+    assert!(compile(&[("obj", src1)], &empty_project()).is_err());
+    let src3 = r#"fn when_start() { let n = count_match_string("a", "b", "c"); }"#;
+    assert!(compile(&[("obj", src3)], &empty_project()).is_err());
+}
+
+/// `count_match_string("a", "b");` 단독 statement → SyntaxError (값 슬롯).
+#[test]
+fn compile_count_match_string_statement_error() {
+    use entrycore::compile;
+    let src = r#"fn when_start() { count_match_string("a", "b"); }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}

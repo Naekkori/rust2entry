@@ -318,7 +318,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `combine_something` — 문자열 결합 (→ `combine_something("hello", "world")`; 값 슬롯 블록. `Block::CombineSomething { a: ParamBlock, b: ParamBlock }` struct variant. EntryJS class `calc_string`. `func` 는 `\`${leftValue}${rightValue}\`` (두 string 연결). EntryJS params `[Text, Block(string), Text, Block(string), Text]` 5-slot → emit `[null, sub_a, null, sub_b, null]`. paramsKeyMap.VALUE1=1, VALUE2=3 → deparse `param_at(&params, 1)` / `param_at(&params, 3)`. stmt 자리 거부. 테스트 4개.)
 - ✅ `char_at` — N번째 문자 (→ `char_at("hello", 2)`; 값 슬롯 블록. `Block::CharAt { string: ParamBlock, index: ParamBlock }` struct variant. EntryJS class `calc_string`. `func` 는 `str[index-1]` (1-based). EntryJS params `[Text, Block(string), Text, Block(number), Text]` 5-slot → emit `[null, sub_str, null, sub_idx, null]`. paramsKeyMap.LEFTHAND=1, RIGHTHAND=3 → deparse `param_at(&params, 1, 3)`. Number 블록 literal 은 JSON `Number(2.0)` 으로 emit (f64). stmt 자리 거부. 테스트 4개.)
 - ✅ `substring` — 부분 문자열 (→ `substring("hello", 1, 3)`; 값 슬롯 블록. `Block::Substring { string: ParamBlock, start: ParamBlock, end: ParamBlock }` struct variant. EntryJS class `calc_string`. EntryJS params `[Text, Block(string), Text, Block(number), Text, Block(number), Text]` 7-slot → emit `[null, sub_str, null, sub_start, null, sub_end, null]`. deparse `param_at(&params, 1, 3, 5)`. stmt 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error).)
-- ⬜ `count_match_string` — 포함 횟수
+- ✅ `count_match_string` — 포함 횟수 (→ `count_match_string("hello", "l")`; 값 슬롯 블록. `Block::CountMatchString { sub_str: ParamBlock, sub_pat: ParamBlock }` struct variant. EntryJS class `calc_string`. EntryJS params `[Text, Block(string), Text, Block(string), Text]` 5-slot → emit `[null, sub_str, null, sub_pat, null]`. deparse `param_at(&params, 1, 3)`. stmt 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error).)
 - ⬜ `index_of_string` — 위치 찾기
 - ⬜ `replace_string` — 치환
 - ⬜ `change_string_case` — 대소문자
@@ -538,9 +538,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**138/334** 매핑됨 (약 41.3%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**139/334** 매핑됨 (약 41.6%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 12/12 (완료), 연산 23/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 12/12 (완료), 연산 24/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -615,6 +615,7 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 연산: `combine_something` (문자열 결합) — 값 슬롯 블록. `Block::CombineSomething { a: ParamBlock, b: ParamBlock }` struct variant. EntryJS class `calc_string`. `func` 는 `\`${leftValue}${rightValue}\``. EntryJS params `[Text, Block, Text, Block, Text]` 5-slot → emit `[null, sub_a, null, sub_b, null]`. paramsKeyMap.VALUE1=1, VALUE2=3 → deparse `param_at(&params, 1, 3)`. 테스트 4개 (basic/roundtrip/arity_check/statement_error). **연산 21/26.**
   - [x] 연산: `char_at` (N번째 문자) — 값 슬롯 블록. `Block::CharAt { string: ParamBlock, index: ParamBlock }` struct variant. EntryJS class `calc_string`. `func` 는 `str[index-1]` (1-based). EntryJS params 5-slot, paramsKeyMap.LEFTHAND=1, RIGHTHAND=3. Number 블록 literal 은 JSON `Number(2.0)`. 테스트 4개. **연산 22/26.**
   - [x] 연산: `substring` (부분 문자열) — 값 슬롯 블록. `Block::Substring { string: ParamBlock, start: ParamBlock, end: ParamBlock }` struct variant. EntryJS class `calc_string`. EntryJS params `[Text, Block(string), Text, Block(number), Text, Block(number), Text]` 7-slot → emit `[null, sub_str, null, sub_start, null, sub_end, null]`. deparse `param_at(&params, 1, 3, 5)`. stmt 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error). **연산 23/26.**
+  - [x] 연산: `count_match_string` (포함 횟수) — 값 슬롯 블록. `Block::CountMatchString { sub_str: ParamBlock, sub_pat: ParamBlock }` struct variant. EntryJS class `calc_string`. EntryJS params `[Text, Block(string), Text, Block(string), Text]` 5-slot → emit `[null, sub_str, null, sub_pat, null]`. deparse `param_at(&params, 1, 3)`. stmt 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error). **연산 24/26.**
   - [x] 자산 ID 양방향 매핑 — 오브젝트 dropdown 슬롯 (spritesWithMouse / spritesWithSelf / objectWithSelf / collision) 값은 EntryJS Runtime 이 `Entry.container.getEntity(id)` 로 lookup 하므로 sprite id 가 필수. `AssetMap` 에 `object_ids: NameIdMap` 추가 + `object_id_by_name` / `object_name_by_id` 메서드 (`mouse` / `self` reserved keyword 그대로 통과). 7개 블록 (`CreateClone`, `SeeAngleObject`, `Locate`, `ReachSomeThing`, `LocateObjectTime`, `CoordinateObject`, `DistanceSomething`) 동시 적용. 정방향은 `to_value_with_assets` 의 nested recursive (`resolve_nested_object_target`) + `resolve_expr` 매칭. stmt-side object 매칭 arm 도 `reach_something` 추가 (statement 자리 호출 가능). 테스트: AssetMap 단위 4개 + 통합 라운드트립 3개 (`distance_something` name/id, `distance_something` mouse, `reach_something` name/id).
   - [ ] **잠재 문제**: `coordinate_mouse` / `coordinate_object` / `get_date` 의 category 가 현재 `Judgment` 인데 EntryJS source 는 모두 `block_calc.js` 안에 있음 → `Calc` 로 수정 필요. `get_date` 만 Calc 로 수정함, 나머지 2개 미정.
 - [ ] 중기

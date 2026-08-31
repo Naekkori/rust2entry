@@ -6,6 +6,7 @@
 pub mod category;
 pub mod registry;
 use crate::Error::{SyntaxError, UnmappedBlock};
+use crate::codegen::schema::Param;
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};
 pub use registry::{BlockRegistry, HwDevice, HwSourcemap, SchemaDump, SchemaReport, Violation};
@@ -558,6 +559,10 @@ pub enum Block {
         start: ParamBlock,
         end: ParamBlock,
     },
+    CountMatchString {
+        sub_str: ParamBlock,
+        sub_pat: ParamBlock,
+    },
     // ── 변수 ──
     SetVar {
         variable: String,
@@ -869,6 +874,7 @@ impl Block {
             Block::CombineSomething { .. } => "combine_something",
             Block::CharAt { .. } => "char_at",
             Block::Substring { .. } => "substring",
+            Block::CountMatchString { .. } => "count_match_string",
         }
     }
 
@@ -1028,6 +1034,7 @@ impl Block {
             Block::CombineSomething { .. } => Category::Calc,
             Block::CharAt { .. } => Category::Calc,
             Block::Substring { .. } => Category::Calc,
+            Block::CountMatchString { .. } => Category::Calc,
         }
     }
 }
@@ -1507,6 +1514,12 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "substring" {
                         return Err(SyntaxError(
                             "substring is a value block and cannot be used as a statement".into(),
+                        ));
+                    }
+                    if fref.name == "count_match_string" {
+                        return Err(SyntaxError(
+                            "count_match_string is a value block and cannot be used as a statement"
+                                .into(),
                         ));
                     }
                     if fref.name == "create_clone" {
@@ -2427,6 +2440,17 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     end,
                 })));
             }
+            if fref.name == "count_match_string" {
+                if args.len() != 2 {
+                    return Err(SyntaxError("count_match_string needs 2 args".into()));
+                }
+                let sub_str = from_expr(&args[0])?;
+                let sub_pat = from_expr(&args[1])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::CountMatchString {
+                    sub_str,
+                    sub_pat,
+                })));
+            }
             /*
             is_boost_mode(부스트 모드) — EntryJS func 본문: `return !!Entry.options.useWebGL;`
             EntryRS 듀얼엔진 (CappuccinoVM / OmochaEngine) 에서 잘못된 파라미터 사용 시 폴백값으로 쓰는 용도.
@@ -3324,6 +3348,16 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
                 param_to_value(start),
                 Value::Null,
                 param_to_value(end),
+                Value::Null,
+            ],
+            None,
+        ),
+        Block::CountMatchString { sub_str, sub_pat } => (
+            vec![
+                Value::Null,
+                param_to_value(sub_str),
+                Value::Null,
+                param_to_value(sub_pat),
                 Value::Null,
             ],
             None,
