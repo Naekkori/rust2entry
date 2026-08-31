@@ -545,6 +545,10 @@ pub enum Block {
     ReverseOfString {
         value: ParamBlock,
     },
+    CombineSomething {
+        a: ParamBlock,
+        b: ParamBlock,
+    },
     // ── 변수 ──
     SetVar {
         variable: String,
@@ -853,6 +857,7 @@ impl Block {
             Block::GetNickName => "get_nickname",
             Block::LengthOfString { .. } => "length_of_string",
             Block::ReverseOfString { .. } => "reverse_of_string",
+            Block::CombineSomething { .. } => "combine_something",
         }
     }
 
@@ -1009,6 +1014,7 @@ impl Block {
             Block::GetNickName => Category::Calc,
             Block::LengthOfString { .. } => Category::Calc,
             Block::ReverseOfString { .. } => Category::Calc,
+            Block::CombineSomething { .. } => Category::Calc,
         }
     }
 }
@@ -1472,6 +1478,12 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "get_date" {
                         return Err(SyntaxError(
                             "get_date is a value block and cannot be used as a statement".into(),
+                        ));
+                    }
+                    if fref.name == "combine_something" {
+                        return Err(SyntaxError(
+                            "combine_something is a value block and cannot be used as a statement"
+                                .into(),
                         ));
                     }
                     if fref.name == "create_clone" {
@@ -2362,6 +2374,14 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 let value = from_expr(&args[0])?;
                 return Ok(ParamBlock::Sub(Box::new(Block::ReverseOfString { value })));
             }
+            if fref.name == "combine_something" {
+                if args.len() != 2 {
+                    return Err(SyntaxError("combine_something needs 2 args".into()));
+                }
+                let a = from_expr(&args[0])?;
+                let b = from_expr(&args[1])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::CombineSomething { a, b })));
+            }
             /*
             is_boost_mode(부스트 모드) — EntryJS func 본문: `return !!Entry.options.useWebGL;`
             EntryRS 듀얼엔진 (CappuccinoVM / OmochaEngine) 에서 잘못된 파라미터 사용 시 폴백값으로 쓰는 용도.
@@ -3231,6 +3251,16 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::ReverseOfString { value } => {
             (vec![Value::Null, param_to_value(value), Value::Null], None)
         }
+        Block::CombineSomething { a, b } => (
+            vec![
+                Value::Null,
+                param_to_value(a),
+                Value::Null,
+                param_to_value(b),
+                Value::Null,
+            ],
+            None,
+        ),
     })
 }
 

@@ -7095,3 +7095,83 @@ fn compile_reverse_of_string_statement_error() {
     let src = r#"fn when_start() { reverse_of_string("x"); }"#;
     assert!(compile(&[("obj", src)], &empty_project()).is_err());
 }
+
+// --- combine_something ---
+
+/// `combine_something("hello", "world")` → 값 슬롯, params = [null, text_a, null, text_b, null].
+#[test]
+fn compile_combine_something() {
+    let src = r#"fn when_start() {
+        let s = combine_something("hello", "world");
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    assert_eq!(set_var["params"][1]["type"], "combine_something");
+    let sub_params = set_var["params"][1]["params"].as_array().unwrap();
+    assert_eq!(sub_params.len(), 5);
+    assert!(sub_params[0].is_null());
+    assert_eq!(sub_params[1]["type"], "text");
+    assert_eq!(sub_params[1]["params"][0], "hello");
+    assert!(sub_params[2].is_null());
+    assert_eq!(sub_params[3]["type"], "text");
+    assert_eq!(sub_params[3]["params"][0], "world");
+    assert!(sub_params[4].is_null());
+}
+
+/// `combine_something` 라운드트립.
+#[test]
+fn compile_combine_something_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() {
+        let s = combine_something("hello", "world");
+    }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            match &body[0] {
+                Stmt::SetVar(_, rhs) => match rhs {
+                    Expr::Call(fref, args) => {
+                        assert_eq!(fref.name, "combine_something");
+                        assert_eq!(args.len(), 2);
+                        assert!(matches!(&args[0], Expr::Str(s) if s == "hello"));
+                        assert!(matches!(&args[1], Expr::Str(s) if s == "world"));
+                    }
+                    other => panic!("expected Call(combine_something), got {other:?}"),
+                },
+                other => panic!("expected SetVar, got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `combine_something("a")` (1) / `combine_something("a","b","c")` (3) → SyntaxError.
+#[test]
+fn compile_combine_something_arity_check() {
+    use entrycore::compile;
+    let src1 = r#"fn when_start() { let s = combine_something("a"); }"#;
+    assert!(compile(&[("obj", src1)], &empty_project()).is_err());
+    let src3 = r#"fn when_start() { let s = combine_something("a", "b", "c"); }"#;
+    assert!(compile(&[("obj", src3)], &empty_project()).is_err());
+}
+
+/// `combine_something("a","b");` 단독 statement → SyntaxError.
+#[test]
+fn compile_combine_something_statement_error() {
+    use entrycore::compile;
+    let src = r#"fn when_start() { combine_something("a", "b"); }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}

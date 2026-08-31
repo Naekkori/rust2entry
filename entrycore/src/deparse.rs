@@ -523,6 +523,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let value = param_at(&params, 1, vars)?;
             Block::ReverseOfString { value }
         }
+        "combine_something" => {
+            let a = param_at(&params, 1, vars)?;
+            let b = param_at(&params, 3, vars)?;
+            Block::CombineSomething { a, b }
+        }
         "reach_something" => {
             let target = params
                 // EntryJS 슬롯은 [Indicator, DropdownDynamic, Indicator]
@@ -2837,6 +2842,9 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::ReverseOfString { .. } => Err(SyntaxError(
             "reverse_of_string is a value block and cannot be used as a statement".into(),
         )),
+        Block::CombineSomething { .. } => Err(SyntaxError(
+            "combine_something is a value block and cannot be used as a statement".into(),
+        )),
     }
 }
 
@@ -3529,6 +3537,18 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![v],
+            ))
+        }
+        Block::CombineSomething { a, b } => {
+            let va = expr_from_param(a, vars)?;
+            let vb = expr_from_param(b, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "combine_something".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![va, vb],
             ))
         }
     }
