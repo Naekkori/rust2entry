@@ -563,6 +563,10 @@ pub enum Block {
         target: ParamBlock,
         pattern: ParamBlock,
     },
+    IndexOfString {
+        target: ParamBlock,
+        pattern: ParamBlock,
+    },
     // ── 변수 ──
     SetVar {
         variable: String,
@@ -875,6 +879,7 @@ impl Block {
             Block::CharAt { .. } => "char_at",
             Block::Substring { .. } => "substring",
             Block::CountMatchString { .. } => "count_match_string",
+            Block::IndexOfString { .. } => "index_of_string",
         }
     }
 
@@ -1035,6 +1040,7 @@ impl Block {
             Block::CharAt { .. } => Category::Calc,
             Block::Substring { .. } => Category::Calc,
             Block::CountMatchString { .. } => Category::Calc,
+            Block::IndexOfString { .. } => Category::Calc,
         }
     }
 }
@@ -1519,6 +1525,12 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "count_match_string" {
                         return Err(SyntaxError(
                             "count_match_string is a value block and cannot be used as a statement"
+                                .into(),
+                        ));
+                    }
+                    if fref.name == "index_of_string" {
+                        return Err(SyntaxError(
+                            "index_of_string is a value block and cannot be used as a statement"
                                 .into(),
                         ));
                     }
@@ -2451,6 +2463,17 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     pattern,
                 })));
             }
+            if fref.name == "index_of_string" {
+                if args.len() != 2 {
+                    return Err(SyntaxError("index_of_string needs 2 args".into()));
+                }
+                let target = from_expr(&args[0])?;
+                let pattern = from_expr(&args[1])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::IndexOfString {
+                    target,
+                    pattern,
+                })));
+            }
             /*
             is_boost_mode(부스트 모드) — EntryJS func 본문: `return !!Entry.options.useWebGL;`
             EntryRS 듀얼엔진 (CappuccinoVM / OmochaEngine) 에서 잘못된 파라미터 사용 시 폴백값으로 쓰는 용도.
@@ -3353,6 +3376,16 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             None,
         ),
         Block::CountMatchString { target, pattern } => (
+            vec![
+                Value::Null,
+                param_to_value(target),
+                Value::Null,
+                param_to_value(pattern),
+                Value::Null,
+            ],
+            None,
+        ),
+        Block::IndexOfString { target, pattern } => (
             vec![
                 Value::Null,
                 param_to_value(target),

@@ -544,6 +544,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let pattern = param_at(&params, 3, vars)?;
             Block::CountMatchString { target, pattern }
         }
+        "index_of_string" => {
+            let target = param_at(&params, 1, vars)?;
+            let pattern = param_at(&params, 3, vars)?;
+            Block::IndexOfString { target, pattern }
+        }
         "reach_something" => {
             let target = params
                 // EntryJS 슬롯은 [Indicator, DropdownDynamic, Indicator]
@@ -2870,6 +2875,9 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::CountMatchString { .. } => Err(SyntaxError(
             "count_match_string is a value block and cannot be used as a statement".into(),
         )),
+        Block::IndexOfString { .. } => Err(SyntaxError(
+            "index_of_string is a value block and cannot be used as a statement".into(),
+        )),
     }
 }
 
@@ -3611,6 +3619,18 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![ss, sp],
+            ))
+        }
+        Block::IndexOfString { target, pattern } => {
+            let tg = expr_from_param(target, vars)?;
+            let pn = expr_from_param(pattern, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "index_of_string".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![tg, pn],
             ))
         }
     }
