@@ -533,6 +533,12 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let index = param_at(&params, 3, vars)?;
             Block::CharAt { string, index }
         }
+        "substring" => {
+            let string = param_at(&params, 1, vars)?;
+            let start = param_at(&params, 3, vars)?;
+            let end = param_at(&params, 5, vars)?;
+            Block::Substring { string, start, end }
+        }
         "reach_something" => {
             let target = params
                 // EntryJS 슬롯은 [Indicator, DropdownDynamic, Indicator]
@@ -2853,6 +2859,9 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::CharAt { .. } => Err(SyntaxError(
             "char_at is a value block and cannot be used as a statement".into(),
         )),
+        Block::Substring { .. } => Err(SyntaxError(
+            "substring is a value block and cannot be used as a statement".into(),
+        )),
     }
 }
 
@@ -3569,6 +3578,19 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![s, i],
+            ))
+        }
+        Block::Substring { string, start, end } => {
+            let s = expr_from_param(string, vars)?;
+            let st = expr_from_param(start, vars)?;
+            let e = expr_from_param(end, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "substring".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![s, st, e],
             ))
         }
     }

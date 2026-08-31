@@ -7263,3 +7263,105 @@ fn compile_char_at_statement_error() {
     let src = r#"fn when_start() { char_at("a", 2); }"#;
     assert!(compile(&[("obj", src)], &empty_project()).is_err());
 }
+
+// --- substring ---
+
+/// `substring("hello", 1, 3)` → 값 슬롯, params = [null, text, null, number, null, number, null].
+#[test]
+fn compile_substring() {
+    let src = r#"fn when_start() {
+        let c = substring("hello", 1, 3);
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    assert_eq!(set_var["params"][1]["type"], "substring");
+    let sub_params = set_var["params"][1]["params"].as_array().unwrap();
+    assert_eq!(sub_params.len(), 7);
+    assert!(sub_params[0].is_null());
+    assert_eq!(sub_params[1]["type"], "text");
+    assert_eq!(sub_params[1]["params"][0], "hello");
+    assert!(sub_params[2].is_null());
+    assert_eq!(sub_params[3]["type"], "number");
+    assert_eq!(
+        sub_params[3]["params"][0].as_f64().expect("number literal"),
+        1.0
+    );
+    assert!(sub_params[4].is_null());
+    assert_eq!(sub_params[5]["type"], "number");
+    assert_eq!(
+        sub_params[5]["params"][0].as_f64().expect("number literal"),
+        3.0
+    );
+    assert!(sub_params[6].is_null());
+}
+
+/// `substring` 라운드트립 — codegen → deparse → IR 의 `Call(substring, [Str("hello"), Int(1), Int(3)])` 복원.
+#[test]
+fn compile_substring_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() {
+        let c = substring("hello", 1, 3);
+    }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            match &body[0] {
+                Stmt::SetVar(_, rhs) => match rhs {
+                    Expr::Call(fref, args) => {
+                        assert_eq!(fref.name, "substring");
+                        assert_eq!(args.len(), 3);
+                        assert!(matches!(&args[0], Expr::Str(s) if s == "hello"));
+                        assert!(
+                            matches!(&args[1], Expr::Float(f) if *f == 1.0)
+                                || matches!(&args[1], Expr::Int(1)),
+                            "expected Int(1) or Float(1.0), got {:?}",
+                            args[1]
+                        );
+                        assert!(
+                            matches!(&args[2], Expr::Float(f) if *f == 3.0)
+                                || matches!(&args[2], Expr::Int(3)),
+                            "expected Int(3) or Float(3.0), got {:?}",
+                            args[2]
+                        );
+                    }
+                    other => panic!("expected Call(substring), got {other:?}"),
+                },
+                other => panic!("expected SetVar, got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `substring("a")` (1) / `substring("a", 1)` (2) / `substring("a", 1, 3, 5)` (4) → SyntaxError.
+#[test]
+fn compile_substring_arity_check() {
+    use entrycore::compile;
+    let src1 = r#"fn when_start() { let c = substring("a"); }"#;
+    assert!(compile(&[("obj", src1)], &empty_project()).is_err());
+    let src2 = r#"fn when_start() { let c = substring("a", 1); }"#;
+    assert!(compile(&[("obj", src2)], &empty_project()).is_err());
+    let src4 = r#"fn when_start() { let c = substring("a", 1, 3, 5); }"#;
+    assert!(compile(&[("obj", src4)], &empty_project()).is_err());
+}
+
+/// `substring("a", 1, 3);` 단독 statement → SyntaxError (값 슬롯).
+#[test]
+fn compile_substring_statement_error() {
+    use entrycore::compile;
+    let src = r#"fn when_start() { substring("a", 1, 3); }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}
