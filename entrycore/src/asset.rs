@@ -8,6 +8,10 @@ use serde_json::Value;
 #[derive(Debug, Default, Clone)]
 pub struct AssetMap {
     objects: HashMap<String, ObjectAssets>,
+    /// 프로젝트 전체 오브젝트의 name ↔ id 매핑. EntryJS Runtime 이
+    /// `Entry.container.getEntity(id)` 로 lookup 하므로 dropdown 슬롯
+    /// (예: `spritesWithMouse`) 값은 sprite id 여야 한다.
+    object_ids: NameIdMap,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -22,6 +26,12 @@ struct NameIdMap {
     by_id: HashMap<String, String>,
 }
 
+/// EntryJS Runtime 의 dropdown 키워드. 런타임이 `targetId === 'mouse'`
+/// 분기하고 `self` 는 호출자 sprite 의미라 — name/id 양쪽 다 그대로 통과.
+fn passthrough_keyword(s: &str) -> bool {
+    s == "mouse" || s == "self"
+}
+
 impl AssetMap {
     /// project.json `objects[].sprite.pictures/sounds`에서 자산 목록을 읽는다.
     pub fn from_project_value(project: &Value) -> Self {
@@ -29,7 +39,7 @@ impl AssetMap {
         let Some(objects) = project.get("objects").and_then(Value::as_array) else {
             return map;
         };
-        for object in objects {
+for object in objects {
             let Some(name) = object.get("name").and_then(Value::as_str) else {
                 continue;
             };
@@ -39,6 +49,14 @@ impl AssetMap {
                 assets.sounds = NameIdMap::from_entries(sprite.get("sounds"));
             }
             map.objects.insert(name.to_lowercase(), assets);
+            if let Some(id) = object.get("id").and_then(Value::as_str) {
+                map.object_ids
+                    .by_name
+                    .insert(name.to_string(), id.to_string());
+                map.object_ids
+                    .by_id
+                    .insert(id.to_string(), name.to_string());
+            }
         }
         map
     }
@@ -81,6 +99,22 @@ impl AssetMap {
             .by_id
             .get(id)
             .map(String::as_str)
+    }
+
+    /// 오브젝트 name → id. `mouse` / `self` 는 그대로 통과.
+    pub fn object_id_by_name<'a>(&'a self, name: &'a str) -> Option<&'a str> {
+        if passthrough_keyword(name) {
+            return Some(name);
+        }
+        self.object_ids.by_name.get(name).map(String::as_str)
+    }
+
+    /// Entry 오브젝트 id → name. `mouse` / `self` 는 그대로 통과.
+    pub fn object_name_by_id<'a>(&'a self, id: &'a str) -> Option<&'a str> {
+        if passthrough_keyword(id) {
+            return Some(id);
+        }
+        self.object_ids.by_id.get(id).map(String::as_str)
     }
 }
 

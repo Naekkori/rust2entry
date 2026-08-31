@@ -534,6 +534,9 @@ pub enum Block {
         target: String,
         coordinate: ObjectCoordinate,
     },
+    DistanceSomething {
+        target: String,
+    },
     // ── 변수 ──
     SetVar {
         variable: String,
@@ -837,6 +840,7 @@ impl Block {
             Block::CoordinateMouse { .. } => "coordinate_mouse",
             Block::CoordinateObject { .. } => "coordinate_object",
             Block::GetDate { .. } => "get_date",
+            Block::DistanceSomething { .. } => "distance_something",
         }
     }
 
@@ -988,6 +992,7 @@ impl Block {
             Block::CoordinateMouse { .. } => Category::Judgment,
             Block::CoordinateObject { .. } => Category::Judgment,
             Block::GetDate { .. } => Category::Calc,
+            Block::DistanceSomething { .. } => Category::Calc,
         }
     }
 }
@@ -2274,6 +2279,23 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     coordinate,
                 })));
             }
+            if fref.name == "distance_something" {
+                if args.len() != 1 {
+                    return Err(SyntaxError("distance_something needs 1 arg".into()));
+                }
+                let target = match &args[0] {
+                    Expr::Str(s) => s.clone(),
+                    Expr::Var(name) => name.clone(),
+                    _ => {
+                        return Err(SyntaxError(
+                            "distance_something target must be string".into(),
+                        ));
+                    }
+                };
+                return Ok(ParamBlock::Sub(Box::new(Block::DistanceSomething {
+                    target,
+                })));
+            }
             // is_boost_mode(부스트 모드) — EntryJS func 본문: `return !!Entry.options.useWebGL;`
             // EntryRS 듀얼엔진 (CappucinoVM / OmochaEngine) 에서 잘못된 파라미터 사용 시 폴백값으로 쓰는 용도.
             if fref.name == "is_boost_mode" {
@@ -2439,6 +2461,24 @@ pub fn to_value_with_assets(
             value["params"][1] = Value::String(id.to_string());
         }
     }
+    // 오브젝트 dropdown 슬롯 (spritesWithMouse / spritesWithSelf / objectWithSelf) — name → id.
+    // EntryJS Runtime 이 `Entry.container.getEntity(id)` 로 lookup 하므로 id 가 필수.
+    let object_target_idx: Option<usize> = match block {
+        Block::CreateClone { .. } => Some(0),
+        Block::SeeAngleObject { .. } => Some(0),
+        Block::Locate { .. } => Some(0),
+        Block::LocateObjectTime { .. } => Some(1),
+        Block::CoordinateObject { .. } => Some(1),
+        Block::DistanceSomething { .. } => Some(1),
+        _ => None,
+    };
+    if let Some(idx) = object_target_idx {
+        if let Value::String(name) = &value["params"][idx] {
+            if let Some(id) = assets.object_id_by_name(name) {
+                value["params"][idx] = Value::String(id.to_string());
+            }
+        }
+    }
     fn resolve_nested_sound_duration(
         value: &mut Value,
         assets: &crate::AssetMap,
@@ -2467,7 +2507,63 @@ pub fn to_value_with_assets(
             }
         }
     }
+    // nested Sub block 안의 오브젝트 dropdown 슬롯 — name → id.
+    // (예: `let d = distance_something("Sprite1")` 의 value 자리 nested block)
+    fn resolve_nested_object_target(
+        value: &mut Value,
+        assets: &crate::AssetMap,
+    ) {
+        const OBJECT_TARGET_BLOCKS: &[&str] = &[
+            "create_clone",
+            "see_angle_object",
+            "locate",
+            "locate_object_time",
+            "coordinate_object",
+            "distance_something",
+        ];
+        const TARGET_IDX: &[(&str, usize)] = &[
+            ("create_clone", 0),
+            ("see_angle_object", 0),
+            ("locate", 0),
+            ("locate_object_time", 1),
+            ("coordinate_object", 1),
+            ("distance_something", 1),
+        ];
+        if let Some(obj) = value.as_object_mut() {
+            let block_type = obj.get("type").and_then(Value::as_str).map(String::from);
+            if let Some(t) = &block_type {
+                if OBJECT_TARGET_BLOCKS.contains(&t.as_str()) {
+                    let idx = TARGET_IDX.iter()
+                        .find(|(name, _)| *name == t.as_str())
+                        .map(|(_, i)| *i)
+                        .unwrap_or(0);
+                    if let Some(Value::String(name)) = obj
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|params| params.get(idx))
+                    {
+                        let name = name.clone();
+                        if let Some(id) = assets.object_id_by_name(&name) {
+                            if let Some(params) =
+                                obj.get_mut("params").and_then(Value::as_array_mut)
+                            {
+                                params[idx] = Value::String(id.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            for child in obj.values_mut() {
+                resolve_nested_object_target(child, assets);
+            }
+        } else if let Some(items) = value.as_array_mut() {
+            for child in items {
+                resolve_nested_object_target(child, assets);
+            }
+        }
+    }
     resolve_nested_sound_duration(&mut value, assets, object_name);
+    resolve_nested_object_target(&mut value, assets);
     Ok(value)
 }
 
@@ -3052,6 +3148,10 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
                 Value::String(date_kind_to_str(*kind).to_string()),
                 Value::Null,
             ],
+            None,
+        ),
+        Block::DistanceSomething { target } => (
+            vec![Value::Null, Value::String(target.clone()), Value::Null],
             None,
         ),
     })

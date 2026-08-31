@@ -8,10 +8,10 @@ use std::vec;
 
 use crate::Error::{Parse, SyntaxError, UnmappedBlock};
 use crate::block::{
-    Block, DateKind, DeviceType, DialogMode, Dimension, EffectType, MathOperation, ParamBlock,
-    QamMethod, date_kind_to_str, device_type_to_str, dim_to_dsl_str, effect_to_str,
-    mouse_axis_to_str, object_coord_to_str, str_to_mouse_axis, str_to_object_coord,
-    str_to_text_effect, text_effect_to_str,
+    Block, DateKind, DialogMode, Dimension, EffectType, MathOperation, ParamBlock, QamMethod,
+    date_kind_to_str, device_type_to_str, dim_to_dsl_str, effect_to_str, mouse_axis_to_str,
+    object_coord_to_str, str_to_mouse_axis, str_to_object_coord, str_to_text_effect,
+    text_effect_to_str,
 };
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
@@ -536,6 +536,14 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 .and_then(str_to_object_coord)
                 .ok_or_else(|| crate::Error::Parse("coordinate_object coordinate".into()))?;
             Block::CoordinateObject { target, coordinate }
+        }
+        "distance_something" => {
+            let target = params
+                .get(1)
+                .and_then(Value::as_str)
+                .ok_or_else(|| crate::Error::Parse("distance_something target".into()))?
+                .to_string();
+            Block::DistanceSomething { target }
         }
         "coordinate_mouse" => {
             let axis = params
@@ -2804,6 +2812,9 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::GetDate { .. } => Err(SyntaxError(
             "get_date is a value block and cannot be used as a statement".into(),
         )),
+        Block::DistanceSomething { .. } => Err(SyntaxError(
+            "distance_something is a value block and cannot be used as a statement".into(),
+        )),
     }
 }
 
@@ -3452,6 +3463,14 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             vec![Expr::Str(date_kind_to_str(*kind).to_string())],
         )),
+        Block::DistanceSomething { target } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "distance_something".to_string(),
+                arity: 1,
+                raw: None,
+            },
+            vec![Expr::Str(target.clone())],
+        )),
     }
 }
 
@@ -3538,6 +3557,22 @@ fn resolve_asset_ids(
                     }
                 }
             }
+            // 오브젝트 dropdown 슬롯 — IR args 의 target 위치 id → name.
+            // (forward 의 EntryJS params idx 와 다름 — IR 은 라벨 슬롯 제외하고 value 만 args 에 담는다.)
+            let object_target_idx: Option<usize> = match fref.name.as_str() {
+                "create_clone" | "see_angle_object" | "locate" | "distance_something" => Some(0),
+                "locate_object_time" | "coordinate_object" => Some(1),
+                _ => None,
+            };
+            if let Some(idx) = object_target_idx {
+                if let Some(arg) = args.get_mut(idx) {
+                    if let Expr::Str(id) = arg {
+                        if let Some(name) = assets.object_name_by_id(id) {
+                            *id = name.to_string();
+                        }
+                    }
+                }
+            }
             for arg in args {
                 resolve_expr(arg, assets, object_name);
             }
@@ -3572,6 +3607,33 @@ fn resolve_asset_ids(
                     if let Some(Expr::Str(id)) = args.first_mut() {
                         if let Some(name) = assets.sound_name_by_id(object_name, id) {
                             *id = name.to_string();
+                        }
+                    }
+                }
+                // 오브젝트 dropdown 슬롯 — EntryJS 가 emit 한 id 를 DSL 의 name 으로 복원.
+                Stmt::Expr(Expr::Call(fref, args))
+                    if matches!(
+                        fref.name.as_str(),
+                        "create_clone" | "see_angle_object" | "locate"
+                    ) =>
+                {
+                    if let Some(Expr::Str(id)) = args.first_mut() {
+                        if let Some(name) = assets.object_name_by_id(id) {
+                            *id = name.to_string();
+                        }
+                    }
+                }
+                Stmt::Expr(Expr::Call(fref, args))
+                    if matches!(
+                        fref.name.as_str(),
+                        "locate_object_time" | "coordinate_object" | "distance_something"
+                    ) =>
+                {
+                    if let Some(arg) = args.get_mut(1) {
+                        if let Expr::Str(id) = arg {
+                            if let Some(name) = assets.object_name_by_id(id) {
+                                *id = name.to_string();
+                            }
                         }
                     }
                 }

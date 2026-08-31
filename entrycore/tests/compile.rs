@@ -6578,3 +6578,179 @@ fn compile_get_date_statement_error() {
     let src = r#"fn when_start() { get_date("year"); }"#;
     assert!(compile(&[("obj", src)], &empty_project()).is_err());
 }
+
+// --- distance_something (두 점 사이 거리) ---
+
+/// `distance_something("mouse")` → 값 슬롯 블록으로 emit, params = `[null, "mouse", null]` (Text/DropdownDynamic/Text 슬롯).
+#[test]
+fn compile_distance_something() {
+    let src = r#"fn when_start() {
+        let d = distance_something("mouse");
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    // thread[0] = when_run, thread[1] = let d = ...
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    assert_eq!(set_var["params"][1]["type"], "distance_something");
+    let ds_params = set_var["params"][1]["params"].as_array().unwrap();
+    assert_eq!(ds_params.len(), 3);
+    assert!(ds_params[0].is_null());
+    assert_eq!(ds_params[1].as_str().unwrap(), "mouse");
+    assert!(ds_params[2].is_null());
+}
+
+/// 라운드트립 — `distance_something("Sprite1")` → `Stmt::SetVar(_, Call(distance_something, [Str("Sprite1")]))` 복원.
+#[test]
+fn compile_distance_something_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() {
+        let d = distance_something("Sprite1");
+    }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            assert_eq!(body.len(), 1);
+            match &body[0] {
+                Stmt::SetVar(_, rhs) => match rhs {
+                    Expr::Call(fref, args) => {
+                        assert_eq!(fref.name, "distance_something");
+                        assert_eq!(args.len(), 1);
+                        assert!(matches!(&args[0], Expr::Str(s) if s == "Sprite1"));
+                    }
+                    other => panic!("expected Call(distance_something), got {other:?}"),
+                },
+                other => panic!("expected SetVar, got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `distance_something()` (인자 없음) 또는 `distance_something("a", "b")` (2개) → SyntaxError.
+#[test]
+fn compile_distance_something_arity_check() {
+    use entrycore::compile;
+    let src0 = r#"fn when_start() {
+        let d = distance_something();
+    }"#;
+    assert!(compile(&[("obj", src0)], &empty_project()).is_err());
+    let src2 = r#"fn when_start() {
+        let d = distance_something("a", "b");
+    }"#;
+    assert!(compile(&[("obj", src2)], &empty_project()).is_err());
+}
+
+/// `distance_something("Sprite1")` 의 target 이 base 에 있으면 `.ent` 에선 stable id 로 emit 되고,
+/// extract 시 다시 sprite name 으로 복원되는지 검증 (EntryJS Runtime 이 `Entry.container.getEntity(id)`
+/// 로 lookup 하므로 dropdown 슬롯 값은 sprite id 여야 함).
+#[test]
+fn compile_distance_something_object_name_id_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars_and_assets;
+    use entrycore::ir::{Expr, Stmt};
+
+    let mut base = empty_project();
+    base["objects"] = json!([{
+        "id": "obj_sprite1",
+        "name": "Sprite1",
+        "objectType": "sprite",
+        "scene": "scene1",
+        "script": "[]",
+        "sprite": {"pictures": [], "sounds": []},
+        "text": "Sprite1",
+        "lock": false,
+        "entity": {}
+    }]);
+
+    let src = r#"fn when_start() {
+        let d = distance_something("Sprite1");
+    }"#;
+    let assets = entrycore::AssetMap::from_project_value(&base);
+    let v = compile(&[("Sprite1", src)], &base).expect("compile").0;
+
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    // 정방향: sprite name → id 변환 확인.
+    assert_eq!(
+        set_var["params"][1]["params"][1].as_str().unwrap(),
+        "obj_sprite1"
+    );
+
+    // 역방향: id → name 복원 확인.
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars_and_assets(
+        obj_script_str,
+        &entrycore::VarMap::new(),
+        &assets,
+        "Sprite1",
+    )
+    .expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            match &body[0] {
+                Stmt::SetVar(_, rhs) => match rhs {
+                    Expr::Call(fref, args) => {
+                        assert_eq!(fref.name, "distance_something");
+                        assert!(matches!(&args[0], Expr::Str(s) if s == "Sprite1"));
+                    }
+                    other => panic!("expected Call(distance_something), got {other:?}"),
+                },
+                other => panic!("expected SetVar, got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `mouse` 키워드는 id 변환 없이 그대로 통과 (EntryJS Runtime 의 reserved keyword).
+#[test]
+fn compile_distance_something_mouse_passthrough() {
+    use entrycore::deparse::program_from_script_string_with_vars_and_assets;
+    use entrycore::ir::{Expr, Stmt};
+
+    let base = empty_project();
+    let assets = entrycore::AssetMap::from_project_value(&base);
+    let src = r#"fn when_start() {
+        let d = distance_something("mouse");
+    }"#;
+    let v = compile(&[("Sprite1", src)], &base).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set_var = &thread[1];
+    assert_eq!(set_var["params"][1]["params"][1].as_str().unwrap(), "mouse");
+
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars_and_assets(
+        obj_script_str,
+        &entrycore::VarMap::new(),
+        &assets,
+        "Sprite1",
+    )
+    .expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { body, .. } => match &body[0] {
+            Stmt::SetVar(_, rhs) => match rhs {
+                Expr::Call(_, args) => {
+                    assert!(matches!(&args[0], Expr::Str(s) if s == "mouse"));
+                }
+                other => panic!("expected Call, got {other:?}"),
+            },
+            other => panic!("expected SetVar, got {other:?}"),
+        },
+        other => panic!("expected FuncDef, got {other:?}"),
+    }
+}

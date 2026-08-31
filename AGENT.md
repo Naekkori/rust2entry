@@ -310,7 +310,7 @@ fn greet(a: StringParam, b: BoolParam) {
   - `exp(x)` — 지수
   - `pow10(x)` — 10의 거듭제곱
 - ✅ `get_date` — 날짜/시/분/초 (→ `get_date("year"|"month"|"day"|"hour"|"minute"|"second")`; 값 블럭. `DateKind` enum + `date_kind_to_str` / `str_to_date_kind` helper. from_stmt 에서 statement 자리 거부)
-- ⬜ `distance_something` — 두 점 사이 거리
+- ✅ `distance_something` — 두 점 사이 거리 (→ `distance_something("mouse")` 또는 `distance_something("Sprite1")`; 값 슬롯 블록. `Block::DistanceSomething { target: String }`. 문자열/변수 둘 다 허용 (target). EntryJS params = `[Text, DropdownDynamic, Text]` (spritesWithMouse 메뉴) → `[null, target, null]`. stmt 자리 거부. **EntryJS Runtime 이 `Entry.container.getEntity(id)` 로 lookup 하므로 dropdown 슬롯 값은 sprite id 여야 함** — `AssetMap::object_id_by_name` / `object_name_by_id` 으로 양방향 변환 (`mouse` / `self` 는 reserved keyword 라 그대로 통과). 6개 블록 (`CreateClone`, `SeeAngleObject`, `Locate`, `LocateObjectTime`, `CoordinateObject`, `DistanceSomething`) 동시 적용. 정방향은 nested Sub block 까지 recursive 변환 (`resolve_nested_object_target`). **연산 16/26.**)
 - ⬜ `get_user_name` — 아이디
 - ⬜ `get_nickname` — 닉네임
 - ⬜ `length_of_string` — 문자열 길이
@@ -538,9 +538,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**129/334** 매핑됨 (약 38.6%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**130/334** 매핑됨 (약 38.9%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 12/12 (완료), 연산 15/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 12/12 (완료), 연산 16/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -608,6 +608,8 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 판단: `is_boost_mode` (no-arg, EntryJS 의 `Entry.options.useWebGL`. EntryRS 듀얼엔진 CappucinoVM / OmochaEngine 폴백 용도)
   - [x] 판단: `is_touch_supported` (no-arg, 터치/마우스 UI 분기)
   - [x] 연산: `get_date` — `get_date("year"|"month"|"day"|"hour"|"minute"|"second")` (값 블럭). `DateKind` enum + `date_kind_to_str` / `str_to_date_kind`. params = `[null, kind, null]`. from_stmt 에서 statement 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error). **연산 15/26.**
+  - [x] 연산: `distance_something` (두 점 사이 거리) — 값 슬롯 블록. `Block::DistanceSomething { target: String }`. `distance_something("mouse")` 또는 `distance_something("Sprite1")` 신택스 (target = string literal or variable). EntryJS params `[Text, DropdownDynamic, Text]` (spritesWithMouse 메뉴) → emit `[null, target, null]`. deparse stmt 자리 거부, expr side 에서 `Call(distance_something, [Str(target)])` emit. 테스트 3개 (basic/roundtrip/arity_check). **연산 16/26.**
+  - [x] 자산 ID 양방향 매핑 — 오브젝트 dropdown 슬롯 (spritesWithMouse / spritesWithSelf / objectWithSelf) 값은 EntryJS Runtime 이 `Entry.container.getEntity(id)` 로 lookup 하므로 sprite id 가 필수. `AssetMap` 에 `object_ids: NameIdMap` 추가 + `object_id_by_name` / `object_name_by_id` 메서드 (`mouse` / `self` reserved keyword 그대로 통과). 6개 블록 (`CreateClone`, `SeeAngleObject`, `Locate`, `LocateObjectTime`, `CoordinateObject`, `DistanceSomething`) 동시 적용. 정방향은 `to_value_with_assets` 의 nested recursive (`resolve_nested_object_target`) + `resolve_expr` 매칭. 테스트: AssetMap 단위 4개 + 통합 라운드트립 2개.
   - [ ] **잠재 문제**: `coordinate_mouse` / `coordinate_object` / `get_date` 의 category 가 현재 `Judgment` 인데 EntryJS source 는 모두 `block_calc.js` 안에 있음 → `Calc` 로 수정 필요. `get_date` 만 Calc 로 수정함, 나머지 2개 미정.
 - [ ] 중기
   - [ ] Timer/Answer 전용 블록 신택스 (`start_timer()` 등)
