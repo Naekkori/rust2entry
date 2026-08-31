@@ -313,8 +313,8 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `distance_something` — 두 점 사이 거리 (→ `distance_something("mouse")` 또는 `distance_something("Sprite1")`; 값 슬롯 블록. `Block::DistanceSomething { target: String }`. 문자열/변수 둘 다 허용 (target). EntryJS params = `[Text, DropdownDynamic, Text]` (spritesWithMouse 메뉴) → `[null, target, null]`. stmt 자리 거부. **EntryJS Runtime 이 `Entry.container.getEntity(id)` 로 lookup 하므로 dropdown 슬롯 값은 sprite id 여야 함** — `AssetMap::object_id_by_name` / `object_name_by_id` 으로 양방향 변환 (`mouse` / `self` 는 reserved keyword 라 그대로 통과). 7개 블록 (`CreateClone`, `SeeAngleObject`, `Locate`, `ReachSomeThing`, `LocateObjectTime`, `CoordinateObject`, `DistanceSomething`) 동시 적용. 정방향은 nested Sub block 까지 recursive 변환 (`resolve_nested_object_target`). **연산 16/26.**)
 - ✅ `get_user_name` — 아이디 (→ `get_user_name()`; 값 슬롯 블록. `Block::GetUserName` unit variant. EntryJS `func` 는 `window.user.username` 또는 공백. stmt 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error).)
 - ✅ `get_nickname` — 닉네임 (→ `get_nickname()`; 값 슬롯 블록. `Block::GetNickName` unit variant. EntryJS `func` 는 `window.user.filename` 또는 공백. stmt 자리 거부. 테스트 4개.) **연산 18/26.**
-- ⬜ `length_of_string` — 문자열 길이
-- ⬜ `reverse_of_string` — 문자열 뒤집기
+- ✅ `length_of_string` — 문자열 길이 (→ `length_of_string("hello")`; 값 슬롯 블록. `Block::LengthOfString { value: ParamBlock }` struct variant. EntryJS class `calc_string`. `func` 는 `script.getStringValue('STRING').length`. EntryJS params `[Text, Block(string), Text]` 3-slot → emit `[null, sub, null]`. paramsKeyMap.STRING = 1 → deparse `param_at(&params, 1)`. stmt 자리 거부. 테스트 4개.)
+- ✅ `reverse_of_string` — 문자열 뒤집기 (→ `reverse_of_string("hello")`; 값 슬롯 블록. `Block::ReverseOfString { value: ParamBlock }` struct variant. `func` 는 `str.split('').reverse().join('')`. 동일 3-slot + idx=1 + stmt 자리 거부. `isNotFor: ['python_disable']`. 테스트 4개.) **연산 20/26.**
 - ⬜ `combine_something` — 문자열 결합
 - ⬜ `char_at` — N번째 문자
 - ⬜ `substring` — 부분 문자열
@@ -538,9 +538,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**133/334** 매핑됨 (약 39.8%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**135/334** 매핑됨 (약 40.4%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 12/12 (완료), 연산 18/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 12/12 (완료), 연산 20/26, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -610,6 +610,8 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 연산: `get_date` — `get_date("year"|"month"|"day"|"hour"|"minute"|"second")` (값 블럭). `DateKind` enum + `date_kind_to_str` / `str_to_date_kind`. params = `[null, kind, null]`. from_stmt 에서 statement 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error). **연산 15/26.**
   - [x] 연산: `distance_something` (두 점 사이 거리) — 값 슬롯 블록. `Block::DistanceSomething { target: String }`. `distance_something("mouse")` 또는 `distance_something("Sprite1")` 신택스 (target = string literal or variable). EntryJS params `[Text, DropdownDynamic, Text]` (spritesWithMouse 메뉴) → emit `[null, target, null]`. deparse stmt 자리 거부, expr side 에서 `Call(distance_something, [Str(target)])` emit. 테스트 3개 (basic/roundtrip/arity_check). **연산 16/26.**
   - [x] 연산: `get_user_name` (아이디) / `get_nickname` (닉네임) — 값 슬롯 블록. `Block::GetUserName` / `Block::GetNickName` unit variant. no-arg, params = `[]`. EntryJS `func` 는 `window.user.username` / `window.user.filename`. from_stmt 에서 stmt 자리 거부. 테스트 8개 (각 블록당 basic/roundtrip/arity_check/statement_error). **연산 18/26.**
+  - [x] 자산 ID 양방향 매핑 — 오브젝트 dropdown 슬롯 (spritesWithMouse / spritesWithSelf / objectWithSelf / collision) 값은 EntryJS Runtime 이 `Entry.container.getEntity(id)` 로 lookup 하므로 sprite id 가 필수. `AssetMap` 에 `object_ids: NameIdMap` 추가 + `object_id_by_name` / `object_name_by_id` 메서드 (`mouse` / `self` reserved keyword 그대로 통과). 7개 블록 (`CreateClone`, `SeeAngleObject`, `Locate`, `ReachSomeThing`, `LocateObjectTime`, `CoordinateObject`, `DistanceSomething`) 동시 적용. 정방향은 `to_value_with_assets` 의 nested recursive (`resolve_nested_object_target`) + `resolve_expr` 매칭. stmt-side object 매칭 arm 도 `reach_something` 추가 (statement 자리 호출 가능). 테스트: AssetMap 단위 4개 + 통합 라운드트립 3개 (`distance_something` name/id, `distance_something` mouse, `reach_something` name/id).
+  - [x] 연산: `length_of_string` (문자열 길이) / `reverse_of_string` (문자열 뒤집기) — 값 슬롯 블록. `Block::LengthOfString { value: ParamBlock }` / `Block::ReverseOfString { value: ParamBlock }` struct variant. EntryJS class `calc_string`, params `[Text, Block, Text]` → emit `[null, sub, null]` (3-slot). EntryJS paramsKeyMap.STRING = 1 → deparse 는 `param_at(&params, 1)`. 테스트 8개 (각 블록당 basic/roundtrip/arity_check/statement_error). **연산 20/26.**
   - [x] 자산 ID 양방향 매핑 — 오브젝트 dropdown 슬롯 (spritesWithMouse / spritesWithSelf / objectWithSelf / collision) 값은 EntryJS Runtime 이 `Entry.container.getEntity(id)` 로 lookup 하므로 sprite id 가 필수. `AssetMap` 에 `object_ids: NameIdMap` 추가 + `object_id_by_name` / `object_name_by_id` 메서드 (`mouse` / `self` reserved keyword 그대로 통과). 7개 블록 (`CreateClone`, `SeeAngleObject`, `Locate`, `ReachSomeThing`, `LocateObjectTime`, `CoordinateObject`, `DistanceSomething`) 동시 적용. 정방향은 `to_value_with_assets` 의 nested recursive (`resolve_nested_object_target`) + `resolve_expr` 매칭. stmt-side object 매칭 arm 도 `reach_something` 추가 (statement 자리 호출 가능). 테스트: AssetMap 단위 4개 + 통합 라운드트립 3개 (`distance_something` name/id, `distance_something` mouse, `reach_something` name/id).
   - [ ] **잠재 문제**: `coordinate_mouse` / `coordinate_object` / `get_date` 의 category 가 현재 `Judgment` 인데 EntryJS source 는 모두 `block_calc.js` 안에 있음 → `Calc` 로 수정 필요. `get_date` 만 Calc 로 수정함, 나머지 2개 미정.
 - [ ] 중기

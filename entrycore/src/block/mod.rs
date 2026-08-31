@@ -539,6 +539,12 @@ pub enum Block {
     },
     GetUserName,
     GetNickName,
+    LengthOfString {
+        value: ParamBlock,
+    },
+    ReverseOfString {
+        value: ParamBlock,
+    },
     // ── 변수 ──
     SetVar {
         variable: String,
@@ -845,6 +851,8 @@ impl Block {
             Block::DistanceSomething { .. } => "distance_something",
             Block::GetUserName => "get_user_name",
             Block::GetNickName => "get_nickname",
+            Block::LengthOfString { .. } => "length_of_string",
+            Block::ReverseOfString { .. } => "reverse_of_string",
         }
     }
 
@@ -999,6 +1007,8 @@ impl Block {
             Block::DistanceSomething { .. } => Category::Calc,
             Block::GetUserName => Category::Calc,
             Block::GetNickName => Category::Calc,
+            Block::LengthOfString { .. } => Category::Calc,
+            Block::ReverseOfString { .. } => Category::Calc,
         }
     }
 }
@@ -1444,6 +1454,18 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "get_nickname" {
                         return Err(SyntaxError(
                             "get_nickname is a value block and cannot be used as a statement"
+                                .into(),
+                        ));
+                    }
+                    if fref.name == "length_of_string" {
+                        return Err(SyntaxError(
+                            "length_of_string is a value block and cannot be used as a statement"
+                                .into(),
+                        ));
+                    }
+                    if fref.name == "reverse_of_string" {
+                        return Err(SyntaxError(
+                            "reverse_of_string is a value block and cannot be used as a statement"
                                 .into(),
                         ));
                     }
@@ -2326,6 +2348,20 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 }
                 return Ok(ParamBlock::Sub(Box::new(Block::GetNickName)));
             }
+            if fref.name == "length_of_string" {
+                if args.len() != 1 {
+                    return Err(SyntaxError("length_of_string needs 1 args".into()));
+                }
+                let value = from_expr(&args[0])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::LengthOfString { value })));
+            }
+            if fref.name == "reverse_of_string" {
+                if args.len() != 1 {
+                    return Err(SyntaxError("reverse_of_string needs 1 args".into()));
+                }
+                let value = from_expr(&args[0])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::ReverseOfString { value })));
+            }
             /*
             is_boost_mode(부스트 모드) — EntryJS func 본문: `return !!Entry.options.useWebGL;`
             EntryRS 듀얼엔진 (CappuccinoVM / OmochaEngine) 에서 잘못된 파라미터 사용 시 폴백값으로 쓰는 용도.
@@ -3189,6 +3225,12 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         ),
         Block::GetUserName => (vec![], None),
         Block::GetNickName => (vec![], None),
+        Block::LengthOfString { value } => {
+            (vec![Value::Null, param_to_value(value), Value::Null], None)
+        }
+        Block::ReverseOfString { value } => {
+            (vec![Value::Null, param_to_value(value), Value::Null], None)
+        }
     })
 }
 

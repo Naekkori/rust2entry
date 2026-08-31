@@ -6947,3 +6947,151 @@ fn compile_get_nickname_statement_error() {
     let src = r#"fn when_start() { get_nickname(); }"#;
     assert!(compile(&[("obj", src)], &empty_project()).is_err());
 }
+
+// --- length_of_string / reverse_of_string ---
+
+/// `length_of_string("hello")` → `length_of_string` 값 슬롯, params = [null, text, null].
+#[test]
+fn compile_length_of_string() {
+    let src = r#"fn when_start() {
+        let n = length_of_string("hello");
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    assert_eq!(set_var["params"][1]["type"], "length_of_string");
+    let sub_params = set_var["params"][1]["params"].as_array().unwrap();
+    assert_eq!(sub_params.len(), 3);
+    assert!(sub_params[0].is_null());
+    assert_eq!(sub_params[1]["type"], "text");
+    assert!(sub_params[2].is_null());
+}
+
+/// `length_of_string` 라운드트립 — codegen → deparse → IR 의 `Call(length_of_string, [Str("hello")])` 복원.
+#[test]
+fn compile_length_of_string_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() {
+        let n = length_of_string("hello");
+    }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            match &body[0] {
+                Stmt::SetVar(_, rhs) => match rhs {
+                    Expr::Call(fref, args) => {
+                        assert_eq!(fref.name, "length_of_string");
+                        assert_eq!(args.len(), 1);
+                        assert!(matches!(&args[0], Expr::Str(s) if s == "hello"));
+                    }
+                    other => panic!("expected Call(length_of_string), got {other:?}"),
+                },
+                other => panic!("expected SetVar, got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `length_of_string()` (0 args) / `length_of_string("a", "b")` (2 args) → SyntaxError.
+#[test]
+fn compile_length_of_string_arity_check() {
+    use entrycore::compile;
+    let src0 = r#"fn when_start() { let n = length_of_string(); }"#;
+    assert!(compile(&[("obj", src0)], &empty_project()).is_err());
+    let src2 = r#"fn when_start() { let n = length_of_string("a", "b"); }"#;
+    assert!(compile(&[("obj", src2)], &empty_project()).is_err());
+}
+
+/// `length_of_string("x");` 단독 statement → SyntaxError (값 슬롯).
+#[test]
+fn compile_length_of_string_statement_error() {
+    use entrycore::compile;
+    let src = r#"fn when_start() { length_of_string("x"); }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}
+
+/// `reverse_of_string("hello")` → `reverse_of_string` 값 슬롯, params = [null, text, null].
+#[test]
+fn compile_reverse_of_string() {
+    let src = r#"fn when_start() {
+        let r = reverse_of_string("hello");
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    assert_eq!(set_var["params"][1]["type"], "reverse_of_string");
+    let sub_params = set_var["params"][1]["params"].as_array().unwrap();
+    assert_eq!(sub_params.len(), 3);
+    assert!(sub_params[0].is_null());
+    assert_eq!(sub_params[1]["type"], "text");
+    assert!(sub_params[2].is_null());
+}
+
+/// `reverse_of_string` 라운드트립.
+#[test]
+fn compile_reverse_of_string_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() {
+        let r = reverse_of_string("hello");
+    }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            match &body[0] {
+                Stmt::SetVar(_, rhs) => match rhs {
+                    Expr::Call(fref, args) => {
+                        assert_eq!(fref.name, "reverse_of_string");
+                        assert_eq!(args.len(), 1);
+                        assert!(matches!(&args[0], Expr::Str(s) if s == "hello"));
+                    }
+                    other => panic!("expected Call(reverse_of_string), got {other:?}"),
+                },
+                other => panic!("expected SetVar, got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `reverse_of_string()` / `reverse_of_string("a", "b")` → SyntaxError.
+#[test]
+fn compile_reverse_of_string_arity_check() {
+    use entrycore::compile;
+    let src0 = r#"fn when_start() { let r = reverse_of_string(); }"#;
+    assert!(compile(&[("obj", src0)], &empty_project()).is_err());
+    let src2 = r#"fn when_start() { let r = reverse_of_string("a", "b"); }"#;
+    assert!(compile(&[("obj", src2)], &empty_project()).is_err());
+}
+
+/// `reverse_of_string("x");` 단독 statement → SyntaxError (값 슬롯).
+#[test]
+fn compile_reverse_of_string_statement_error() {
+    use entrycore::compile;
+    let src = r#"fn when_start() { reverse_of_string("x"); }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}

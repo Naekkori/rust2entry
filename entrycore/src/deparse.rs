@@ -515,6 +515,14 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         }
         "get_user_name" => Block::GetUserName,
         "get_nickname" => Block::GetNickName,
+        "length_of_string" => {
+            let value = param_at(&params, 1, vars)?;
+            Block::LengthOfString { value }
+        }
+        "reverse_of_string" => {
+            let value = param_at(&params, 1, vars)?;
+            Block::ReverseOfString { value }
+        }
         "reach_something" => {
             let target = params
                 // EntryJS 슬롯은 [Indicator, DropdownDynamic, Indicator]
@@ -2823,6 +2831,12 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::GetNickName => Err(SyntaxError(
             "get_nickname is a value block and cannot be used as a statement".into(),
         )),
+        Block::LengthOfString { .. } => Err(SyntaxError(
+            "length_of_string is a value block and cannot be used as a statement".into(),
+        )),
+        Block::ReverseOfString { .. } => Err(SyntaxError(
+            "reverse_of_string is a value block and cannot be used as a statement".into(),
+        )),
     }
 }
 
@@ -3495,6 +3509,28 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             },
             Vec::new(),
         )),
+        Block::LengthOfString { value } => {
+            let v = expr_from_param(value, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "length_of_string".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![v],
+            ))
+        }
+        Block::ReverseOfString { value } => {
+            let v = expr_from_param(value, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "reverse_of_string".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![v],
+            ))
+        }
     }
 }
 
