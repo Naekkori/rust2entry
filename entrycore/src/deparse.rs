@@ -540,9 +540,9 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::Substring { string, start, end }
         }
         "count_match_string" => {
-            let sub_str = param_at(&params, 1, vars)?;
-            let sub_pat = param_at(&params, 3, vars)?;
-            Block::CountMatchString { sub_str, sub_pat }
+            let target = param_at(&params, 1, vars)?;
+            let pattern = param_at(&params, 3, vars)?;
+            Block::CountMatchString { target, pattern }
         }
         "reach_something" => {
             let target = params
@@ -3601,9 +3601,9 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![s, st, e],
             ))
         }
-        Block::CountMatchString { sub_str, sub_pat } => {
-            let ss = expr_from_param(sub_str, vars)?;
-            let sp = expr_from_param(sub_pat, vars)?;
+        Block::CountMatchString { target, pattern } => {
+            let ss = expr_from_param(target, vars)?;
+            let sp = expr_from_param(pattern, vars)?;
             Ok(Expr::Call(
                 ir::FuncRef {
                     name: "count_match_string".to_string(),

@@ -560,8 +560,8 @@ pub enum Block {
         end: ParamBlock,
     },
     CountMatchString {
-        sub_str: ParamBlock,
-        sub_pat: ParamBlock,
+        target: ParamBlock,
+        pattern: ParamBlock,
     },
     // ── 변수 ──
     SetVar {
@@ -2444,11 +2444,11 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 if args.len() != 2 {
                     return Err(SyntaxError("count_match_string needs 2 args".into()));
                 }
-                let sub_str = from_expr(&args[0])?;
-                let sub_pat = from_expr(&args[1])?;
+                let target = from_expr(&args[0])?;
+                let pattern = from_expr(&args[1])?;
                 return Ok(ParamBlock::Sub(Box::new(Block::CountMatchString {
-                    sub_str,
-                    sub_pat,
+                    target,
+                    pattern,
                 })));
             }
             /*
@@ -3352,12 +3352,12 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
-        Block::CountMatchString { sub_str, sub_pat } => (
+        Block::CountMatchString { target, pattern } => (
             vec![
                 Value::Null,
-                param_to_value(sub_str),
+                param_to_value(target),
                 Value::Null,
-                param_to_value(sub_pat),
+                param_to_value(pattern),
                 Value::Null,
             ],
             None,
