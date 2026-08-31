@@ -2461,12 +2461,13 @@ pub fn to_value_with_assets(
             value["params"][1] = Value::String(id.to_string());
         }
     }
-    // 오브젝트 dropdown 슬롯 (spritesWithMouse / spritesWithSelf / objectWithSelf) — name → id.
+    // 오브젝트 dropdown 슬롯 (spritesWithMouse / spritesWithSelf / objectWithSelf / collision) — name → id.
     // EntryJS Runtime 이 `Entry.container.getEntity(id)` 로 lookup 하므로 id 가 필수.
     let object_target_idx: Option<usize> = match block {
         Block::CreateClone { .. } => Some(0),
         Block::SeeAngleObject { .. } => Some(0),
         Block::Locate { .. } => Some(0),
+        Block::ReachSomeThing { .. } => Some(1),
         Block::LocateObjectTime { .. } => Some(1),
         Block::CoordinateObject { .. } => Some(1),
         Block::DistanceSomething { .. } => Some(1),
@@ -2517,6 +2518,7 @@ pub fn to_value_with_assets(
             "create_clone",
             "see_angle_object",
             "locate",
+            "reach_something",
             "locate_object_time",
             "coordinate_object",
             "distance_something",
@@ -2525,6 +2527,7 @@ pub fn to_value_with_assets(
             ("create_clone", 0),
             ("see_angle_object", 0),
             ("locate", 0),
+            ("reach_something", 1),
             ("locate_object_time", 1),
             ("coordinate_object", 1),
             ("distance_something", 1),

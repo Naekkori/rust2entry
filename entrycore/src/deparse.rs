@@ -3560,7 +3560,8 @@ fn resolve_asset_ids(
             // 오브젝트 dropdown 슬롯 — IR args 의 target 위치 id → name.
             // (forward 의 EntryJS params idx 와 다름 — IR 은 라벨 슬롯 제외하고 value 만 args 에 담는다.)
             let object_target_idx: Option<usize> = match fref.name.as_str() {
-                "create_clone" | "see_angle_object" | "locate" | "distance_something" => Some(0),
+                "create_clone" | "see_angle_object" | "locate" | "distance_something"
+                | "reach_something" => Some(0),
                 "locate_object_time" | "coordinate_object" => Some(1),
                 _ => None,
             };
@@ -3614,7 +3615,7 @@ fn resolve_asset_ids(
                 Stmt::Expr(Expr::Call(fref, args))
                     if matches!(
                         fref.name.as_str(),
-                        "create_clone" | "see_angle_object" | "locate"
+                        "create_clone" | "see_angle_object" | "locate" | "reach_something"
                     ) =>
                 {
                     if let Some(Expr::Str(id)) = args.first_mut() {

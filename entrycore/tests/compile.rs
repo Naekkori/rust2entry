@@ -6754,3 +6754,57 @@ fn compile_distance_something_mouse_passthrough() {
         other => panic!("expected FuncDef, got {other:?}"),
     }
 }
+
+/// `reach_something("Enemy1")` 의 target 이 base 에 있으면 `.ent` 에선 sprite id 로 emit 되고,
+/// extract 시 sprite name 으로 복원되는지 검증 (collision dropdown 슬롯).
+#[test]
+fn compile_reach_something_object_name_id_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars_and_assets;
+    use entrycore::ir::{Expr, Stmt};
+
+    let mut base = empty_project();
+    base["objects"] = json!([{
+        "id": "obj_enemy1",
+        "name": "Enemy1",
+        "objectType": "sprite",
+        "scene": "scene1",
+        "script": "[]",
+        "sprite": {"pictures": [], "sounds": []},
+        "text": "Enemy1",
+        "lock": false,
+        "entity": {}
+    }]);
+
+    let src = r#"fn when_start() { reach_something("Enemy1"); }"#;
+    let assets = entrycore::AssetMap::from_project_value(&base);
+    let v = compile(&[("Sprite1", src)], &base).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    // 'Sprite1' 가 base 에 없어 fake object 가 생성됨 — 마지막 object 가 우리 stem 매핑.
+    let target_idx = objects
+        .iter()
+        .position(|o| o["name"].as_str() == Some("Sprite1"))
+        .expect("fake Sprite1 object");
+    let thread = first_thread(&objects[target_idx]);
+    // 정방향: sprite name → id.
+    assert_eq!(thread[1]["params"][1].as_str().unwrap(), "obj_enemy1");
+
+    // 역방향: id → name.
+    let obj_script_str = objects[target_idx]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars_and_assets(
+        obj_script_str,
+        &entrycore::VarMap::new(),
+        &assets,
+        "Sprite1",
+    )
+    .expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { body, .. } => match &body[0] {
+            Stmt::Expr(Expr::Call(fref, args)) => {
+                assert_eq!(fref.name, "reach_something");
+                assert!(matches!(&args[0], Expr::Str(s) if s == "Enemy1"));
+            }
+            other => panic!("expected Call(reach_something), got {other:?}"),
+        },
+        other => panic!("expected FuncDef, got {other:?}"),
+    }
+}
