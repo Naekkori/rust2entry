@@ -4,7 +4,10 @@ use egui::{RichText, Vec2};
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([1280.0, 720.0]),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([800.0, 600.0])
+            .with_resizable(false)
+            .with_maximize_button(false),
         centered: true,
         ..Default::default()
     };
@@ -14,7 +17,6 @@ fn main() -> eframe::Result<()> {
         options,
         Box::new(|cc| {
             setup_fonts(&cc.egui_ctx);
-
             Ok(Box::new(EntryCApp::default()))
         }),
     )
@@ -91,7 +93,11 @@ impl eframe::App for EntryCApp {
                         // response.rect에 실제 사용 영역이 들어간다.
                         let row = ui.horizontal(|ui| {
                             boxed(ui, |ui| {
-                                ui.add_sized(Vec2::new(50.0, 50.0), egui::Button::new("From"));
+                                let img = egui::Image::new(egui::ImageSource::Bytes {
+                                    uri: "bytes://rust.svg".into(),
+                                    bytes: include_bytes!("../assets/image/rust.svg").into(),
+                                });
+                                ui.add_sized(Vec2::new(50.0, 50.0), img);
                             });
 
                             ui.add_space(10.0);
@@ -101,7 +107,11 @@ impl eframe::App for EntryCApp {
                             ui.add_space(10.0);
 
                             boxed(ui, |ui| {
-                                ui.add_sized(Vec2::new(50.0, 50.0), egui::Button::new("To"));
+                                let img = egui::Image::new(egui::ImageSource::Bytes {
+                                    uri: "bytes://entry.png".into(),
+                                    bytes: include_bytes!("../assets/image/entry.png").into(),
+                                });
+                                ui.add_sized(Vec2::new(50.0, 50.0), img);
                             });
                         });
 
@@ -117,7 +127,7 @@ impl eframe::App for EntryCApp {
 
 fn setup_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
-
+    egui_extras::install_image_loaders(ctx);
     fonts.font_data.insert(
         "nanum".to_owned(),
         egui::FontData::from_static(include_bytes!("../assets/font/NanumGothic.ttf")).into(),
