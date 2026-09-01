@@ -50,13 +50,13 @@ enum Cmd {
         #[arg(long, value_name = "FILE")]
         hw: Option<PathBuf>,
     },
-    /// entryjs 블럭 스키마 덤프 검증 (Tier-0 ATS)
+    /// entryjs 블럭 스키마 덤프 검증
     Validate {
         /// entryjs 스키마 덤프 JSON (dump_schema.js 산출물)
         #[arg(long, value_name = "FILE", required = true)]
         blocks: PathBuf,
     },
-    /// 하드웨어 소스맵 리포트 + 스키마 검증 (Tier-0 ATS)
+    /// 하드웨어 소스맵 리포트 + 스키마 검증
     Hw {
         /// 하드웨어 소스맵 JSON (`hw_sourcemap.json` 산출물)
         #[arg(long, value_name = "FILE", required = true)]
@@ -144,7 +144,7 @@ fn run_validate(blocks: &Path) -> Result<(), String> {
         .validate_json(&json)
         .map_err(|e| format!("failed to parse schema dump: {e}"))?;
 
-    println!("entryjs 블럭 스키마 검증 (Tier-0 ATS)");
+    println!("entryjs 블럭 스키마 검증");
     println!("  검증 블럭 수   : {}", report.total_blocks);
     println!("  위반 총계       : {}", report.violations.len());
     if report.is_clean() {
