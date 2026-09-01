@@ -24,6 +24,17 @@ pub enum ParamKind {
     Bool,
 }
 
+/// 함수 결괏값 타입 — EntryJS function_create_value 의 VALUE 슬롯 매핑.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReturnType {
+    /// 숫자 (i32 / f64 / Number / 그 외) — EntryJS function_create_value 의 값 슬롯.
+    Number,
+    /// 문자열 (`String` / `&str` / `str`).
+    String,
+    /// 불리언 (`bool` / `Bool`).
+    Boolean,
+}
+
 /// Entry 블록으로 변환 가능한 명령문.
 #[derive(Debug, Clone)]
 pub enum Stmt {
@@ -35,11 +46,15 @@ pub enum Stmt {
     /// 변수 값 정하기 (이름, 새값).
     SetVar(String, Expr),
 
-    /// 함수 정의 (이름, 인자, 본문).
+    /// 함수 정의 (이름, 인자, 결괏값 타입, 본문).
     FuncDef {
         name: String,
         /// (이름, kind) 쌍. kind 는 String(default) 또는 Bool.
         params: Vec<(String, ParamKind)>,
+        /// `Some` 이면 결괏값 반환 함수 — EntryJS function_create_value 로 emit.
+        /// 본문 마지막 stmt 는 `Stmt::Return(Expr)` 이어야 함.
+        /// `None` 이면 statement 본문 함수 — EntryJS function_create 로 emit.
+        return_type: Option<ReturnType>,
         body: Vec<Stmt>,
     },
 

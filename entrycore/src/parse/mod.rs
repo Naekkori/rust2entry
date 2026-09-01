@@ -13,7 +13,7 @@ use crate::{Error, Result};
 
 pub(crate) use block::convert_block;
 pub(crate) use expr::convert_expr;
-pub(crate) use params::collect_params;
+pub(crate) use params::{collect_params, sig_return_type};
 pub(crate) use stmt::convert_stmt;
 
 /// 트리거 함수 한 개의 정보. Entry object.script 의 thread 1개에 대응.
@@ -81,8 +81,22 @@ fn convert_item(
                 }
             } else {
                 let params = collect_params(&f.sig);
+                let return_type = sig_return_type(&f.sig);
                 let body = convert_block(Some((*f.block).clone()))?;
-                out.push(IrStmt::FuncDef { name, params, body });
+                // return_type 이 있으면 본문 마지막이 Stmt::Return 이어야 함.
+                if return_type.is_some()
+                    && !matches!(body.last(), Some(IrStmt::Return(_)))
+                {
+                    return Err(crate::Error::Parse(format!(
+                        "function '{name}' has return type but no `return` statement at end of body"
+                    )));
+                }
+                out.push(IrStmt::FuncDef {
+                    name,
+                    params,
+                    return_type,
+                    body,
+                });
             }
             Ok(())
         }

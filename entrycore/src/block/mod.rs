@@ -1141,11 +1141,13 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                 value: from_expr(expr)?,
             })
         }
-        Stmt::FuncDef { name, params, body } => {
+        Stmt::FuncDef { name, params, body, return_type: _ } => {
             let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;
             // IR param 의 (name, kind) → Block 은 name 만. kind 는 outer scope
             // (`lib.rs`) 에서 function_create head 빌드 시 사용.
             let param_names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+            // return_type 의 존재는 lib.rs 가 본문 마지막을 보고 function_create_value 분기.
+            // Block::FuncDef 자체엔 별도 필드 없음 — `Block::Return { value }` 가 본문 끝에 그대로 보존됨.
             Ok(Block::FuncDef {
                 name: name.clone(),
                 params: param_names,

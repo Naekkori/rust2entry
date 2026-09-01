@@ -53,6 +53,7 @@ pub fn from_script(value: &Value, vars: &VarMap) -> Result<Vec<Stmt>> {
             stmts.push(Stmt::FuncDef {
                 name: fn_name,
                 params: Vec::new(),
+                return_type: None,
                 body,
             });
         } else {
@@ -1036,6 +1037,38 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 body,
             }
         }
+        "function_create_value" => {
+            // function_create_value 의 paramsKeyMap: FIELD=0, VALUE=3
+            // params = [function_field_label_chain, Indicator(null), LineBreak(null), VALUE block]
+            let name = params
+                .get(0)
+                .and_then(Value::as_str)
+                .ok_or_else(|| crate::Error::Parse("function_create_value name".into()))?
+                .to_string();
+            let pnames = match params.get(1) {
+                Some(Value::Array(a)) => a
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .map(String::from)
+                    .collect(),
+                _ => Vec::new(),
+            };
+            let mut body = statements_thread(obj, 0, vars)?;
+            // VALUE 슬롯 (params[3]) → Block::Return { value } 로 변환 후 본문 끝에 push.
+            let return_value: Option<ParamBlock> = params
+                .get(3)
+                .filter(|v| !v.is_null())
+                .map(|v| value_to_param(v, vars))
+                .transpose()?;
+            if let Some(value) = return_value {
+                body.push(Block::Return { value: Some(value) });
+            }
+            Block::FuncDef {
+                name,
+                params: pnames,
+                body,
+            }
+        }
         "function_return" => {
             let value = match params.get(0) {
                 Some(v) if !v.is_null() => Some(value_to_param(v, vars)?),
@@ -1575,6 +1608,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             stmts.push(Stmt::FuncDef {
                 name: name.clone(),
                 params: param_pairs,
+                return_type: None,
                 body: bb,
             });
             Ok(())

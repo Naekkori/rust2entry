@@ -351,11 +351,30 @@ pub fn compile_with_options(
             //                  params[1] = Output (다음 chain 연결용)
             // 이 한 블록이 `content[0]` (= 1 thread) 가 된다.
             let param_chain = build_function_param_chain(&emit_name, &h.params);
-            let head_block = json!({
-                "type": "function_create",
-                "params": [param_chain],
-                "statements": [Value::Array(h.body.clone())],
-            });
+            // 결괏값 반환 함수는 EntryJS function_create_value (skeleton: 'basic_create_value'):
+            //   params = [function_field_label_chain, Indicator(null), LineBreak(null), VALUE block]
+            // statement 본문 함수는 EntryJS function_create (skeleton: 'basic_create'):
+            //   params = [function_field_label_chain]
+            // 본문 마지막 Block::Return 의 params[0] (= VALUE 슬롯) 을 function_create_value 의 params[3] 으로 옮긴다.
+            let head_block = if h.has_return_value {
+                // body 의 마지막이 Block::Return. 그 params[0] 을 추출하고 body 에서 제외.
+                let mut body = h.body.clone();
+                let return_value = body
+                    .pop()
+                    .and_then(|last| last.get("params").and_then(|p| p.get(0)).cloned())
+                    .unwrap_or(Value::Null);
+                json!({
+                    "type": "function_create_value",
+                    "params": [param_chain, Value::Null, Value::Null, return_value],
+                    "statements": [Value::Array(body)],
+                })
+            } else {
+                json!({
+                    "type": "function_create",
+                    "params": [param_chain],
+                    "statements": [Value::Array(h.body.clone())],
+                })
+            };
             // fn_name_to_defs 에 (id, param_names) 누적. 같은 이름 + 다른 arity
             // 가 둘 이상 있어도 모두 보관. 호출 사이트는 args.len() 으로 매칭.
             let param_names: Vec<String> = h.params.iter().map(|(n, _)| n.clone()).collect();
@@ -823,6 +842,9 @@ struct FunctionDef {
     params: Vec<(String, crate::ir::ParamKind)>,
     /// 함수의 본문 블록들 (1개 thread = linear).
     body: Vec<Value>,
+    /// `true` 면 본문 마지막에 `Block::Return { value }` 이 있고
+    /// EntryJS `function_create_value` 로 emit. `false` 면 `function_create`.
+    has_return_value: bool,
 }
 
 /// 한 rs 소스의 트리거 + 본문 stmts 를 Entry object.script 의 thread 배열로 변환.
@@ -889,7 +911,8 @@ fn build_threads(
     let mut helpers: Vec<FunctionDef> = Vec::new();
     let mut init_stmts: Vec<&Stmt> = Vec::new();
     for s in &program.stmts {
-        if let Stmt::FuncDef { name, params, body } = s {
+        if let Stmt::FuncDef { name, params, body, return_type } = s {
+            let has_return_value = return_type.is_some();
             let mut body_blocks: Vec<Value> = Vec::new();
             for bs in body {
                 let b = match crate::block::from_stmt(bs) {
@@ -906,12 +929,20 @@ fn build_threads(
                     Err(e) => return Err(e),
                 }
             }
-            if !body_blocks.is_empty() {
+            if !body_blocks.is_empty() || has_return_value {
                 helpers.push(FunctionDef {
                     name: name.clone(),
                     params: params.clone(),
                     body: body_blocks,
+                    has_return_value,
                 });
+            } else if body.is_empty() {
+                // 빈 본문 + return_type 없음 — function 자체 미정의.
+                // EntryJS 도 빈 function 을 허용하지 않으므로 무시.
+            } else {
+                // 빈 본문이지만 return 문이 있거나 helper 등록이 필요한 경우.
+                // 위 if 분기에서 이미 커버되므로 도달 불가.
+                unreachable!();
             }
         } else {
             init_stmts.push(s);

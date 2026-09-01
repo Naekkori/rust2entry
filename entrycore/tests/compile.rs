@@ -7993,11 +7993,142 @@ fn compile_get_boolean_value_arity_check() {
     use entrycore::compile;
     let src0 = r#"fn when_start() { let s = get_boolean_value(); }"#;
     assert!(compile(&[("obj", src0)], &empty_project()).is_err());
+}
+
+// --- function_create_value (결괏값 반환 함수) ---
+
+/// `fn double(x: i32) -> i32 { return x * 2; }` → `function_create_value` 헤드 emit.
+#[test]
+fn compile_function_create_value() {
+    let src = r#"fn double(x: i32) -> i32 {
+        return x * 2;
+    }
+    fn when_start() {
+        let v = double(3);
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    // project.functions 에 double 함수가 function_create_value 로 emit.
+    let functions = v["functions"].as_array().expect("functions array");
+    let double = functions
+        .iter()
+        .find(|f| f.get("name").and_then(|n| n.as_str()) == Some("double"))
+        .expect("double function");
+    let content = double["content"].as_array().expect("content array");
+    // EntryJS `content` 는 head array — `content[0]` 가 헤드 블록 자체.
+    // 헤드의 `statements` = `[[body_block, ...]]` (스레드 배열).
+    let head = &content[0];
+    assert_eq!(head["type"], "function_create_value");
+    let sub_params = head["params"].as_array().expect("sub_params");
+    assert_eq!(sub_params.len(), 4);
+    // params[3] = VALUE 슬롯 (= `return x * 2` 의 expr 블록)
+    assert!(!sub_params[3].is_null(), "VALUE slot must contain the return expr");
+    let value_slot = &sub_params[3];
+    // BinaryOp 블록 (calc_basic) 이어야 함
+    assert_eq!(
+        value_slot["type"], "calc_basic",
+        "expected calc_basic for x * 2, got {}",
+        value_slot["type"]
+    );
+}
+
+/// 결괏값 반환 함수 IR 검증 — `Stmt::FuncDef { return_type: Some, body 끝: Stmt::Return }`.
+#[test]
+fn compile_function_create_value_roundtrip() {
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn double(x: i32) -> i32 {
+        return x * 2;
+    }"#;
+    let p1 = parse(src).expect("parse1");
+    // parse 결과의 Stmt::FuncDef 에 return_type 이 Some 인지 검증.
+    match &p1.stmts[0] {
+        Stmt::FuncDef {
+            name,
+            return_type,
+            body,
+            ..
+        } => {
+            assert_eq!(name, "double");
+            assert!(return_type.is_some(), "return_type must be Some");
+            assert!(
+                matches!(body.last(), Some(Stmt::Return(_))),
+                "body must end with Stmt::Return"
+            );
+            if let Some(Stmt::Return(Expr::BinOp(_, _, _))) = body.last() {
+                // x * 2 는 BinOp
+            } else {
+                panic!("expected Stmt::Return(BinOp), got {:?}", body.last());
+            }
+        }
+        other => panic!("expected FuncDef, got {other:?}"),
+    }
+}
+
+/// `fn f() -> i32 { }` — return stmt 없는 결괏값 함수 → ParseError.
+#[test]
+fn compile_function_create_value_no_return_error() {
+    use entrycore::compile;
+    let src = r#"fn f() -> i32 {
+        let x = 5;
+    }
+    fn when_start() {
+    }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}
+
+/// 기존 statement 본문 함수 (return type 없음) → `function_create` (regression).
+#[test]
+fn compile_function_create_no_return_type() {
+    let src = r#"fn greet() {
+        let x = 5;
+    }
+    fn when_start() {
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let functions = v["functions"].as_array().expect("functions array");
+    let greet = functions
+        .iter()
+        .find(|f| f.get("name").and_then(|n| n.as_str()) == Some("greet"))
+        .expect("greet function");
+    let content = greet["content"].as_array().expect("content array");
+    let head = &content[0];
+    assert_eq!(head["type"], "function_create");
+}
+
+/// `let v = double(3)` 값 슬롯 자리 호출 → `function_general` skeleton 의 func_<id> 블록 emit.
+#[test]
+fn compile_function_create_value_call_roundtrip() {
+    let src = r#"fn double(x: i32) -> i32 {
+        return x * 2;
+    }
+    fn when_start() {
+        let v = double(3);
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    // thread[0] = when_start, thread[1] = let v = double(3) → set_variable(params[1] = func_<id>)
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    let value_slot = &set_var["params"][1];
+    let func_type = value_slot["type"].as_str().expect("type str");
+    assert!(
+        func_type.starts_with("func_"),
+        "expected func_<id>, got {}",
+        func_type
+    );
+}
+
+/// `get_boolean_value(true);` 단독 statement → SyntaxError.
+/// `get_boolean_value(true, false);` 단독 statement → SyntaxError.
+#[test]
+fn compile_get_boolean_value_arity_check_extra() {
+    use entrycore::compile;
     let src2 = r#"fn when_start() { let s = get_boolean_value(true, false); }"#;
     assert!(compile(&[("obj", src2)], &empty_project()).is_err());
 }
 
-/// `get_boolean_value(true);` 단독 statement → SyntaxError.
 #[test]
 fn compile_get_boolean_value_statement_error() {
     use entrycore::compile;

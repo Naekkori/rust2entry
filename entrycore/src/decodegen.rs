@@ -153,6 +153,7 @@ fn emit_stmt(
             name,
             params,
             body,
+            return_type: _,
         } => {
             out.push_str(&indent);
             out.push_str("fn ");

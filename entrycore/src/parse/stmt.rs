@@ -106,6 +106,13 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                     let body = convert_block(Some(f.body))?;
                     out.push(IrStmt::For { var, iter, body });
                 }
+                syn::Expr::Return(e) => {
+                    let expr = match e.expr {
+                        Some(inner) => convert_expr(*inner)?,
+                        None => Expr::Int(0),
+                    };
+                    out.push(IrStmt::Return(expr));
+                }
                 other =>{
                     out.push(IrStmt::Expr(convert_expr(other)?));
                 }

@@ -36,3 +36,26 @@ pub(crate) fn collect_params(sig: &Signature) -> Vec<(String, crate::ir::ParamKi
         })
         .collect()
 }
+
+/// syn::Signature 의 `-> T` 반환 타입 파싱.
+/// - `String` / `&str` / `str` → ReturnType::String
+/// - `bool` / `Bool`         → ReturnType::Boolean
+/// - 그 외 (i32 / f64 / `()` 미명시) → ReturnType::Number
+/// - 반환 타입 미지정 (`Return(())`) → None.
+pub(crate) fn sig_return_type(sig: &Signature) -> Option<crate::ir::stmt::ReturnType> {
+    use crate::ir::stmt::ReturnType;
+    let return_type = match &sig.output {
+        syn::ReturnType::Default => return None,
+        syn::ReturnType::Type(_, ty) => ty,
+    };
+    if let syn::Type::Path(tp) = &**return_type
+        && let Some(last) = tp.path.segments.last() {
+            return Some(match last.ident.to_string().as_str() {
+                "String" | "str" | "&str" | "&String" => ReturnType::String,
+                "bool" | "Bool" => ReturnType::Boolean,
+                // i32 / f64 / i64 / u32 / usize / f32 / 그 외 → Number (default).
+                _ => ReturnType::Number,
+            });
+        }
+    Some(ReturnType::Number)
+}
