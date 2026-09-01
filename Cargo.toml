@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["entrycore", "entryc"]
+members = ["entrycore", "entryc", "entrycgui"]
 
 [workspace.dependencies]
 thiserror = "2.0.20"
