@@ -539,6 +539,12 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let end = param_at(&params, 5, vars)?;
             Block::Substring { string, start, end }
         }
+        "replace_string" => {
+            let target = param_at(&params, 1, vars)?;
+            let old = param_at(&params, 3, vars)?;
+            let new = param_at(&params, 5, vars)?;
+            Block::ReplaceString { target, old, new }
+        }
         "count_match_string" => {
             let target = param_at(&params, 1, vars)?;
             let pattern = param_at(&params, 3, vars)?;
@@ -2872,6 +2878,9 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::Substring { .. } => Err(SyntaxError(
             "substring is a value block and cannot be used as a statement".into(),
         )),
+        Block::ReplaceString { .. } => Err(SyntaxError(
+            "replace_string is a value block and cannot be used as a statement".into(),
+        )),
         Block::CountMatchString { .. } => Err(SyntaxError(
             "count_match_string is a value block and cannot be used as a statement".into(),
         )),
@@ -3607,6 +3616,19 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![s, st, e],
+            ))
+        }
+        Block::ReplaceString { target, old, new } => {
+            let tg = expr_from_param(target, vars)?;
+            let ow = expr_from_param(old, vars)?;
+            let nw = expr_from_param(new, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "replace_string".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![tg, ow, nw],
             ))
         }
         Block::CountMatchString { target, pattern } => {
