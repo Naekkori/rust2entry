@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use egui::{RichText, Vec2};
+
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_inner_size([1280.0, 720.0]),
@@ -13,6 +14,7 @@ fn main() -> eframe::Result<()> {
         options,
         Box::new(|cc| {
             setup_fonts(&cc.egui_ctx);
+
             Ok(Box::new(EntryCApp::default()))
         }),
     )
@@ -20,75 +22,93 @@ fn main() -> eframe::Result<()> {
 
 struct EntryCApp {
     name: String,
+    group_width: f32,
 }
 
 impl Default for EntryCApp {
     fn default() -> Self {
         Self {
             name: "EntryC GUI 판".to_string(),
+            group_width: 250.0,
         }
     }
 }
 
 impl eframe::App for EntryCApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // ─────────────────────────────────────
+        // 메뉴바
+        // ─────────────────────────────────────
         egui::Panel::top("menubar").show(ui, |ui| {
             egui::menu::MenuBar::new().ui(ui, |ui| {
                 ui.label(&self.name);
+
                 ui.menu_button("도움말", |ui| {
                     if ui.button("정보").clicked() {
                         ui.close();
                     }
-                })
-            })
+                });
+            });
         });
 
+        // ─────────────────────────────────────
+        // 메인 화면
+        // ─────────────────────────────────────
         egui::CentralPanel::default()
-            .frame(egui::Frame::new().fill(egui::Color32::from_hex("#fff").unwrap()))
+            .frame(
+                egui::Frame::new().fill(egui::Color32::from_hex("#ffffff").expect("failed color")),
+            )
             .show(ui, |ui| {
-                let rect = ui.available_rect_before_wrap();
+                let available = ui.available_rect_before_wrap();
 
-                let row_width = 220.0;
-                let row_height = 100.0;
+                // 실제 중앙 좌표
+                let center = available.center();
 
-                let row_rect = egui::Rect::from_center_size(
-                    egui::pos2(rect.center().x, rect.center().y + 25.0),
-                    egui::vec2(row_width, row_height),
-                );
+                // 전체 콘텐츠 그룹
+                //
+                // 제목 + From -> To 를 하나의 그룹으로 묶는다.
+                // 이렇게 해야 내부 크기가 바뀌어도 그룹 전체의
+                // 중앙을 기준으로 배치할 수 있다.
+                let group_width = available.width().min(self.group_width);
+                let group_height = 160.0;
 
-                ui.scope_builder(
-                    egui::UiBuilder::new()
-                        .max_rect(row_rect)
-                        .layout(egui::Layout::left_to_right(egui::Align::Center)),
-                    |ui| {
-                        boxed(ui, |ui| {
-                            ui.add_sized(Vec2::new(50.0, 50.0), egui::Button::new("From"));
-                        });
-
-                        ui.add_space(10.0);
-
-                        ui.label("->");
-
-                        ui.add_space(10.0);
-
-                        boxed(ui, |ui| {
-                            ui.add_sized(Vec2::new(50.0, 50.0), egui::Button::new("To"));
-                        });
-                    },
-                );
-
-                // 제목은 별도로 화면 정중앙에 배치
-                let title_rect = egui::Rect::from_center_size(
-                    egui::pos2(rect.center().x, rect.center().y - 50.0),
-                    egui::vec2(rect.width(), 30.0),
-                );
+                let group_rect =
+                    egui::Rect::from_center_size(center, egui::vec2(group_width, group_height));
 
                 ui.scope_builder(
                     egui::UiBuilder::new()
-                        .max_rect(title_rect)
-                        .layout(egui::Layout::left_to_right(egui::Align::Center)),
+                        .max_rect(group_rect)
+                        .layout(egui::Layout::top_down(egui::Align::Center)),
                     |ui| {
+                        // 제목
                         ui.label(RichText::new("엔트리 파일을 Rust 로 변환합니다.").size(20.0));
+
+                        ui.add_space(20.0);
+
+                        // From -> To
+                        //
+                        // horizontal() 자체가 반환하는
+                        // response.rect에 실제 사용 영역이 들어간다.
+                        let row = ui.horizontal(|ui| {
+                            boxed(ui, |ui| {
+                                ui.add_sized(Vec2::new(50.0, 50.0), egui::Button::new("From"));
+                            });
+
+                            ui.add_space(10.0);
+
+                            ui.label("->");
+
+                            ui.add_space(10.0);
+
+                            boxed(ui, |ui| {
+                                ui.add_sized(Vec2::new(50.0, 50.0), egui::Button::new("To"));
+                            });
+                        });
+
+                        let actual_width = row.response.rect.width();
+                        if (actual_width - self.group_width).abs() > 0.5 {
+                            self.group_width = actual_width
+                        }
                     },
                 );
             });
@@ -97,6 +117,7 @@ impl eframe::App for EntryCApp {
 
 fn setup_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
+
     fonts.font_data.insert(
         "nanum".to_owned(),
         egui::FontData::from_static(include_bytes!("../assets/font/NanumGothic.ttf")).into(),
