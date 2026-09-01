@@ -6,7 +6,7 @@
 pub mod category;
 pub mod registry;
 use crate::Error::{SyntaxError, UnmappedBlock};
-use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
+use crate::ir::{BinOp, Expr, Stmt, UnaryOp, VarScope};
 use crate::{Result, VarKind};
 pub use registry::{BlockRegistry, HwDevice, HwSourcemap, SchemaDump, SchemaReport, Violation};
 
@@ -654,6 +654,16 @@ pub enum Block {
     HideVar {
         variable: String,
     },
+    /// 함수 본문 내 local variable 설정 (EntryJS set_func_variable).
+    /// 빌드 시 `localVariables` 메뉴에 등록된 변수만 유효.
+    SetFuncVariable {
+        variable: String,
+        value: ParamBlock,
+    },
+    /// 함수 본문 내 local variable 읽기 (EntryJS get_func_variable).
+    GetFuncVariable {
+        variable: String,
+    },
     SetVisibleProjectTimer {
         value: bool,
     },
@@ -805,6 +815,8 @@ impl Block {
             Block::GetVar { .. } => "get_variable",
             Block::ShowVar { .. } => "show_variable",
             Block::HideVar { .. } => "hide_variable",
+            Block::SetFuncVariable { .. } => "set_func_variable",
+            Block::GetFuncVariable { .. } => "get_func_variable",
             Block::If { .. } => "if",
             Block::IfElse { .. } => "if_else",
             Block::While { .. } => "repeat_while",
@@ -969,7 +981,9 @@ impl Block {
             | Block::ChangeVar { .. }
             | Block::GetVar { .. }
             | Block::ShowVar { .. }
-            | Block::HideVar { .. } => Category::Variable,
+            | Block::HideVar { .. }
+            | Block::SetFuncVariable { .. }
+            | Block::GetFuncVariable { .. } => Category::Variable,
             Block::If { .. } | Block::IfElse { .. } => Category::Flow,
             Block::While { .. } | Block::Repeat { .. } | Block::Forever { .. } => Category::Flow,
             Block::Break | Block::Continue | Block::RestartProject | Block::StopAll => {
@@ -1128,18 +1142,62 @@ impl Block {
 
 /// IR stmt -> Block 변환.
 pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
+    from_stmt_with_fn_scope(stmt, false)
+}
+
+/// `is_in_fn_body = true` 면 Stmt::VarDecl 의 scope=Local 변수를
+/// `set_func_variable` 로 emit (EntryJS 함수 본문 local variable).
+/// false 면 일반 `set_variable` 로 emit (트리거 / init 본문).
+pub fn from_stmt_with_fn_scope(
+    stmt: &crate::ir::Stmt,
+    is_in_fn_body: bool,
+) -> crate::Result<Block> {
     match stmt {
-        Stmt::VarDecl(name, expr, _, _) | Stmt::SetVar(name, expr) => {
+        Stmt::VarDecl(name, expr, _, scope) => {
             // Timer/Answer/List 변수는 Entry 전용 슬롯만 받음. 일반 let/set 불가.
             if matches!(kind_for(name), VarKind::Timer | VarKind::Answer) {
                 return Err(UnmappedBlock(format!(
                     "{name} is reserved Entry variable (use dedicated block)"
                 )));
             }
-            Ok(Block::SetVar {
-                variable: name.clone(),
-                value: from_expr(expr)?,
-            })
+            // 함수 본문 안 VarDecl(VarScope::Local) 이고 set_func_variable 의 메뉴에
+            // 등록된 변수라면 set_func_variable 로 emit. List kind 는 그대로 set_variable
+            // (함수 local list 의 동적 메뉴 처리는 EntryJS 가 isNotFor: ['useLocalVariables']
+            // 게이트로 막고 있음 — 단순화 차원에서는 set_variable 도 동작).
+            if is_in_fn_body
+                && matches!(scope, VarScope::Local)
+                && !matches!(kind_for(name), VarKind::List)
+            {
+                Ok(Block::SetFuncVariable {
+                    variable: name.clone(),
+                    value: from_expr(expr)?,
+                })
+            } else {
+                Ok(Block::SetVar {
+                    variable: name.clone(),
+                    value: from_expr(expr)?,
+                })
+            }
+        }
+        Stmt::SetVar(name, expr) => {
+            // Timer/Answer 변수는 Entry 전용 슬롯만 받음.
+            if matches!(kind_for(name), VarKind::Timer | VarKind::Answer) {
+                return Err(UnmappedBlock(format!(
+                    "{name} is reserved Entry variable (use dedicated block)"
+                )));
+            }
+            // 함수 본문 안 set_func_variable 사용 시 set_func_variable 로 emit.
+            if is_in_fn_body {
+                Ok(Block::SetFuncVariable {
+                    variable: name.clone(),
+                    value: from_expr(expr)?,
+                })
+            } else {
+                Ok(Block::SetVar {
+                    variable: name.clone(),
+                    value: from_expr(expr)?,
+                })
+            }
         }
         Stmt::FuncDef { name, params, body, return_type: _ } => {
             let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;
@@ -2934,6 +2992,11 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::ShowVar { variable } | Block::HideVar { variable } => {
             (vec![variable_param(variable), Value::Null], None)
         }
+        Block::SetFuncVariable { variable, value } => (
+            vec![variable_param(variable), param_to_value(value), Value::Null],
+            None,
+        ),
+        Block::GetFuncVariable { variable } => (vec![variable_param(variable)], None),
         Block::If { cond, body } => (
             vec![param_to_value(cond), Value::Null],
             Some(vec![blocks_to_thread(body)?]),

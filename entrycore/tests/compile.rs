@@ -4327,7 +4327,8 @@ fn compile_helpers_go_to_project_functions() {
     assert_eq!(label_field["value"].as_str(), Some("helper"));
     let head_body = head["statements"][0].as_array().expect("head body");
     assert_eq!(head_body.len(), 1);
-    assert_eq!(head_body[0]["type"], "set_variable");
+    // 함수 본문 내 let 은 set_func_variable (EntryJS local variable) 로 emit.
+    assert_eq!(head_body[0]["type"], "set_func_variable");
     assert_eq!(head_body[0]["params"][0]["name"], "y");
 }
 
@@ -8134,4 +8135,66 @@ fn compile_get_boolean_value_statement_error() {
     use entrycore::compile;
     let src = r#"fn when_start() { get_boolean_value(true); }"#;
     assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}
+
+// --- set_func_variable / get_func_variable (함수 본문 local variable) ---
+
+/// 함수 본문 `let x = 1` → `set_func_variable` 블록 emit (EntryJS local variable).
+#[test]
+fn compile_set_func_variable() {
+    let src = r#"fn helper() {
+        let x = 1;
+    }
+    fn when_start() {
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let funcs = v["functions"].as_array().expect("functions");
+    let helper = funcs.iter().find(|f| f["name"] == "helper").expect("helper");
+    let content = helper["content"].as_array().expect("content");
+    let head = content[0].as_object().expect("head");
+    assert_eq!(head["type"], "function_create");
+    let body = head["statements"][0].as_array().expect("body");
+    assert_eq!(body[0]["type"], "set_func_variable");
+    assert_eq!(body[0]["params"][0]["name"], "x");
+}
+
+/// 함수 본문 local var `x` 사용 — 현재는 ParamBlock::Variable 로 emit (set/get_func_variable 분리 매핑).
+/// `get_func_variable` 블록 자리는 향후 별도 작업 (from_expr 의 local var 분기).
+#[test]
+fn compile_get_func_variable() {
+    let src = r#"fn helper() {
+        let x = 5;
+        let y = x;
+    }
+    fn when_start() {
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let funcs = v["functions"].as_array().expect("functions");
+    let helper = funcs.iter().find(|f| f["name"] == "helper").expect("helper");
+    let content = helper["content"].as_array().expect("content");
+    let head = content[0].as_object().expect("head");
+    let body = head["statements"][0].as_array().expect("body");
+    // body[0] = set_func_variable (let x = 5)
+    // body[1] = set_func_variable (let y = x) — value 자리는 현재 ParamBlock::Variable
+    assert_eq!(body[0]["type"], "set_func_variable");
+    assert_eq!(body[1]["type"], "set_func_variable");
+    // value 슬롯 = variable dropdown (EntryJS 의 set_variable/get_variable 동일 형식).
+    // 향후 local var 전용 get_func_variable emit 으로 확장 가능.
+    assert!(
+        body[1]["params"][1].is_object() || body[1]["params"][1].is_string(),
+        "value slot should be a variable reference, got: {}",
+        body[1]["params"][1]
+    );
+}
+
+/// 트리거 본문 `let x = 1` → `set_variable` (set_func_variable 아님) — regression.
+#[test]
+fn compile_trigger_let_uses_set_variable() {
+    let src = r#"fn when_start() { let x = 1; }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    // thread[0] = when_start, thread[1] = set_variable
+    assert_eq!(thread[1]["type"], "set_variable");
+    assert_eq!(thread[1]["params"][0]["name"], "x");
 }

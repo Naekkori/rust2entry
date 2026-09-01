@@ -357,7 +357,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `function_param_string` — 값 슬롯 (chain 의 placeholder 로 emit) (function param 신택스 StringParam 의 호출 측 placeholder. 빌드 시 unction_field_string chain 의 emit 안에서 runtime 이 동적 등록 (Entry.Func.refreshMenuCode()) — 우리 코드 emit 영역 밖. 라운드트립은 unc_<id> 호출 args 슬롯 placeholder 로 처리.)
 - ✅ `function_param_boolean` — 값 슬롯 (function param 신택스 BoolParam 의 호출 측 placeholder. 빌드 시 unction_field_boolean chain 의 emit 안에서 runtime 이 동적 등록 — 우리 코드 emit 영역 밖.)
 - ✅ `function_create_value` — 결괏값 반환 함수 정의 (→ `fn double(x: i32) -> i32 { return x * 2; }` 신택스. 빌드 시 `function_create_value` 헤드 emit (params=[label_chain, Indicator(null), LineBreak(null), VALUE]). `Stmt::FuncDef.return_type: Option<ReturnType>` 필드 + `Stmt::Return(expr)` stmt 가 본문 마지막. 테스트 4개 (basic/IR/no_return_error/no_return_type_regression).)
-- ⬜ `set_func_variable` / `get_func_variable` — 함수 변수
+- ✅ `set_func_variable` / `get_func_variable` — 함수 변수 (→ 함수 본문 `let x = ...` 신택스. 빌드 시 helper 본문의 `Stmt::VarDecl(VarScope::Local)` → `Block::SetFuncVariable` 로 emit (`from_stmt_with_fn_scope(s, true)` 경로). 트리거 본문은 그대로 `set_variable` (`is_in_fn_body=false`). value 슬롯의 local var 읽기는 `ParamBlock::Variable` 로 emit — 향후 get_func_variable 분리 매핑은 별도 작업. 테스트 3개 (set/get/trigger_let).)
 - 제외 (UI 버튼/라벨, 실제 실행 블록 아님): `functionAddButton`, `function_name`, `showFunctionPropsButton`
 
 ### 데이터분석 (0/18)
@@ -538,9 +538,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**170/334** 매핑됨 (약 50.9%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**171/334** 매핑됨 (약 51.2%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 12/12 (완료), 연산 30/26 ✅ 완료 (재정리됨), 변수 19/19 (완료), 함수 9/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 12/12 (완료), 연산 30/26 ✅ 완료 (재정리됨), 변수 19/19 (완료), 함수 10/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 

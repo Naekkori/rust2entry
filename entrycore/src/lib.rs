@@ -915,7 +915,7 @@ fn build_threads(
             let has_return_value = return_type.is_some();
             let mut body_blocks: Vec<Value> = Vec::new();
             for bs in body {
-                let b = match crate::block::from_stmt(bs) {
+                let b = match crate::block::from_stmt_with_fn_scope(bs, true) {
                     Ok(b) => b,
                     Err(Error::UnmappedBlock(m)) => {
                         push_unmapped(unmapped, m);

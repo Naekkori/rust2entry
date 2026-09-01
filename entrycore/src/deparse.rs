@@ -183,6 +183,19 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 Block::HideVar { variable }
             }
         }
+        "set_func_variable" => {
+            let (variable, _name) = variable_slot(&params, 0)?;
+            // 함수 local var 의 id 형식 `<func_id>_<hash>` 에서 func_id 부분만 추출하여
+            // 변수명으로는 사용. 단순화: variable name 그대로 사용.
+            let variable = resolve_var(&variable, vars);
+            let value = param_at(&params, 1, vars)?;
+            Block::SetFuncVariable { variable, value }
+        }
+        "get_func_variable" => {
+            let (variable, _name) = variable_slot(&params, 0)?;
+            let variable = resolve_var(&variable, vars);
+            Block::GetFuncVariable { variable }
+        }
         "show_list" | "hide_list" => {
             let (list, _name) = variable_slot(&params, 0)?;
             let list = resolve_var(&list, vars);
@@ -1394,6 +1407,20 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
                 variable.clone(),
                 expr_from_param(value, vars)?,
             ));
+            Ok(())
+        }
+        Block::SetFuncVariable { variable, value } => {
+            // 함수 본문 local var 설정. IR 레벨에서는 일반 Stmt::SetVar (scope=Local 표시 안 됨 —
+            // from_stmt_with_fn_scope 가 다시 여기 들어오면 set_func_variable 로 emit 됨).
+            stmts.push(Stmt::SetVar(
+                variable.clone(),
+                expr_from_param(value, vars)?,
+            ));
+            Ok(())
+        }
+        Block::GetFuncVariable { variable } => {
+            // 함수 본문 local var 읽기. 값 슬롯 자리에 Expr::Var 로 표현.
+            stmts.push(Stmt::Expr(Expr::Var(variable.clone())));
             Ok(())
         }
         Block::ChangeVar { variable, value } => {
@@ -3034,6 +3061,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
         Block::Angle(n) => Ok(Expr::Float(*n)),
         Block::Color(s) => Ok(Expr::Str(s.clone())),
         Block::GetVar { variable } => Ok(Expr::Var(variable.clone())),
+        Block::GetFuncVariable { variable } => Ok(Expr::Var(variable.clone())),
         Block::CalcBinOp { op, lhs, rhs } => {
             let l = expr_from_param(lhs, vars)?;
             let r = expr_from_param(rhs, vars)?;
@@ -3799,6 +3827,18 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![v],
+            ))
+        }
+        Block::SetFuncVariable { variable, value } => {
+            // stmt 자리. expr 컨텍스트로 올 일은 거의 없지만 안전하게 단항 emit.
+            let v = expr_from_param(value, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "set_func_variable".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![Expr::Var(variable.clone()), v],
             ))
         }
     }
