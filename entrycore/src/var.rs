@@ -142,7 +142,7 @@ pub fn var_map_from_value(v: &serde_json::Value) -> VarMap {
         };
         // Entry의 object가 null이면 프로젝트 전역 변수다. 이 정보를
         // 역변환에서 보존해야 다시 컴파일해도 오브젝트 변수로 바뀌지 않는다.
-        let scope = if obj.get("object").map_or(false, serde_json::Value::is_null) {
+        let scope = if obj.get("object").is_some_and(serde_json::Value::is_null) {
             VarScope::Global
         } else {
             VarScope::Local

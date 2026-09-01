@@ -269,7 +269,7 @@ fn emit_var_decl(out: &mut String, level: usize, v: &VarInfo) {
     out.push_str(&v.name);
     out.push_str(" = ");
     match &v.init {
-        VarInit::Int0 => out.push_str("0"),
+        VarInit::Int0 => out.push('0'),
         VarInit::Float0 => out.push_str("0.0"),
         VarInit::EmptyStr => out.push_str("\"\""),
         VarInit::False => out.push_str("false"),

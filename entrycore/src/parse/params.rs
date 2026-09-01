@@ -6,15 +6,14 @@ use syn::{FnArg, Pat, Signature, Type};
 /// `StringParam` (default) 또는 `BoolParam`.
 fn type_to_param_kind(ty: &Type) -> crate::ir::ParamKind {
     use crate::ir::ParamKind;
-    if let Type::Path(tp) = ty {
-        if let Some(last) = tp.path.segments.last() {
+    if let Type::Path(tp) = ty
+        && let Some(last) = tp.path.segments.last() {
             match last.ident.to_string().as_str() {
                 "BoolParam" | "bool" => return ParamKind::Bool,
                 // StringParam, &str, &String, String, i32, f64, 그 외 → String (default)
                 _ => return ParamKind::String,
             }
         }
-    }
     ParamKind::String
 }
 

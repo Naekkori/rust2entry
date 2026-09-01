@@ -64,15 +64,14 @@ pub fn generate(program: &Program, original: &Value) -> Result<Value> {
     let mut merged_vars: Vec<Value> = base_vars;
     for v in &vars_arr {
         let new_id = v.get("id").and_then(|x| x.as_str());
-        if let Some(new_id) = new_id {
-            if let Some(existing) = merged_vars
+        if let Some(new_id) = new_id
+            && let Some(existing) = merged_vars
                 .iter_mut()
                 .find(|e| e.get("id").and_then(|x| x.as_str()) == Some(new_id))
             {
                 *existing = v.clone();
                 continue;
             }
-        }
         merged_vars.push(v.clone());
     }
     project["variables"] = json!(merged_vars);
@@ -108,7 +107,7 @@ pub fn collect_var_map(program: &Program) -> VarMap {
         map.insert(VarInfo {
             id,
             name: name.clone(),
-            kind: kind.clone(),
+            kind: kind,
             init: match kind {
                 VarKind::List => VarInit::EmptyList,
                 VarKind::Variable => VarInit::EmptyStr,
@@ -164,7 +163,7 @@ fn analyze_statements(stmts: &[Stmt], out: &mut VariableAnalysis) {
             Stmt::VarDecl(name, expr, kind, scope) => {
                 push_unique(&mut out.names, name);
                 if let Some(kind) = kind {
-                    out.explicit_kinds.insert(name.clone(), kind.clone());
+                    out.explicit_kinds.insert(name.clone(), *kind);
                 }
                 out.scopes.insert(name.clone(), *scope);
                 analyze_expr(expr, out);
@@ -218,11 +217,10 @@ fn analyze_expr(expr: &Expr, out: &mut VariableAnalysis) {
                 "hide_list" => Some(0),
                 _ => None,
             };
-            if let Some(index) = list_index {
-                if let Some(Expr::Var(name)) = args.get(index) {
+            if let Some(index) = list_index
+                && let Some(Expr::Var(name)) = args.get(index) {
                     out.list_context_names.insert(name.clone());
                 }
-            }
             for arg in args {
                 analyze_expr(arg, out);
             }

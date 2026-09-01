@@ -188,14 +188,13 @@ pub fn compile_with_options(
         let mut merged = base_vars_filtered;
         for v in &vars_arr {
             let new_id = v.get("id").and_then(|x| x.as_str());
-            if let Some(new_id) = new_id {
-                if let Some(existing) = merged.iter_mut().find(|e| {
+            if let Some(new_id) = new_id
+                && let Some(existing) = merged.iter_mut().find(|e| {
                     e.get("id").and_then(|x| x.as_str()) == Some(new_id)
                 }) {
                     *existing = v.clone();
                     continue;
                 }
-            }
             merged.push(v.clone());
         }
         merged
@@ -655,13 +654,11 @@ fn build_function_param_chain(
     if n > 1 {
         for i in (0..n - 1).rev() {
             let next = field_blocks[i + 1].clone();
-            if let Value::Object(obj) = &mut field_blocks[i] {
-                if let Some(Value::Array(p)) = obj.get_mut("params") {
-                    if p.len() >= 2 {
+            if let Value::Object(obj) = &mut field_blocks[i]
+                && let Some(Value::Array(p)) = obj.get_mut("params")
+                    && p.len() >= 2 {
                         p[1] = next;
                     }
-                }
-            }
         }
     }
 
@@ -672,7 +669,9 @@ fn build_function_param_chain(
         "type": "TextInput",
         "value": name,
     });
-    let label_head = if let Some(first_field) = field_blocks.first().cloned() {
+    
+
+    if let Some(first_field) = field_blocks.first().cloned() {
         json!({
             "type": "function_field_label",
             "params": [label_params_0, first_field],
@@ -682,9 +681,7 @@ fn build_function_param_chain(
             "type": "function_field_label",
             "params": [label_params_0, Value::Null],
         })
-    };
-
-    label_head
+    }
 }
 
 /// project 전체의 `function_call` 블록을 EntryJS 의 `func_<id>` 동적 호출
@@ -859,11 +856,10 @@ fn build_threads(
             Err(e) => return Err(e),
         };
         // when_message 트리거면 메시지 이름 수집 (project.messages 등록용)
-        if matches!(trigger_block, crate::block::Block::WhenMessageRecv { .. }) {
-            if let Some(name) = t.params.first() {
+        if matches!(trigger_block, crate::block::Block::WhenMessageRecv { .. })
+            && let Some(name) = t.params.first() {
                 messages.push(name.clone());
             }
-        }
         let mut thread = Vec::new();
         match crate::block::to_value_with_assets(&trigger_block, assets, object_name) {
             Ok(v) => thread.push(v),

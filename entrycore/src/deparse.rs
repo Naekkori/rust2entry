@@ -2006,7 +2006,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
-        Block::RestartProject {} => {
+        Block::RestartProject => {
             stmts.push(Stmt::Expr(Expr::Call(
                 ir::FuncRef {
                     name: "restart_project".to_string(),
@@ -3672,11 +3672,10 @@ fn hw_raw_args(raw: &Value, vars: &VarMap) -> Vec<Expr> {
     let mut out = Vec::new();
     if let Some(Value::Array(params)) = raw.get("params") {
         for p in params {
-            if let Ok(pb) = value_to_param(p, vars) {
-                if let Ok(e) = expr_from_param(&pb, vars) {
+            if let Ok(pb) = value_to_param(p, vars)
+                && let Ok(e) = expr_from_param(&pb, vars) {
                     out.push(e);
                 }
-            }
         }
     }
     out
@@ -3734,13 +3733,11 @@ fn resolve_asset_ids(
 ) -> crate::ir::Program {
     fn resolve_expr(expr: &mut Expr, assets: &crate::AssetMap, object_name: &str) {
         if let Expr::Call(fref, args) = expr {
-            if fref.name == "get_sound_duration" {
-                if let Some(Expr::Str(id)) = args.first_mut() {
-                    if let Some(name) = assets.sound_name_by_id(object_name, id) {
+            if fref.name == "get_sound_duration"
+                && let Some(Expr::Str(id)) = args.first_mut()
+                    && let Some(name) = assets.sound_name_by_id(object_name, id) {
                         *id = name.to_string();
                     }
-                }
-            }
             // 오브젝트 dropdown 슬롯 — IR args 의 target 위치 id → name.
             // (forward 의 EntryJS params idx 와 다름 — IR 은 라벨 슬롯 제외하고 value 만 args 에 담는다.)
             let object_target_idx: Option<usize> = match fref.name.as_str() {
@@ -3749,15 +3746,12 @@ fn resolve_asset_ids(
                 "locate_object_time" | "coordinate_object" => Some(1),
                 _ => None,
             };
-            if let Some(idx) = object_target_idx {
-                if let Some(arg) = args.get_mut(idx) {
-                    if let Expr::Str(id) = arg {
-                        if let Some(name) = assets.object_name_by_id(id) {
+            if let Some(idx) = object_target_idx
+                && let Some(arg) = args.get_mut(idx)
+                    && let Expr::Str(id) = arg
+                        && let Some(name) = assets.object_name_by_id(id) {
                             *id = name.to_string();
                         }
-                    }
-                }
-            }
             for arg in args {
                 resolve_expr(arg, assets, object_name);
             }
@@ -3770,11 +3764,10 @@ fn resolve_asset_ids(
                     resolve_expr(expr, assets, object_name);
                 }
                 Stmt::Expr(Expr::Call(fref, args)) if fref.name == "change_to_some_shape" => {
-                    if let Some(Expr::Str(id)) = args.first_mut() {
-                        if let Some(name) = assets.picture_name_by_id(object_name, id) {
+                    if let Some(Expr::Str(id)) = args.first_mut()
+                        && let Some(name) = assets.picture_name_by_id(object_name, id) {
                             *id = name.to_string();
                         }
-                    }
                 }
                 Stmt::Expr(Expr::Call(fref, args))
                     if matches!(
@@ -3789,11 +3782,10 @@ fn resolve_asset_ids(
                             | "get_sound_duration"
                     ) =>
                 {
-                    if let Some(Expr::Str(id)) = args.first_mut() {
-                        if let Some(name) = assets.sound_name_by_id(object_name, id) {
+                    if let Some(Expr::Str(id)) = args.first_mut()
+                        && let Some(name) = assets.sound_name_by_id(object_name, id) {
                             *id = name.to_string();
                         }
-                    }
                 }
                 // 오브젝트 dropdown 슬롯 — EntryJS 가 emit 한 id 를 DSL 의 name 으로 복원.
                 Stmt::Expr(Expr::Call(fref, args))
@@ -3802,11 +3794,10 @@ fn resolve_asset_ids(
                         "create_clone" | "see_angle_object" | "locate" | "reach_something"
                     ) =>
                 {
-                    if let Some(Expr::Str(id)) = args.first_mut() {
-                        if let Some(name) = assets.object_name_by_id(id) {
+                    if let Some(Expr::Str(id)) = args.first_mut()
+                        && let Some(name) = assets.object_name_by_id(id) {
                             *id = name.to_string();
                         }
-                    }
                 }
                 Stmt::Expr(Expr::Call(fref, args))
                     if matches!(
@@ -3814,13 +3805,11 @@ fn resolve_asset_ids(
                         "locate_object_time" | "coordinate_object" | "distance_something"
                     ) =>
                 {
-                    if let Some(arg) = args.get_mut(1) {
-                        if let Expr::Str(id) = arg {
-                            if let Some(name) = assets.object_name_by_id(id) {
+                    if let Some(arg) = args.get_mut(1)
+                        && let Expr::Str(id) = arg
+                            && let Some(name) = assets.object_name_by_id(id) {
                                 *id = name.to_string();
                             }
-                        }
-                    }
                 }
                 Stmt::FuncDef { body, .. } => resolve_stmts(body, assets, object_name),
                 Stmt::If {

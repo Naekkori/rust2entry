@@ -6,7 +6,6 @@
 pub mod category;
 pub mod registry;
 use crate::Error::{SyntaxError, UnmappedBlock};
-use crate::codegen::schema::Param;
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::{Result, VarKind};
 pub use registry::{BlockRegistry, HwDevice, HwSourcemap, SchemaDump, SchemaReport, Violation};
@@ -117,7 +116,7 @@ pub fn str_to_object_coord(s: &str) -> Option<ObjectCoordinate> {
         "size" => Some(ObjectCoordinate::Size),
         "picture_index" => Some(ObjectCoordinate::PictureIndex),
         "picture_name" => Some(ObjectCoordinate::PictureName),
-        _ => return None,
+        _ => None,
     }
 }
 // 효과 타입
@@ -1103,13 +1102,13 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         });
                     }
                     if fref.name == "stop_run_all" {
-                        if args.len() != 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("stop_run_all needs 0 args".into()));
                         }
                         return Ok(Block::StopAll);
                     }
                     if fref.name == "restart_project" {
-                        if args.len() != 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("restart_project needs 0 args".into()));
                         }
                         return Ok(Block::RestartProject);
@@ -1432,13 +1431,13 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         return Ok(Block::IsIncludedInList { list, value });
                     }
                     if fref.name == "is_clicked" {
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("is_clicked needs no args".into()));
                         }
                         return Ok(Block::IsClicked);
                     }
                     if fref.name == "is_object_clicked" {
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("is_object_clicked needs no args".into()));
                         }
                         return Ok(Block::IsObjectClicked);
@@ -1460,13 +1459,13 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         return Ok(Block::IsType { value, type_name });
                     }
                     if fref.name == "is_boost_mode" {
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("is_boost_mode not needs args".into()));
                         }
                         return Ok(Block::IsBoostMode);
                     }
                     if fref.name == "is_touch_supported" {
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("is_touch_supported not needs args".into()));
                         }
                         return Ok(Block::IsTouchSupported);
@@ -1701,7 +1700,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         return Ok(Block::MoveToAngle { angle, distance });
                     }
                     if fref.name == "bounce_wall" {
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("bounce_wall needs no args".into()));
                         }
                         return Ok(Block::BounceWall);
@@ -1753,31 +1752,31 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     }
                     // --- 붓(stmt) ---
                     if fref.name == "brush_stamp" {
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("brush_stamp not needs arg".into()));
                         }
                         return Ok(Block::BrushStamp);
                     }
                     if fref.name == "start_drawing" {
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("start_drawing not needs arg".into()));
                         }
                         return Ok(Block::StartDrawing);
                     }
                     if fref.name == "stop_drawing" {
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("stop_drawing not needs arg".into()));
                         }
                         return Ok(Block::StopDrawing);
                     }
                     if fref.name == "start_fill" {
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("start_fill not needs arg".into()));
                         }
                         return Ok(Block::StartFill);
                     }
                     if fref.name == "stop_fill" {
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("stop_fill not needs arg".into()));
                         }
                         return Ok(Block::StopFill);
@@ -1792,7 +1791,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         return Ok(Block::SetColor { r, g, b });
                     }
                     if fref.name == "set_random_color" {
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("set_random_color not needs arg".into()));
                         }
                         return Ok(Block::SetRandomColor);
@@ -1835,7 +1834,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         return Ok(Block::SetBrushTranparency { value });
                     }
                     if fref.name == "brush_erase_all" {
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("brush_erase_all not needs arg".into()));
                         }
                         return Ok(Block::BrushEraseAll);
@@ -1887,7 +1886,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         return Ok(Block::TextChangeEffect { effect, mode });
                     }
                     if fref.name == "text_flush" {
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("text_flush needs 0 args".into()));
                         }
                         return Ok(Block::TextFlush);
@@ -2042,7 +2041,7 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                         return Ok(Block::PlayBgm { sound_name });
                     }
                     if fref.name == "stop_bgm" {
-                        if args.len() > 0 {
+                        if !args.is_empty() {
                             return Err(SyntaxError("stop_bgm not needs args".into()));
                         }
                         return Ok(Block::StopBgm);
@@ -2154,7 +2153,7 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
         Expr::Int(n) => Ok(ParamBlock::Number(*n as f64)),
         Expr::Float(f) => Ok(ParamBlock::Number(*f)),
         Expr::Str(s) => Ok(ParamBlock::Text(s.clone())),
-        Expr::Bool(b) => Ok(ParamBlock::Boolean(b.clone())),
+        Expr::Bool(b) => Ok(ParamBlock::Boolean(*b)),
         Expr::Var(name) => {
             // Timer/Answer는 전용 슬롯(get_xxx)에서만 읽음.
             if matches!(kind_for(name), VarKind::Timer | VarKind::Answer) {
@@ -2410,13 +2409,13 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 })));
             }
             if fref.name == "get_user_name" {
-                if args.len() > 0 {
+                if !args.is_empty() {
                     return Err(SyntaxError("get_user_name not needs args".into()));
                 }
                 return Ok(ParamBlock::Sub(Box::new(Block::GetUserName)));
             }
             if fref.name == "get_nickname" {
-                if args.len() > 0 {
+                if !args.is_empty() {
                     return Err(SyntaxError("get_nickname not needs args".into()));
                 }
                 return Ok(ParamBlock::Sub(Box::new(Block::GetNickName)));
@@ -2505,13 +2504,13 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             EntryRS 듀얼엔진 (CappuccinoVM / OmochaEngine) 에서 잘못된 파라미터 사용 시 폴백값으로 쓰는 용도.
             */
             if fref.name == "is_boost_mode" {
-                if args.len() > 0 {
+                if !args.is_empty() {
                     return Err(SyntaxError("is_boost_mode not needs args".into()));
                 }
                 return Ok(ParamBlock::Sub(Box::new(Block::IsBoostMode)));
             }
             if fref.name == "is_touch_supported" {
-                if args.len() > 0 {
+                if !args.is_empty() {
                     return Err(SyntaxError("is_touch_supported not needs args".into()));
                 }
                 return Ok(ParamBlock::Sub(Box::new(Block::IsTouchSupported)));
@@ -2536,13 +2535,13 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
             }
             // --- 소리 ---
             if fref.name == "get_sound_speed" {
-                if args.len() > 0 {
+                if !args.is_empty() {
                     return Err(SyntaxError("get_sound_speed not needs args".into()));
                 }
                 return Ok(ParamBlock::Sub(Box::new(Block::GetSoundSpeed)));
             }
             if fref.name == "get_sound_volume" {
-                if args.len() > 0 {
+                if !args.is_empty() {
                     return Err(SyntaxError("get_sound_volume not needs args".into()));
                 }
                 return Ok(ParamBlock::Sub(Box::new(Block::GetSoundVolume)));
@@ -2614,12 +2613,11 @@ pub fn to_value_with_assets(
     object_name: &str,
 ) -> crate::Result<Value> {
     let mut value = to_value(block)?;
-    if let Block::ChangeToSomeShape { picture } = block {
-        if let Some(id) = assets.picture_id_by_name(object_name, picture) {
+    if let Block::ChangeToSomeShape { picture } = block
+        && let Some(id) = assets.picture_id_by_name(object_name, picture) {
             // `change_to_some_shape`은 문자열이 아니라 `get_pictures` 값 블록을 받는다.
             value["params"][0]["params"][0] = Value::String(id.to_string());
         }
-    }
     if let Block::SoundSomethingWithBlock {
         sound_name: ParamBlock::Text(sound_name),
     }
@@ -2662,11 +2660,10 @@ pub fn to_value_with_assets(
             })?;
         value["params"][0] = json!({ "type": "get_sounds", "params": [id] });
     }
-    if let Block::GetSoundDuration { sound_name } = block {
-        if let Some(id) = assets.sound_id_by_name(object_name, sound_name) {
+    if let Block::GetSoundDuration { sound_name } = block
+        && let Some(id) = assets.sound_id_by_name(object_name, sound_name) {
             value["params"][1] = Value::String(id.to_string());
         }
-    }
     // 오브젝트 dropdown 슬롯 (spritesWithMouse / spritesWithSelf / objectWithSelf / collision) — name → id.
     // EntryJS Runtime 이 `Entry.container.getEntity(id)` 로 lookup 하므로 id 가 필수.
     let object_target_idx: Option<usize> = match block {
@@ -2679,32 +2676,26 @@ pub fn to_value_with_assets(
         Block::DistanceSomething { .. } => Some(1),
         _ => None,
     };
-    if let Some(idx) = object_target_idx {
-        if let Value::String(name) = &value["params"][idx] {
-            if let Some(id) = assets.object_id_by_name(name) {
+    if let Some(idx) = object_target_idx
+        && let Value::String(name) = &value["params"][idx]
+            && let Some(id) = assets.object_id_by_name(name) {
                 value["params"][idx] = Value::String(id.to_string());
             }
-        }
-    }
     fn resolve_nested_sound_duration(
         value: &mut Value,
         assets: &crate::AssetMap,
         object_name: &str,
     ) {
         if let Some(obj) = value.as_object_mut() {
-            if obj.get("type").and_then(Value::as_str) == Some("get_sound_duration") {
-                if let Some(Value::String(name)) = obj
+            if obj.get("type").and_then(Value::as_str) == Some("get_sound_duration")
+                && let Some(Value::String(name)) = obj
                     .get("params")
                     .and_then(Value::as_array)
                     .and_then(|params| params.get(1))
-                {
-                    if let Some(id) = assets.sound_id_by_name(object_name, name) {
-                        if let Some(params) = obj.get_mut("params").and_then(Value::as_array_mut) {
+                    && let Some(id) = assets.sound_id_by_name(object_name, name)
+                        && let Some(params) = obj.get_mut("params").and_then(Value::as_array_mut) {
                             params[1] = Value::String(id.to_string());
                         }
-                    }
-                }
-            }
             for child in obj.values_mut() {
                 resolve_nested_sound_duration(child, assets, object_name);
             }
@@ -2737,8 +2728,8 @@ pub fn to_value_with_assets(
         ];
         if let Some(obj) = value.as_object_mut() {
             let block_type = obj.get("type").and_then(Value::as_str).map(String::from);
-            if let Some(t) = &block_type {
-                if OBJECT_TARGET_BLOCKS.contains(&t.as_str()) {
+            if let Some(t) = &block_type
+                && OBJECT_TARGET_BLOCKS.contains(&t.as_str()) {
                     let idx = TARGET_IDX
                         .iter()
                         .find(|(name, _)| *name == t.as_str())
@@ -2750,16 +2741,14 @@ pub fn to_value_with_assets(
                         .and_then(|params| params.get(idx))
                     {
                         let name = name.clone();
-                        if let Some(id) = assets.object_id_by_name(&name) {
-                            if let Some(params) =
+                        if let Some(id) = assets.object_id_by_name(&name)
+                            && let Some(params) =
                                 obj.get_mut("params").and_then(Value::as_array_mut)
                             {
                                 params[idx] = Value::String(id.to_string());
                             }
-                        }
                     }
                 }
-            }
             for child in obj.values_mut() {
                 resolve_nested_object_target(child, assets);
             }
