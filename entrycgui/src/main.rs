@@ -20,15 +20,12 @@ fn main() -> eframe::Result<()> {
 
 struct EntryCApp {
     name: String,
-    // 직전 프레임에 측정된 컨텐츠 사이즈. None이면 첫 프레임.
-    measured: Option<egui::Vec2>,
 }
 
 impl Default for EntryCApp {
     fn default() -> Self {
         Self {
             name: "EntryC GUI 판".to_string(),
-            measured: None,
         }
     }
 }
@@ -48,47 +45,46 @@ impl eframe::App for EntryCApp {
         egui::CentralPanel::default()
             .frame(egui::Frame::new().fill(egui::Color32::from_hex("#fff").expect("failed color")))
             .show(ui, |ui| {
-                // 메뉴바 제외한 패널 영역의 중앙 좌표를 기준으로 동적 중앙 잡기.
-                // Area는 측정된 컨텐츠 사이즈만큼 fixed_pos해서 매 프레임 중앙 유지.
-                // 첫 프레임은 사이즈 미측정이므로 중앙 anchor로 그리고, 다음 프레임부터
-                // fixed_pos로 정확히 패널 중앙에 둔다.
+                // 표준 패턴: 패널 폭 안에서 Layout::top_down(Align::Center)로 자식 가운데.
+                // 가로줄은 ui.horizontal로 잡으면 packed 결과의 폭 = max_width 가 되어서
+                // 부모 Layout::Center의 자식 packed가 가운데 정렬되지만 자식 자체가 좌측
+                // 정렬된 packed rect를 가지므로 첫 자식이 좌측에 보임. 이걸 막으려면
+                // 가로줄에서 ui.horizontal 대신 ui.with_layout(left_to_right(Center))
+                // + 직전 프레임 측정 가로 폭으로 Ui를 잡아 packed_width == 자식 union 으로.
                 let panel = ui.max_rect();
+                let panel_w = panel.width();
 
-                // 컨텐츠를 그릴 때 부모 폭을 헤딩/가로줄 중 더 넓은 쪽(=measured.x)으로 강제한다.
-                // 그래야 Layout의 Align::Center가 모든 자식을 같은 폭으로 보고 가운데로 배치한다.
-                // 헤딩의 자식폭이 가로줄보다 넓어서 헤딩 박스만 화면 가운데, 가로줄은 자기 폭
-                // 가운데로 가는 어긋남을 막는다.
-                let available_w = self.measured.map(|sz| sz.x).unwrap_or(panel.width());
-
-                let draw = |ui: &mut egui::Ui| {
-                    ui.allocate_ui(egui::vec2(available_w, ui.available_height()), |ui| {
-                        ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-                            ui.label(RichText::new("엔트리 파일을 Rust 로 변환합니다.").size(20.0));
-                            ui.add_space(12.0);
-                            ui.horizontal(|ui| {
-                                boxed(ui, |ui| {
-                                    ui.add_sized(Vec2::new(50.0, 50.0), egui::Button::new("From"));
-                                });
-                                ui.label("->");
-                                boxed(ui, |ui| {
-                                    ui.add_sized(Vec2::new(50.0, 50.0), egui::Button::new("To"));
-                                });
-                            });
+                ui.allocate_ui(egui::vec2(panel_w, panel.height()), |ui| {
+                    ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
+                        ui.label(RichText::new("엔트리 파일을 Rust 로 변환합니다.").size(20.0));
+                        ui.add_space(5.0);
+                        // 가로줄: max_width를 자식 packed보다 약간 크게(320) 잡아서
+                        // Layout::left_to_right(Align::Center)에서 자식 union이
+                        // 가운데 정렬되게 한다.
+                        ui.allocate_ui(egui::vec2(320.0, 100.0), |ui| {
+                            ui.with_layout(
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    boxed(ui, |ui| {
+                                        ui.add_sized(
+                                            Vec2::new(50.0, 50.0),
+                                            egui::Button::new("From"),
+                                        );
+                                    });
+                                    ui.add_space(4.0);
+                                    ui.label("->");
+                                    ui.add_space(4.0);
+                                    boxed(ui, |ui| {
+                                        ui.add_sized(
+                                            Vec2::new(50.0, 50.0),
+                                            egui::Button::new("To"),
+                                        );
+                                    });
+                                },
+                            );
                         });
                     });
-                };
-
-                let area = egui::Area::new(egui::Id::new("centered_block"))
-                    .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO);
-
-                let response = if let Some(sz) = self.measured {
-                    let pos =
-                        egui::pos2(panel.center().x - sz.x * 0.5, panel.center().y - sz.y * 0.5);
-                    area.fixed_pos(pos).show(ui.ctx(), draw)
-                } else {
-                    area.show(ui.ctx(), draw)
-                };
-                self.measured = Some(response.response.rect.size());
+                });
             });
     }
 }
