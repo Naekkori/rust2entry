@@ -4,6 +4,7 @@ description = "Rust ↔ Entry .ent compiler"
 version = "0.1.0"
 edition = "2024"
 authors = ["Naekkori"]
+license = "MIT"
 
 [dependencies]
 zip = { workspace = true }
@@ -12,5 +13,4 @@ tar = "0.4"
 serde = { workspace = true }
 serde_json = { workspace = true }
 clap = { workspace = true }
-chrono = { workspace = true }
 entrycore = { path = "../entrycore" }
