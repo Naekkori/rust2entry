@@ -150,6 +150,27 @@ pub enum DateKind {
     Second,
 }
 
+/// 대소문자 변환
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChangeStringCase {
+    ToUpper,
+    ToLower,
+}
+
+pub fn change_string_case_to_str(c: ChangeStringCase) -> &'static str {
+    match c {
+        ChangeStringCase::ToUpper => "toUpperCase",
+        ChangeStringCase::ToLower => "toLowerCase",
+    }
+}
+
+pub fn str_to_change_string_case(s: &str) -> Option<ChangeStringCase> {
+    match s {
+        "toUpperCase" | "toUpper" => Some(ChangeStringCase::ToUpper),
+        "toLowerCase" | "toLower" => Some(ChangeStringCase::ToLower),
+        _ => None,
+    }
+}
 pub fn date_kind_to_str(k: DateKind) -> &'static str {
     match k {
         DateKind::Year => "YEAR",
@@ -571,6 +592,10 @@ pub enum Block {
         old: ParamBlock,
         new: ParamBlock,
     },
+    ChangeStringCase {
+        target: ParamBlock,
+        case: ChangeStringCase,
+    },
     // ── 변수 ──
     SetVar {
         variable: String,
@@ -885,6 +910,7 @@ impl Block {
             Block::CountMatchString { .. } => "count_match_string",
             Block::IndexOfString { .. } => "index_of_string",
             Block::ReplaceString { .. } => "replace_string",
+            Block::ChangeStringCase { .. } => "change_string_case",
         }
     }
 
@@ -1047,6 +1073,7 @@ impl Block {
             Block::CountMatchString { .. } => Category::Calc,
             Block::IndexOfString { .. } => Category::Calc,
             Block::ReplaceString { .. } => Category::Calc,
+            Block::ChangeStringCase { .. } => Category::Calc,
         }
     }
 }
@@ -1543,6 +1570,12 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "replace_string" {
                         return Err(SyntaxError(
                             "replace_string is a value block and cannot be used as a statement"
+                                .into(),
+                        ));
+                    }
+                    if fref.name == "change_string_case" {
+                        return Err(SyntaxError(
+                            "change_string_case is a value block and cannot be used as a statement"
                                 .into(),
                         ));
                     }
@@ -2499,6 +2532,17 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     pattern,
                 })));
             }
+            if fref.name == "change_string_case" {
+                if args.len() != 2 {
+                    return Err(SyntaxError("change_string_case needs 2 args".into()));
+                }
+                let target = from_expr(&args[0])?;
+                let case = parse_enum_arg::<ChangeStringCase>(&args[1], "change_string_case case")?;
+                return Ok(ParamBlock::Sub(Box::new(Block::ChangeStringCase {
+                    target,
+                    case,
+                })));
+            }
             /*
             is_boost_mode(부스트 모드) — EntryJS func 본문: `return !!Entry.options.useWebGL;`
             EntryRS 듀얼엔진 (CappuccinoVM / OmochaEngine) 에서 잘못된 파라미터 사용 시 폴백값으로 쓰는 용도.
@@ -2614,10 +2658,11 @@ pub fn to_value_with_assets(
 ) -> crate::Result<Value> {
     let mut value = to_value(block)?;
     if let Block::ChangeToSomeShape { picture } = block
-        && let Some(id) = assets.picture_id_by_name(object_name, picture) {
-            // `change_to_some_shape`은 문자열이 아니라 `get_pictures` 값 블록을 받는다.
-            value["params"][0]["params"][0] = Value::String(id.to_string());
-        }
+        && let Some(id) = assets.picture_id_by_name(object_name, picture)
+    {
+        // `change_to_some_shape`은 문자열이 아니라 `get_pictures` 값 블록을 받는다.
+        value["params"][0]["params"][0] = Value::String(id.to_string());
+    }
     if let Block::SoundSomethingWithBlock {
         sound_name: ParamBlock::Text(sound_name),
     }
@@ -2661,9 +2706,10 @@ pub fn to_value_with_assets(
         value["params"][0] = json!({ "type": "get_sounds", "params": [id] });
     }
     if let Block::GetSoundDuration { sound_name } = block
-        && let Some(id) = assets.sound_id_by_name(object_name, sound_name) {
-            value["params"][1] = Value::String(id.to_string());
-        }
+        && let Some(id) = assets.sound_id_by_name(object_name, sound_name)
+    {
+        value["params"][1] = Value::String(id.to_string());
+    }
     // 오브젝트 dropdown 슬롯 (spritesWithMouse / spritesWithSelf / objectWithSelf / collision) — name → id.
     // EntryJS Runtime 이 `Entry.container.getEntity(id)` 로 lookup 하므로 id 가 필수.
     let object_target_idx: Option<usize> = match block {
@@ -2678,9 +2724,10 @@ pub fn to_value_with_assets(
     };
     if let Some(idx) = object_target_idx
         && let Value::String(name) = &value["params"][idx]
-            && let Some(id) = assets.object_id_by_name(name) {
-                value["params"][idx] = Value::String(id.to_string());
-            }
+        && let Some(id) = assets.object_id_by_name(name)
+    {
+        value["params"][idx] = Value::String(id.to_string());
+    }
     fn resolve_nested_sound_duration(
         value: &mut Value,
         assets: &crate::AssetMap,
@@ -2692,10 +2739,11 @@ pub fn to_value_with_assets(
                     .get("params")
                     .and_then(Value::as_array)
                     .and_then(|params| params.get(1))
-                    && let Some(id) = assets.sound_id_by_name(object_name, name)
-                        && let Some(params) = obj.get_mut("params").and_then(Value::as_array_mut) {
-                            params[1] = Value::String(id.to_string());
-                        }
+                && let Some(id) = assets.sound_id_by_name(object_name, name)
+                && let Some(params) = obj.get_mut("params").and_then(Value::as_array_mut)
+            {
+                params[1] = Value::String(id.to_string());
+            }
             for child in obj.values_mut() {
                 resolve_nested_sound_duration(child, assets, object_name);
             }
@@ -2729,26 +2777,26 @@ pub fn to_value_with_assets(
         if let Some(obj) = value.as_object_mut() {
             let block_type = obj.get("type").and_then(Value::as_str).map(String::from);
             if let Some(t) = &block_type
-                && OBJECT_TARGET_BLOCKS.contains(&t.as_str()) {
-                    let idx = TARGET_IDX
-                        .iter()
-                        .find(|(name, _)| *name == t.as_str())
-                        .map(|(_, i)| *i)
-                        .unwrap_or(0);
-                    if let Some(Value::String(name)) = obj
-                        .get("params")
-                        .and_then(Value::as_array)
-                        .and_then(|params| params.get(idx))
+                && OBJECT_TARGET_BLOCKS.contains(&t.as_str())
+            {
+                let idx = TARGET_IDX
+                    .iter()
+                    .find(|(name, _)| *name == t.as_str())
+                    .map(|(_, i)| *i)
+                    .unwrap_or(0);
+                if let Some(Value::String(name)) = obj
+                    .get("params")
+                    .and_then(Value::as_array)
+                    .and_then(|params| params.get(idx))
+                {
+                    let name = name.clone();
+                    if let Some(id) = assets.object_id_by_name(&name)
+                        && let Some(params) = obj.get_mut("params").and_then(Value::as_array_mut)
                     {
-                        let name = name.clone();
-                        if let Some(id) = assets.object_id_by_name(&name)
-                            && let Some(params) =
-                                obj.get_mut("params").and_then(Value::as_array_mut)
-                            {
-                                params[idx] = Value::String(id.to_string());
-                            }
+                        params[idx] = Value::String(id.to_string());
                     }
                 }
+            }
             for child in obj.values_mut() {
                 resolve_nested_object_target(child, assets);
             }
@@ -3422,6 +3470,16 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
+        Block::ChangeStringCase { target, case } => (
+            vec![
+                Value::Null,
+                param_to_value(target),
+                Value::Null,
+                Value::String(change_string_case_to_str(*case).to_string()),
+                Value::Null,
+            ],
+            None,
+        ),
     })
 }
 
@@ -3727,4 +3785,20 @@ fn str_to_dim(s: &str) -> Option<Dimension> {
         "height" => Dimension::Height,
         _ => return None,
     })
+}
+
+impl DslEnum for ChangeStringCase {
+    const TYPE_NAME: &'static str = "ChangeStringCase";
+
+    fn from_dsl_str(value: &str) -> Option<Self> {
+        str_to_change_string_case(value)
+    }
+
+    fn from_variant(variant: &str) -> Option<Self> {
+        Some(match variant {
+            "ToUpper" => Self::ToUpper,
+            "ToLower" => Self::ToLower,
+            _ => return None,
+        })
+    }
 }

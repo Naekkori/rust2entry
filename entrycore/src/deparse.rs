@@ -9,9 +9,9 @@ use std::vec;
 use crate::Error::{Parse, SyntaxError, UnmappedBlock};
 use crate::block::{
     Block, DateKind, DialogMode, Dimension, EffectType, MathOperation, ParamBlock, QamMethod,
-    date_kind_to_str, device_type_to_str, dim_to_dsl_str, effect_to_str, mouse_axis_to_str,
-    object_coord_to_str, str_to_mouse_axis, str_to_object_coord, str_to_text_effect,
-    text_effect_to_str,
+    change_string_case_to_str, date_kind_to_str, device_type_to_str, dim_to_dsl_str, effect_to_str,
+    mouse_axis_to_str, object_coord_to_str, str_to_change_string_case, str_to_mouse_axis,
+    str_to_object_coord, str_to_text_effect, text_effect_to_str,
 };
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
@@ -554,6 +554,20 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let target = param_at(&params, 1, vars)?;
             let pattern = param_at(&params, 3, vars)?;
             Block::IndexOfString { target, pattern }
+        }
+        "change_string_case" => {
+            let value = param_at(&params, 1, vars)?;
+            let case_str = params
+                .get(3)
+                .and_then(Value::as_str)
+                .unwrap_or("toUpperCase");
+            let case = str_to_change_string_case(case_str).ok_or_else(|| {
+                crate::Error::Parse(format!("change_string_case invalid case:{case_str}"))
+            })?;
+            Block::ChangeStringCase {
+                target: value,
+                case,
+            }
         }
         "reach_something" => {
             let target = params
@@ -2887,6 +2901,9 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::IndexOfString { .. } => Err(SyntaxError(
             "index_of_string is a value block and cannot be used as a statement".into(),
         )),
+        Block::ChangeStringCase { .. } => Err(SyntaxError(
+            "change_string_case is a value block and cannot be used as a statement".into(),
+        )),
     }
 }
 
@@ -3655,6 +3672,17 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![tg, pn],
             ))
         }
+        Block::ChangeStringCase { target, case } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "change_string_case".to_string(),
+                arity: 2,
+                raw: None,
+            },
+            vec![
+                expr_from_param(target, vars)?,
+                Expr::Str(change_string_case_to_str(*case).to_string()),
+            ],
+        )),
     }
 }
 
@@ -3673,9 +3701,10 @@ fn hw_raw_args(raw: &Value, vars: &VarMap) -> Vec<Expr> {
     if let Some(Value::Array(params)) = raw.get("params") {
         for p in params {
             if let Ok(pb) = value_to_param(p, vars)
-                && let Ok(e) = expr_from_param(&pb, vars) {
-                    out.push(e);
-                }
+                && let Ok(e) = expr_from_param(&pb, vars)
+            {
+                out.push(e);
+            }
         }
     }
     out
@@ -3735,9 +3764,10 @@ fn resolve_asset_ids(
         if let Expr::Call(fref, args) = expr {
             if fref.name == "get_sound_duration"
                 && let Some(Expr::Str(id)) = args.first_mut()
-                    && let Some(name) = assets.sound_name_by_id(object_name, id) {
-                        *id = name.to_string();
-                    }
+                && let Some(name) = assets.sound_name_by_id(object_name, id)
+            {
+                *id = name.to_string();
+            }
             // 오브젝트 dropdown 슬롯 — IR args 의 target 위치 id → name.
             // (forward 의 EntryJS params idx 와 다름 — IR 은 라벨 슬롯 제외하고 value 만 args 에 담는다.)
             let object_target_idx: Option<usize> = match fref.name.as_str() {
@@ -3748,10 +3778,11 @@ fn resolve_asset_ids(
             };
             if let Some(idx) = object_target_idx
                 && let Some(arg) = args.get_mut(idx)
-                    && let Expr::Str(id) = arg
-                        && let Some(name) = assets.object_name_by_id(id) {
-                            *id = name.to_string();
-                        }
+                && let Expr::Str(id) = arg
+                && let Some(name) = assets.object_name_by_id(id)
+            {
+                *id = name.to_string();
+            }
             for arg in args {
                 resolve_expr(arg, assets, object_name);
             }
@@ -3765,9 +3796,10 @@ fn resolve_asset_ids(
                 }
                 Stmt::Expr(Expr::Call(fref, args)) if fref.name == "change_to_some_shape" => {
                     if let Some(Expr::Str(id)) = args.first_mut()
-                        && let Some(name) = assets.picture_name_by_id(object_name, id) {
-                            *id = name.to_string();
-                        }
+                        && let Some(name) = assets.picture_name_by_id(object_name, id)
+                    {
+                        *id = name.to_string();
+                    }
                 }
                 Stmt::Expr(Expr::Call(fref, args))
                     if matches!(
@@ -3783,9 +3815,10 @@ fn resolve_asset_ids(
                     ) =>
                 {
                     if let Some(Expr::Str(id)) = args.first_mut()
-                        && let Some(name) = assets.sound_name_by_id(object_name, id) {
-                            *id = name.to_string();
-                        }
+                        && let Some(name) = assets.sound_name_by_id(object_name, id)
+                    {
+                        *id = name.to_string();
+                    }
                 }
                 // 오브젝트 dropdown 슬롯 — EntryJS 가 emit 한 id 를 DSL 의 name 으로 복원.
                 Stmt::Expr(Expr::Call(fref, args))
@@ -3795,9 +3828,10 @@ fn resolve_asset_ids(
                     ) =>
                 {
                     if let Some(Expr::Str(id)) = args.first_mut()
-                        && let Some(name) = assets.object_name_by_id(id) {
-                            *id = name.to_string();
-                        }
+                        && let Some(name) = assets.object_name_by_id(id)
+                    {
+                        *id = name.to_string();
+                    }
                 }
                 Stmt::Expr(Expr::Call(fref, args))
                     if matches!(
@@ -3807,9 +3841,10 @@ fn resolve_asset_ids(
                 {
                     if let Some(arg) = args.get_mut(1)
                         && let Expr::Str(id) = arg
-                            && let Some(name) = assets.object_name_by_id(id) {
-                                *id = name.to_string();
-                            }
+                        && let Some(name) = assets.object_name_by_id(id)
+                    {
+                        *id = name.to_string();
+                    }
                 }
                 Stmt::FuncDef { body, .. } => resolve_stmts(body, assets, object_name),
                 Stmt::If {

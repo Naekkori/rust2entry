@@ -321,7 +321,7 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `count_match_string` — 포함 횟수 (→ `count_match_string("hello", "l")`; 값 슬롯 블록. `Block::CountMatchString { target: ParamBlock, pattern: ParamBlock }` struct variant. EntryJS class `calc_string`. EntryJS params `[Text, Block(string), Text, Block(string), Text]` 5-slot → emit `[null, target, null, pattern, null]`. deparse `param_at(&params, 1, 3)`. stmt 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error).)
 - ✅ `index_of_string` — 위치 찾기 (→ `index_of_string("hello", "l")`; 값 슬롯 블록. `Block::IndexOfString { target: ParamBlock, pattern: ParamBlock }` struct variant. EntryJS class `calc_string`. EntryJS params `[Text, Block(string), Text, Block(string), Text]` 5-slot → emit `[null, target, null, pattern, null]`. deparse `param_at(&params, 1, 3)`. stmt 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error).)
 - ✅ `replace_string` — 치환 (→ `replace_string("hello", "l", "r")`; 값 슬롯 블록. `Block::ReplaceString { target: ParamBlock, old: ParamBlock, new: ParamBlock }` struct variant. EntryJS class `calc_string`. EntryJS params `[Text, Block(string), Text, Block(string), Text, Block(string), Text]` 7-slot → emit `[null, target, null, old, null, new, null]`. deparse `param_at(&params, 1, 3, 5)`. stmt 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error).)
-- ⬜ `change_string_case` — 대소문자
+- ✅ `change_string_case` — 대소문자 (→ `change_string_case("hello", "toUpperCase"|"toLowerCase")`; 값 슬롯 블록. `Block::ChangeStringCase { target: ParamBlock, case: ChangeStringCase }` struct variant. EntryJS class `calc_string`. `func` 는 `str.toUpperCase()` / `str.toLowerCase()`. EntryJS params `[Text, Block(string), Text, Dropdown, Text]` 5-slot → emit `[null, sub, null, "toUpperCase"|"toLowerCase", null]`. paramsKeyMap.STRING=1, CASE=3 → deparse `param_at(&params, 1)` + `params.get(3).as_str()`. DSL 신택스는 string literal (`"toUpperCase"` / `"toUpper"` 등 둘 다) 또는 path (`ChangeStringCase::ToUpper`). stmt 자리 거부. 테스트 5개.)
 - ⬜ `get_block_count` — 블록 수
 - ⬜ `change_rgb_to_hex` — RGB → HEX
 - ⬜ `change_hex_to_rgb` — HEX → R/G/B
@@ -538,7 +538,7 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**141/334** 매핑됨 (약 42.2%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**142/334** 매핑됨 (약 42.5%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
 카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 12/12 (완료), 연산 26/26 ✅ 완료, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 

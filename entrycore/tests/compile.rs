@@ -7611,3 +7611,92 @@ fn compile_replace_string_statement_error() {
     let src = r#"fn when_start() { replace_string("a", "b", "c"); }"#;
     assert!(compile(&[("obj", src)], &empty_project()).is_err());
 }
+
+// --- change_string_case ---
+
+/// `change_string_case("hello", "toUpperCase")` → 값 슬롯, params = [null, text, null, "toUpperCase", null].
+#[test]
+fn compile_change_string_case() {
+    let src = r#"fn when_start() {
+        let u = change_string_case("hello", "toUpperCase");
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    assert_eq!(set_var["params"][1]["type"], "change_string_case");
+    let sub_params = set_var["params"][1]["params"].as_array().unwrap();
+    assert_eq!(sub_params.len(), 5);
+    assert!(sub_params[0].is_null());
+    assert_eq!(sub_params[1]["type"], "text");
+    assert_eq!(sub_params[1]["params"][0], "hello");
+    assert!(sub_params[2].is_null());
+    assert_eq!(sub_params[3], "toUpperCase");
+    assert!(sub_params[4].is_null());
+}
+
+/// `change_string_case` 라운드트립.
+#[test]
+fn compile_change_string_case_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() {
+        let u = change_string_case("hello", "toUpperCase");
+    }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { name, body, .. } => {
+            assert_eq!(name, "when_start");
+            match &body[0] {
+                Stmt::SetVar(_, rhs) => match rhs {
+                    Expr::Call(fref, args) => {
+                        assert_eq!(fref.name, "change_string_case");
+                        assert_eq!(args.len(), 2);
+                        assert!(matches!(&args[0], Expr::Str(s) if s == "hello"));
+                        assert!(matches!(&args[1], Expr::Str(s) if s == "toUpperCase"));
+                    }
+                    other => panic!("expected Call(change_string_case), got {other:?}"),
+                },
+                other => panic!("expected SetVar, got {other:?}"),
+            }
+        }
+        other => panic!("expected FuncDef(when_start), got {other:?}"),
+    }
+}
+
+/// `change_string_case("a")` (1) / `change_string_case("a", "X", "Y")` (3) → SyntaxError.
+#[test]
+fn compile_change_string_case_arity_check() {
+    use entrycore::compile;
+    let src1 = r#"fn when_start() { let u = change_string_case("a"); }"#;
+    assert!(compile(&[("obj", src1)], &empty_project()).is_err());
+    let src3 = r#"fn when_start() { let u = change_string_case("a", "toUpperCase", "extra"); }"#;
+    assert!(compile(&[("obj", src3)], &empty_project()).is_err());
+}
+
+/// `change_string_case("a", "toUpperCase")` 의 case 인자가 invalid string → SyntaxError.
+#[test]
+fn compile_change_string_case_invalid_case() {
+    use entrycore::compile;
+    let src = r#"fn when_start() {
+        let u = change_string_case("a", "bogusCase");
+    }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}
+
+/// `change_string_case("a", "toUpperCase");` 단독 statement → SyntaxError (값 슬롯).
+#[test]
+fn compile_change_string_case_statement_error() {
+    use entrycore::compile;
+    let src = r#"fn when_start() { change_string_case("a", "toUpperCase"); }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}
