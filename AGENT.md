@@ -322,10 +322,10 @@ fn greet(a: StringParam, b: BoolParam) {
 - ✅ `index_of_string` — 위치 찾기 (→ `index_of_string("hello", "l")`; 값 슬롯 블록. `Block::IndexOfString { target: ParamBlock, pattern: ParamBlock }` struct variant. EntryJS class `calc_string`. EntryJS params `[Text, Block(string), Text, Block(string), Text]` 5-slot → emit `[null, target, null, pattern, null]`. deparse `param_at(&params, 1, 3)`. stmt 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error).)
 - ✅ `replace_string` — 치환 (→ `replace_string("hello", "l", "r")`; 값 슬롯 블록. `Block::ReplaceString { target: ParamBlock, old: ParamBlock, new: ParamBlock }` struct variant. EntryJS class `calc_string`. EntryJS params `[Text, Block(string), Text, Block(string), Text, Block(string), Text]` 7-slot → emit `[null, target, null, old, null, new, null]`. deparse `param_at(&params, 1, 3, 5)`. stmt 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error).)
 - ✅ `change_string_case` — 대소문자 (→ `change_string_case("hello", "toUpperCase"|"toLowerCase")`; 값 슬롯 블록. `Block::ChangeStringCase { target: ParamBlock, case: ChangeStringCase }` struct variant. EntryJS class `calc_string`. `func` 는 `str.toUpperCase()` / `str.toLowerCase()`. EntryJS params `[Text, Block(string), Text, Dropdown, Text]` 5-slot → emit `[null, sub, null, "toUpperCase"|"toLowerCase", null]`. paramsKeyMap.STRING=1, CASE=3 → deparse `param_at(&params, 1)` + `params.get(3).as_str()`. DSL 신택스는 string literal (`"toUpperCase"` / `"toUpper"` 등 둘 다) 또는 path (`ChangeStringCase::ToUpper`). stmt 자리 거부. 테스트 5개.)
-- ⬜ `get_block_count` — 블록 수
-- ⬜ `change_rgb_to_hex` — RGB → HEX
-- ⬜ `change_hex_to_rgb` — HEX → R/G/B
-- ⬜ `get_boolean_value` — 값 슬롯 (boolean)
+- ✅ `get_block_count` — 블록 수 (→ `get_block_count("self")`; 값 슬롯 블록. `Block::GetBlockCount { target: ParamBlock }` struct variant. EntryJS class `block`. `func` 는 `Entry.Utils.getObjectsBlocks*` 결과 길이 (async). EntryJS params `[DropdownDynamic]` 1-slot, menuName `blockCount`. paramsKeyMap.OBJECT=0 → deparse `param_at(&params, 0)`. stmt 자리 거부. 테스트 4개.)
+- ✅ `change_rgb_to_hex` — RGB → HEX (→ `change_rgb_to_hex(255, 0, 0)`; 값 슬롯 블록. `Block::ChangeRgbToHex { r, g, b: ParamBlock }` struct variant. EntryJS class `color`. `func` 는 `Entry.rgb2hex(r, g, b)`. EntryJS params `[Block(number), Block(number), Block(number)]` 3-slot. paramsKeyMap.RED=0, GREEN=1, BLUE=2 → deparse `param_at(&params, 0, 1, 2)`. stmt 자리 거부. 테스트 4개.)
+- ✅ `change_hex_to_rgb` — HEX → R/G/B (→ `change_hex_to_rgb("#FF0000", "r"|"g"|"b")`; 값 슬롯 블록. `Block::ChangeHexToRgb { hex: ParamBlock, channel: RgbChannel }` struct variant. EntryJS class `color`. `func` 는 `Entry.hex2rgb(hex)[r|g|b]`. EntryJS params `[Block(string), Dropdown]` 2-slot. paramsKeyMap.HEX=0, COLOR=1 → deparse `param_at(&params, 0)` + `params.get(1).as_str()`. DSL 신택스는 string literal (`"r"` / `"g"` / `"b"`) 또는 path (`RgbChannel::R` 등). stmt 자리 거부. 테스트 5개 (basic/roundtrip/arity_check/invalid_channel/statement_error).)
+- ✅ `get_boolean_value` — 값 슬롯 (boolean) (→ `get_boolean_value(true)`; 값 슬롯 블록. `Block::GetBooleanValue { value: ParamBlock }` struct variant. EntryJS class `calc_boolean`. `func` 는 `Boolean(bool)` 결과에 따라 `"TRUE"` / `"FALSE"` 문자열 반환. EntryJS params `[Block(boolean)]` 1-slot. paramsKeyMap.BOOLEAN=0 → deparse `param_at(&params, 0)`. stmt 자리 거부. 테스트 4개.) **연산 30/26.**
 
 ### 변수 (19/19) ✅ 완료
 - ✅ `set_variable` → `SetVar`
@@ -538,9 +538,9 @@ fn greet(a: StringParam, b: BoolParam) {
 
 ### 합계
 
-**142/334** 매핑됨 (약 42.5%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
+**146/334** 매핑됨 (약 43.7%). 목표: 기본 187 + AI 학습 26 + AI 활용 79 + 확장 42 = 334개 (기본 203개 중 내부용 16개 제외).
 
-카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 12/12 (완료), 연산 26/26 ✅ 완료, 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
+카테고리별 (✅/전체): 시작 13/13 (완료, 내부용 13개 제외), 흐름 14/14 (완료), 움직임 19/19 (완료), 형태 17/17 (완료), 붓 13/13 (완료), 텍스트 9/9 (완료), 소리 16/16 (완료), 판단 12/12 (완료), 연산 30/26 ✅ 완료 (재정리됨), 변수 19/19 (완료), 함수 7/11 (UI 3개 제외), 데이터분석 0/18, **AI 학습 0/26, AI 활용 0/79, 확장 0/42**.
 
 ## 남은 작업 (TODO)
 
@@ -618,6 +618,10 @@ fn greet(a: StringParam, b: BoolParam) {
   - [x] 연산: `count_match_string` (포함 �수) — 값 슬롯 블록. `Block::CountMatchString { target: ParamBlock, pattern: ParamBlock }` struct variant. EntryJS class `calc_string`. EntryJS params `[Text, Block(string), Text, Block(string), Text]` 5-slot → emit `[null, target, null, pattern, null]`. deparse `param_at(&params, 1, 3)`. stmt 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error). **연산 24/26.**
   - [x] 연산: `index_of_string` (위치 찾기) — 값 슬롯 블록. `Block::IndexOfString { target: ParamBlock, pattern: ParamBlock }` struct variant. EntryJS class `calc_string`. EntryJS params `[Text, Block(string), Text, Block(string), Text]` 5-slot → emit `[null, target, null, pattern, null]`. deparse `param_at(&params, 1, 3)`. stmt 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error). **연산 25/26.**
   - [x] 연산: `replace_string` (치환) — 값 슬롯 블록. `Block::ReplaceString { target: ParamBlock, old: ParamBlock, new: ParamBlock }` struct variant. EntryJS class `calc_string`. EntryJS params `[Text, Block(string), Text, Block(string), Text, Block(string), Text]` 7-slot → emit `[null, target, null, old, null, new, null]`. deparse `param_at(&params, 1, 3, 5)`. stmt 자리 거부. 테스트 4개 (basic/roundtrip/arity_check/statement_error). **연산 26/26 ✅ 완료.**
+  - [x] 연산: `get_block_count` (블록 수) — 값 슬롯 블록. `Block::GetBlockCount { target: ParamBlock }`. EntryJS class `block`. paramsKeyMap.OBJECT=0 (1-slot DropdownDynamic, menuName `blockCount`). deparse `param_at(&params, 0)`. 테스트 4개.
+  - [x] 연산: `change_rgb_to_hex` (RGB → HEX) — 값 슬롯 블록. `Block::ChangeRgbToHex { r, g, b: ParamBlock }`. EntryJS class `color`. 3-slot (`paramsKeyMap.RED=0, GREEN=1, BLUE=2`). deparse `param_at(&params, 0, 1, 2)`. 테스트 4개.
+  - [x] 연산: `change_hex_to_rgb` (HEX → R/G/B) — 값 슬롯 블록. `Block::ChangeHexToRgb { hex: ParamBlock, channel: RgbChannel }`. EntryJS class `color`. 2-slot (`HEX=0, COLOR=1`). `RgbChannel` enum (R/G/B) + helper. DSL 신택스는 string literal 또는 path. deparse `param_at(&params, 0)` + `params.get(1).as_str()`. 테스트 5개 (basic/roundtrip/arity_check/invalid_channel/statement_error).
+  - [x] 연산: `get_boolean_value` (값 슬롯 boolean) — 값 슬롯 블록. `Block::GetBooleanValue { value: ParamBlock }`. EntryJS class `calc_boolean`. 1-slot (`BOOLEAN=0`). deparse `param_at(&params, 0)`. 테스트 4개. **연산 30/26.**
   - [x] 자산 ID 양방향 매핑 — 오브젝트 dropdown 슬롯 (spritesWithMouse / spritesWithSelf / objectWithSelf / collision) 값은 EntryJS Runtime 이 `Entry.container.getEntity(id)` 로 lookup 하므로 sprite id 가 필수. `AssetMap` 에 `object_ids: NameIdMap` 추가 + `object_id_by_name` / `object_name_by_id` 메서드 (`mouse` / `self` reserved keyword 그대로 통과). 7개 블록 (`CreateClone`, `SeeAngleObject`, `Locate`, `ReachSomeThing`, `LocateObjectTime`, `CoordinateObject`, `DistanceSomething`) 동시 적용. 정방향은 `to_value_with_assets` 의 nested recursive (`resolve_nested_object_target`) + `resolve_expr` 매칭. stmt-side object 매칭 arm 도 `reach_something` 추가 (statement 자리 호출 가능). 테스트: AssetMap 단위 4개 + 통합 라운드트립 3개 (`distance_something` name/id, `distance_something` mouse, `reach_something` name/id).
   - [ ] **잠재 문제**: `coordinate_mouse` / `coordinate_object` / `get_date` 의 category 가 현재 `Judgment` 인데 EntryJS source 는 모두 `block_calc.js` 안에 있음 → `Calc` 로 수정 필요. `get_date` 만 Calc 로 수정함, 나머지 2개 미정.
 - [ ] 중기

@@ -7700,3 +7700,307 @@ fn compile_change_string_case_statement_error() {
     let src = r#"fn when_start() { change_string_case("a", "toUpperCase"); }"#;
     assert!(compile(&[("obj", src)], &empty_project()).is_err());
 }
+
+// --- get_block_count ---
+
+/// `get_block_count("self")` → 값 슬롯, params = [text("self")].
+#[test]
+fn compile_get_block_count() {
+    let src = r#"fn when_start() {
+        let n = get_block_count("self");
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    assert_eq!(set_var["params"][1]["type"], "get_block_count");
+    let sub_params = set_var["params"][1]["params"].as_array().unwrap();
+    assert_eq!(sub_params.len(), 1);
+    assert_eq!(sub_params[0]["type"], "text");
+    assert_eq!(sub_params[0]["params"][0], "self");
+}
+
+/// `get_block_count` 라운드트립.
+#[test]
+fn compile_get_block_count_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() {
+        let n = get_block_count("self");
+    }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { body, .. } => match &body[0] {
+            Stmt::SetVar(_, rhs) => match rhs {
+                Expr::Call(fref, args) => {
+                    assert_eq!(fref.name, "get_block_count");
+                    assert_eq!(args.len(), 1);
+                    assert!(matches!(&args[0], Expr::Str(s) if s == "self"));
+                }
+                other => panic!("expected Call(get_block_count), got {other:?}"),
+            },
+            other => panic!("expected SetVar, got {other:?}"),
+        },
+        other => panic!("expected FuncDef, got {other:?}"),
+    }
+}
+
+/// `get_block_count()` (0) / `get_block_count("a","b")` (2) → SyntaxError.
+#[test]
+fn compile_get_block_count_arity_check() {
+    use entrycore::compile;
+    let src0 = r#"fn when_start() { let n = get_block_count(); }"#;
+    assert!(compile(&[("obj", src0)], &empty_project()).is_err());
+    let src2 = r#"fn when_start() { let n = get_block_count("a", "b"); }"#;
+    assert!(compile(&[("obj", src2)], &empty_project()).is_err());
+}
+
+/// `get_block_count("x");` 단독 statement → SyntaxError.
+#[test]
+fn compile_get_block_count_statement_error() {
+    use entrycore::compile;
+    let src = r#"fn when_start() { get_block_count("x"); }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}
+
+// --- change_rgb_to_hex ---
+
+/// `change_rgb_to_hex(255, 0, 0)` → 값 슬롯, params = [number, number, number].
+#[test]
+fn compile_change_rgb_to_hex() {
+    let src = r#"fn when_start() {
+        let hex = change_rgb_to_hex(255, 0, 0);
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    assert_eq!(set_var["params"][1]["type"], "change_rgb_to_hex");
+    let sub_params = set_var["params"][1]["params"].as_array().unwrap();
+    assert_eq!(sub_params.len(), 3);
+    assert_eq!(sub_params[0]["type"], "number");
+    assert_eq!(
+        sub_params[0]["params"][0].as_f64().expect("number"),
+        255.0
+    );
+    assert_eq!(sub_params[1]["type"], "number");
+    assert_eq!(sub_params[1]["params"][0].as_f64().expect("number"), 0.0);
+    assert_eq!(sub_params[2]["type"], "number");
+    assert_eq!(sub_params[2]["params"][0].as_f64().expect("number"), 0.0);
+}
+
+/// `change_rgb_to_hex` 라운드트립.
+#[test]
+fn compile_change_rgb_to_hex_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() {
+        let hex = change_rgb_to_hex(255, 0, 0);
+    }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { body, .. } => match &body[0] {
+            Stmt::SetVar(_, rhs) => match rhs {
+                Expr::Call(fref, args) => {
+                    assert_eq!(fref.name, "change_rgb_to_hex");
+                    assert_eq!(args.len(), 3);
+                    assert!(matches!(&args[0], Expr::Float(f) if *f == 255.0));
+                    assert!(matches!(&args[1], Expr::Float(f) if *f == 0.0));
+                    assert!(matches!(&args[2], Expr::Float(f) if *f == 0.0));
+                }
+                other => panic!("expected Call(change_rgb_to_hex), got {other:?}"),
+            },
+            other => panic!("expected SetVar, got {other:?}"),
+        },
+        other => panic!("expected FuncDef, got {other:?}"),
+    }
+}
+
+/// `change_rgb_to_hex(255)` (1) / `change_rgb_to_hex(255,0,0,0)` (4) → SyntaxError.
+#[test]
+fn compile_change_rgb_to_hex_arity_check() {
+    use entrycore::compile;
+    let src1 = r#"fn when_start() { let h = change_rgb_to_hex(255); }"#;
+    assert!(compile(&[("obj", src1)], &empty_project()).is_err());
+    let src4 = r#"fn when_start() { let h = change_rgb_to_hex(255, 0, 0, 0); }"#;
+    assert!(compile(&[("obj", src4)], &empty_project()).is_err());
+}
+
+/// `change_rgb_to_hex(255,0,0);` 단독 statement → SyntaxError.
+#[test]
+fn compile_change_rgb_to_hex_statement_error() {
+    use entrycore::compile;
+    let src = r#"fn when_start() { change_rgb_to_hex(255, 0, 0); }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}
+
+// --- change_hex_to_rgb ---
+
+/// `change_hex_to_rgb("#FF0000", "r")` → 값 슬롯, params = [text, "r"].
+#[test]
+fn compile_change_hex_to_rgb() {
+    let src = r##"fn when_start() {
+        let rgb = change_hex_to_rgb("#FF0000", "r");
+    }"##;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    assert_eq!(set_var["params"][1]["type"], "change_hex_to_rgb");
+    let sub_params = set_var["params"][1]["params"].as_array().unwrap();
+    assert_eq!(sub_params.len(), 2);
+    assert_eq!(sub_params[0]["type"], "text");
+    assert_eq!(sub_params[0]["params"][0], "#FF0000");
+    assert_eq!(sub_params[1], "r");
+}
+
+/// `change_hex_to_rgb` 라운드트립.
+#[test]
+fn compile_change_hex_to_rgb_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r##"fn when_start() {
+        let rgb = change_hex_to_rgb("#FF0000", "r");
+    }"##;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { body, .. } => match &body[0] {
+            Stmt::SetVar(_, rhs) => match rhs {
+                Expr::Call(fref, args) => {
+                    assert_eq!(fref.name, "change_hex_to_rgb");
+                    assert_eq!(args.len(), 2);
+                    assert!(matches!(&args[0], Expr::Str(s) if s == "#FF0000"));
+                    assert!(matches!(&args[1], Expr::Str(s) if s == "r"));
+                }
+                other => panic!("expected Call(change_hex_to_rgb), got {other:?}"),
+            },
+            other => panic!("expected SetVar, got {other:?}"),
+        },
+        other => panic!("expected FuncDef, got {other:?}"),
+    }
+}
+
+/// `change_hex_to_rgb("#FF0000")` (1) / `change_hex_to_rgb("#FF0000","r","g")` (3) → SyntaxError.
+#[test]
+fn compile_change_hex_to_rgb_arity_check() {
+    use entrycore::compile;
+    let src1 = r##"fn when_start() { let rgb = change_hex_to_rgb("#FF0000"); }"##;
+    assert!(compile(&[("obj", src1)], &empty_project()).is_err());
+    let src3 = r##"fn when_start() { let rgb = change_hex_to_rgb("#FF0000", "r", "g"); }"##;
+    assert!(compile(&[("obj", src3)], &empty_project()).is_err());
+}
+
+/// `change_hex_to_rgb("#FF0000", "x")` 의 channel 이 invalid → SyntaxError.
+#[test]
+fn compile_change_hex_to_rgb_invalid_channel() {
+    use entrycore::compile;
+    let src = r##"fn when_start() {
+        let rgb = change_hex_to_rgb("#FF0000", "x");
+    }"##;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}
+
+/// `change_hex_to_rgb("#FF0000", "r");` 단독 statement → SyntaxError.
+#[test]
+fn compile_change_hex_to_rgb_statement_error() {
+    use entrycore::compile;
+    let src = r##"fn when_start() { change_hex_to_rgb("#FF0000", "r"); }"##;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}
+
+// --- get_boolean_value ---
+
+/// `get_boolean_value(true)` → 값 슬롯, params = [True 블록].
+#[test]
+fn compile_get_boolean_value() {
+    let src = r#"fn when_start() {
+        let s = get_boolean_value(true);
+    }"#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let set_var = &thread[1];
+    assert_eq!(set_var["type"], "set_variable");
+    assert_eq!(set_var["params"][1]["type"], "get_boolean_value");
+    let sub_params = set_var["params"][1]["params"].as_array().unwrap();
+    assert_eq!(sub_params.len(), 1);
+    assert_eq!(sub_params[0]["type"], "boolean");
+}
+
+/// `get_boolean_value` 라운드트립.
+#[test]
+fn compile_get_boolean_value_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::{Expr, Stmt};
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() {
+        let s = get_boolean_value(true);
+    }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1);
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    match &p2.stmts[0] {
+        Stmt::FuncDef { body, .. } => match &body[0] {
+            Stmt::SetVar(_, rhs) => match rhs {
+                Expr::Call(fref, args) => {
+                    assert_eq!(fref.name, "get_boolean_value");
+                    assert_eq!(args.len(), 1);
+                    assert!(matches!(&args[0], Expr::Bool(true)));
+                }
+                other => panic!("expected Call(get_boolean_value), got {other:?}"),
+            },
+            other => panic!("expected SetVar, got {other:?}"),
+        },
+        other => panic!("expected FuncDef, got {other:?}"),
+    }
+}
+
+/// `get_boolean_value()` (0) / `get_boolean_value(true, false)` (2) → SyntaxError.
+#[test]
+fn compile_get_boolean_value_arity_check() {
+    use entrycore::compile;
+    let src0 = r#"fn when_start() { let s = get_boolean_value(); }"#;
+    assert!(compile(&[("obj", src0)], &empty_project()).is_err());
+    let src2 = r#"fn when_start() { let s = get_boolean_value(true, false); }"#;
+    assert!(compile(&[("obj", src2)], &empty_project()).is_err());
+}
+
+/// `get_boolean_value(true);` 단독 statement → SyntaxError.
+#[test]
+fn compile_get_boolean_value_statement_error() {
+    use entrycore::compile;
+    let src = r#"fn when_start() { get_boolean_value(true); }"#;
+    assert!(compile(&[("obj", src)], &empty_project()).is_err());
+}

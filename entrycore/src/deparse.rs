@@ -10,8 +10,9 @@ use crate::Error::{Parse, SyntaxError, UnmappedBlock};
 use crate::block::{
     Block, DateKind, DialogMode, Dimension, EffectType, MathOperation, ParamBlock, QamMethod,
     change_string_case_to_str, date_kind_to_str, device_type_to_str, dim_to_dsl_str, effect_to_str,
-    mouse_axis_to_str, object_coord_to_str, str_to_change_string_case, str_to_mouse_axis,
-    str_to_object_coord, str_to_text_effect, text_effect_to_str,
+    mouse_axis_to_str, object_coord_to_str, rgb_channel_to_str, str_to_change_string_case,
+    str_to_mouse_axis, str_to_object_coord, str_to_rgb_channel, str_to_text_effect,
+    text_effect_to_str,
 };
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
@@ -568,6 +569,31 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 target: value,
                 case,
             }
+        }
+        "get_block_count" => {
+            let target = param_at(&params, 0, vars)?;
+            Block::GetBlockCount { target }
+        }
+        "change_rgb_to_hex" => {
+            let r = param_at(&params, 0, vars)?;
+            let g = param_at(&params, 1, vars)?;
+            let b = param_at(&params, 2, vars)?;
+            Block::ChangeRgbToHex { r, g, b }
+        }
+        "change_hex_to_rgb" => {
+            let hex = param_at(&params, 0, vars)?;
+            let channel_str = params
+                .get(1)
+                .and_then(Value::as_str)
+                .unwrap_or("r");
+            let channel = str_to_rgb_channel(channel_str).ok_or_else(|| {
+                crate::Error::Parse(format!("change_hex_to_rgb invalid channel:{channel_str}"))
+            })?;
+            Block::ChangeHexToRgb { hex, channel }
+        }
+        "get_boolean_value" => {
+            let value = param_at(&params, 0, vars)?;
+            Block::GetBooleanValue { value }
         }
         "reach_something" => {
             let target = params
@@ -2904,6 +2930,18 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::ChangeStringCase { .. } => Err(SyntaxError(
             "change_string_case is a value block and cannot be used as a statement".into(),
         )),
+        Block::GetBlockCount { .. } => Err(SyntaxError(
+            "get_block_count is a value block and cannot be used as a statement".into(),
+        )),
+        Block::ChangeRgbToHex { .. } => Err(SyntaxError(
+            "change_rgb_to_hex is a value block and cannot be used as a statement".into(),
+        )),
+        Block::ChangeHexToRgb { .. } => Err(SyntaxError(
+            "change_hex_to_rgb is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetBooleanValue { .. } => Err(SyntaxError(
+            "get_boolean_value is a value block and cannot be used as a statement".into(),
+        )),
     }
 }
 
@@ -3683,6 +3721,52 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 Expr::Str(change_string_case_to_str(*case).to_string()),
             ],
         )),
+        Block::GetBlockCount { target } => {
+            let t = expr_from_param(target, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "get_block_count".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![t],
+            ))
+        }
+        Block::ChangeRgbToHex { r, g, b } => {
+            let vr = expr_from_param(r, vars)?;
+            let vg = expr_from_param(g, vars)?;
+            let vb = expr_from_param(b, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "change_rgb_to_hex".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![vr, vg, vb],
+            ))
+        }
+        Block::ChangeHexToRgb { hex, channel } => {
+            let h = expr_from_param(hex, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "change_hex_to_rgb".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![h, Expr::Str(rgb_channel_to_str(*channel).to_string())],
+            ))
+        }
+        Block::GetBooleanValue { value } => {
+            let v = expr_from_param(value, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "get_boolean_value".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
+                vec![v],
+            ))
+        }
     }
 }
 

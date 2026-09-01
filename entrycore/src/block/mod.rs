@@ -171,6 +171,31 @@ pub fn str_to_change_string_case(s: &str) -> Option<ChangeStringCase> {
         _ => None,
     }
 }
+
+/// HEX 색상 채널
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RgbChannel {
+    R,
+    G,
+    B,
+}
+
+pub fn rgb_channel_to_str(c: RgbChannel) -> &'static str {
+    match c {
+        RgbChannel::R => "r",
+        RgbChannel::G => "g",
+        RgbChannel::B => "b",
+    }
+}
+
+pub fn str_to_rgb_channel(s: &str) -> Option<RgbChannel> {
+    match s {
+        "r" | "R" => Some(RgbChannel::R),
+        "g" | "G" => Some(RgbChannel::G),
+        "b" | "B" => Some(RgbChannel::B),
+        _ => None,
+    }
+}
 pub fn date_kind_to_str(k: DateKind) -> &'static str {
     match k {
         DateKind::Year => "YEAR",
@@ -596,6 +621,21 @@ pub enum Block {
         target: ParamBlock,
         case: ChangeStringCase,
     },
+    GetBlockCount {
+        target: ParamBlock,
+    },
+    ChangeRgbToHex {
+        r: ParamBlock,
+        g: ParamBlock,
+        b: ParamBlock,
+    },
+    ChangeHexToRgb {
+        hex: ParamBlock,
+        channel: RgbChannel,
+    },
+    GetBooleanValue {
+        value: ParamBlock,
+    },
     // ── 변수 ──
     SetVar {
         variable: String,
@@ -911,6 +951,10 @@ impl Block {
             Block::IndexOfString { .. } => "index_of_string",
             Block::ReplaceString { .. } => "replace_string",
             Block::ChangeStringCase { .. } => "change_string_case",
+            Block::GetBlockCount { .. } => "get_block_count",
+            Block::ChangeRgbToHex { .. } => "change_rgb_to_hex",
+            Block::ChangeHexToRgb { .. } => "change_hex_to_rgb",
+            Block::GetBooleanValue { .. } => "get_boolean_value",
         }
     }
 
@@ -1074,6 +1118,10 @@ impl Block {
             Block::IndexOfString { .. } => Category::Calc,
             Block::ReplaceString { .. } => Category::Calc,
             Block::ChangeStringCase { .. } => Category::Calc,
+            Block::GetBlockCount { .. } => Category::Calc,
+            Block::ChangeRgbToHex { .. } => Category::Calc,
+            Block::ChangeHexToRgb { .. } => Category::Calc,
+            Block::GetBooleanValue { .. } => Category::Calc,
         }
     }
 }
@@ -1576,6 +1624,30 @@ pub fn from_stmt(stmt: &crate::ir::Stmt) -> crate::Result<Block> {
                     if fref.name == "change_string_case" {
                         return Err(SyntaxError(
                             "change_string_case is a value block and cannot be used as a statement"
+                                .into(),
+                        ));
+                    }
+                    if fref.name == "get_block_count" {
+                        return Err(SyntaxError(
+                            "get_block_count is a value block and cannot be used as a statement"
+                                .into(),
+                        ));
+                    }
+                    if fref.name == "change_rgb_to_hex" {
+                        return Err(SyntaxError(
+                            "change_rgb_to_hex is a value block and cannot be used as a statement"
+                                .into(),
+                        ));
+                    }
+                    if fref.name == "change_hex_to_rgb" {
+                        return Err(SyntaxError(
+                            "change_hex_to_rgb is a value block and cannot be used as a statement"
+                                .into(),
+                        ));
+                    }
+                    if fref.name == "get_boolean_value" {
+                        return Err(SyntaxError(
+                            "get_boolean_value is a value block and cannot be used as a statement"
                                 .into(),
                         ));
                     }
@@ -2543,6 +2615,40 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                     case,
                 })));
             }
+            if fref.name == "get_block_count" {
+                if args.len() != 1 {
+                    return Err(SyntaxError("get_block_count needs 1 arg".into()));
+                }
+                let target = from_expr(&args[0])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::GetBlockCount { target })));
+            }
+            if fref.name == "change_rgb_to_hex" {
+                if args.len() != 3 {
+                    return Err(SyntaxError("change_rgb_to_hex needs 3 args".into()));
+                }
+                let r = from_expr(&args[0])?;
+                let g = from_expr(&args[1])?;
+                let b = from_expr(&args[2])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::ChangeRgbToHex { r, g, b })));
+            }
+            if fref.name == "change_hex_to_rgb" {
+                if args.len() != 2 {
+                    return Err(SyntaxError("change_hex_to_rgb needs 2 args".into()));
+                }
+                let hex = from_expr(&args[0])?;
+                let channel = parse_enum_arg::<RgbChannel>(&args[1], "change_hex_to_rgb channel")?;
+                return Ok(ParamBlock::Sub(Box::new(Block::ChangeHexToRgb {
+                    hex,
+                    channel,
+                })));
+            }
+            if fref.name == "get_boolean_value" {
+                if args.len() != 1 {
+                    return Err(SyntaxError("get_boolean_value needs 1 arg".into()));
+                }
+                let value = from_expr(&args[0])?;
+                return Ok(ParamBlock::Sub(Box::new(Block::GetBooleanValue { value })));
+            }
             /*
             is_boost_mode(부스트 모드) — EntryJS func 본문: `return !!Entry.options.useWebGL;`
             EntryRS 듀얼엔진 (CappuccinoVM / OmochaEngine) 에서 잘못된 파라미터 사용 시 폴백값으로 쓰는 용도.
@@ -3480,6 +3586,19 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
+        Block::GetBlockCount { target } => (vec![param_to_value(target)], None),
+        Block::ChangeRgbToHex { r, g, b } => (
+            vec![param_to_value(r), param_to_value(g), param_to_value(b)],
+            None,
+        ),
+        Block::ChangeHexToRgb { hex, channel } => (
+            vec![
+                param_to_value(hex),
+                Value::String(rgb_channel_to_str(*channel).to_string()),
+            ],
+            None,
+        ),
+        Block::GetBooleanValue { value } => (vec![param_to_value(value)], None),
     })
 }
 
@@ -3798,6 +3917,23 @@ impl DslEnum for ChangeStringCase {
         Some(match variant {
             "ToUpper" => Self::ToUpper,
             "ToLower" => Self::ToLower,
+            _ => return None,
+        })
+    }
+}
+
+impl DslEnum for RgbChannel {
+    const TYPE_NAME: &'static str = "RgbChannel";
+
+    fn from_dsl_str(value: &str) -> Option<Self> {
+        str_to_rgb_channel(value)
+    }
+
+    fn from_variant(variant: &str) -> Option<Self> {
+        Some(match variant {
+            "R" => Self::R,
+            "G" => Self::G,
+            "B" => Self::B,
             _ => return None,
         })
     }
