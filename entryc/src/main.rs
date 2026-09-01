@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 #[derive(Parser, Debug)]
 #[command(
     name = "entryc",
-    about = "Rust ↔ Entry .ent 변환기",
-    long_about = "Rust 소스를 Entry .ent 로 컴파일하거나 (.rs -> .ent), Entry .ent 를 Rust 소스로 추출 (.ent -> .rs) 한다."
+    about = format!("EntryC v{0}\n{1}\nAuthor:{2}",env!("CARGO_PKG_VERSION"),env!("CARGO_PKG_DESCRIPTION"),env!("CARGO_PKG_AUTHORS")),
+    long_about = "Rust 소스를 Entry .ent 로 컴파일하거나 (.rs -> .ent), Entry .ent 를 Rust 소스로 추출 (.ent -> .rs) 합니다."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -162,7 +162,10 @@ fn run_validate(blocks: &Path) -> Result<(), String> {
     let mut shown = 0usize;
     for v in &report.violations {
         if shown >= 60 {
-            println!("    ... (나머지 {}건 생략)", report.violations.len() - shown);
+            println!(
+                "    ... (나머지 {}건 생략)",
+                report.violations.len() - shown
+            );
             break;
         }
         println!(
@@ -175,7 +178,10 @@ fn run_validate(blocks: &Path) -> Result<(), String> {
         );
         shown += 1;
     }
-    Err(format!("schema validation failed: {} violations", report.violations.len()))
+    Err(format!(
+        "schema validation failed: {} violations",
+        report.violations.len()
+    ))
 }
 
 /// 하드웨어 소스맵(`hw_sourcemap.json`)을 읽어 장치 수·블럭 수·로드/실패·장치별 블럭 수를
@@ -225,7 +231,10 @@ fn run_hw(sourcemap: &Path) -> Result<(), String> {
     let mut shown = 0usize;
     for v in &report.violations {
         if shown >= 60 {
-            println!("    ... (나머지 {}건 생략)", report.violations.len() - shown);
+            println!(
+                "    ... (나머지 {}건 생략)",
+                report.violations.len() - shown
+            );
             break;
         }
         println!(
