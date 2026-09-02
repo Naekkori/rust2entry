@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 /// GUI 출력용 실행 결과/에러 통합 타입.
 /// `Ok(RunOutput { ok: true, status: "...", .. })` 이면 정상.
 /// `Err(RunOutput { ok: false, status: "...", .. })` 이면 실패.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct RunOutput {
     /// 일반 출력 (성공 메시지, 진행 상황, 결과 위치 등)
     pub stdout: Vec<String>,
@@ -97,19 +97,20 @@ fn format_error_block(msg: &str) -> String {
 pub fn run_validate(blocks: &Path) -> Result<RunOutput, RunOutput> {
     let mut out = Vec::<String>::new();
     let mut err = Vec::<String>::new();
-    let fail = |message: String| RunOutput {
-        stdout: std::mem::take(&mut out),
-        stderr: std::mem::take(&mut err),
-        status: message,
-        ok: false,
-    };
-    let json = fs::read_to_string(blocks)
-        .map_err(|e| fail(format!("failed to read schema dump '{}': {e}", blocks.display())))?;
+    outln(&mut out, format!("[1/3] 스키마 덤프 읽는 중: {}", blocks.display()));
+    let json = fs::read_to_string(blocks).map_err(|e| {
+        make_err(
+            &mut out,
+            &mut err,
+            format!("failed to read schema dump '{}': {e}", blocks.display()),
+        )
+    })?;
+    outln(&mut out, "[2/3] 스키마 검증 중...");
     let registry = entrycore::block::registry::BlockRegistry::new();
-    let report = registry
-        .validate_json(&json)
-        .map_err(|e| fail(format!("failed to parse schema dump: {e}")))?;
-
+    let report = registry.validate_json(&json).map_err(|e| {
+        make_err(&mut out, &mut err, format!("failed to parse schema dump: {e}"))
+    })?;
+    outln(&mut out, "[3/3] 결과 정리 중...");
     outln(&mut out, "entryjs 블럭 스키마 검증");
     outln(&mut out, format!("  검증 블럭 수   : {}", report.total_blocks));
     outln(&mut out, format!("  위반 총계       : {}", report.violations.len()));
@@ -152,10 +153,24 @@ pub fn run_validate(blocks: &Path) -> Result<RunOutput, RunOutput> {
         );
         shown += 1;
     }
-    Err(fail(format!(
-        "schema validation failed: {} violations",
-        report.violations.len()
-    )))
+    Err(make_err(
+        &mut out,
+        &mut err,
+        format!(
+            "schema validation failed: {} violations",
+            report.violations.len()
+        ),
+    ))
+}
+
+/// 캡처된 stdout/stderr 를 비우고 실패 RunOutput 으로 감싼다.
+fn make_err(out: &mut Vec<String>, err: &mut Vec<String>, message: String) -> RunOutput {
+    RunOutput {
+        stdout: std::mem::take(out),
+        stderr: std::mem::take(err),
+        status: message,
+        ok: false,
+    }
 }
 
 /// 바이너리에 내장된 하드웨어 소스맵 (빌드 시 `hw_sourcemap.json` 을 포함).
@@ -203,20 +218,21 @@ pub fn run_extract(
 ) -> Result<RunOutput, RunOutput> {
     let mut stdout_lines: Vec<String> = Vec::new();
     let mut stderr_lines: Vec<String> = Vec::new();
-    let finalize_err = |message: String| RunOutput {
-        stdout: std::mem::take(&mut stdout_lines),
-        stderr: std::mem::take(&mut stderr_lines),
-        status: message,
-        ok: false,
-    };
 
     let result: Result<String, String> = (|| {
+        stdout_lines.push(format!("[1/5] hw 인덱스 로드 중..."));
         maybe_set_hw_index(hw)?;
+        stdout_lines.push(format!("[2/5] .ent 언팩 중: {}", ent.display()));
         let temp_dir = unique_temp_dir();
         fs::create_dir_all(&temp_dir).map_err(|e| format!("temp mkdir failed: {e}"))?;
         let outcome: Result<String, String> = (|| {
             extract(&ent, &temp_dir)?;
+            stdout_lines.push("[3/5] project.json 로드 중...".to_string());
             let project = load_project(&temp_dir)?;
+            stdout_lines.push(format!(
+                "[4/5] 오브젝트별 .rs 생성 중 ({} 개)...",
+                project.objects.len()
+            ));
             let scripts = &project.scripts_value;
             let unmapped =
                 entrycore::deparse::collect_unmapped_blocks(scripts, &project.var_map);
@@ -230,6 +246,7 @@ pub fn run_extract(
             let out_dir = resolve_out_dir(&ent, out.as_deref(), &project)?;
             fs::create_dir_all(&out_dir).map_err(|e| format!("out mkdir failed: {e}"))?;
             write_object_scripts(&project, &out_dir)?;
+            stdout_lines.push("[5/5] 완료.".to_string());
             stdout_lines.push(format!("project: {}", project.name));
             stdout_lines.push(format!("out:     {}", out_dir.display()));
             Ok(format!("extract OK -> {}", out_dir.display()))
@@ -245,7 +262,7 @@ pub fn run_extract(
             status: summary,
             ok: true,
         }),
-        Err(message) => Err(finalize_err(message)),
+        Err(message) => Err(make_err(&mut stdout_lines, &mut stderr_lines, message)),
     }
 }
 
@@ -554,19 +571,15 @@ pub fn run_build(
 ) -> Result<RunOutput, RunOutput> {
     let mut stdout_lines: Vec<String> = Vec::new();
     let mut stderr_lines: Vec<String> = Vec::new();
-    let finalize_err = |message: String| RunOutput {
-        stdout: std::mem::take(&mut stdout_lines),
-        stderr: std::mem::take(&mut stderr_lines),
-        status: message,
-        ok: false,
-    };
 
     let result: Result<String, String> = (|| {
         if rs_files.is_empty() {
             return Err("no --rs inputs".to_string());
         }
+        stdout_lines.push(format!("[1/6] hw 인덱스 로드 중..."));
         maybe_set_hw_index(hw)?;
 
+        stdout_lines.push("[2/6] base 프로젝트 로드 중...".to_string());
         // base Value 로드 (template 또는 빈 프로젝트)
         let base = match template {
             Some(p) => load_project_value(p)?,
@@ -575,6 +588,7 @@ pub fn run_build(
 
         // .rs 소스 로드 (파일명 stem 을 오브젝트 이름으로 사용)
         let mut sources: Vec<(String, String)> = Vec::with_capacity(rs_files.len());
+        stdout_lines.push(format!("[3/6] .rs 파일 {}개 읽는 중...", rs_files.len()));
         for rs in rs_files {
             let src = fs::read_to_string(rs)
                 .map_err(|e| format!("read {}: {e}", rs.display()))?;
@@ -595,6 +609,7 @@ pub fn run_build(
             replace_variables,
         };
 
+        stdout_lines.push("[4/6] parse + codegen 중...".to_string());
         // lib::compile 으로 일괄 처리 (parse 합치기 + codegen + base 패치)
         let (final_project, unmapped) =
             entrycore::compile_with_options(&sources_ref, &base, &options).map_err(|e| {
@@ -610,9 +625,11 @@ pub fn run_build(
                 .push("hint: 미매핑 블록은 .rs 에 raw JSON 코멘트로 보존됨".to_string());
         }
 
+        stdout_lines.push("[5/6] .ent 패키징 중...".to_string());
         // .ent 패키징
         pack_ent(template, &final_project, out)?;
 
+        stdout_lines.push("[6/6] 완료.".to_string());
         stdout_lines.push(format!("out: {}", out.display()));
         Ok(format!("build OK -> {}", out.display()))
     })();
@@ -624,7 +641,7 @@ pub fn run_build(
             status: summary,
             ok: true,
         }),
-        Err(message) => Err(finalize_err(message)),
+        Err(message) => Err(make_err(&mut stdout_lines, &mut stderr_lines, message)),
     }
 }
 
