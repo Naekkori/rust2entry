@@ -1687,13 +1687,18 @@ pub fn from_stmt_with_fn_scope(
                     }
                     if fref.name == "change_value_list_index" {
                         if args.len() != 3 {
-                            return Err(SyntaxError("change_vale_list_index needs 3 args".into()));
+                            return Err(UnmappedBlock("change_value_list_index: args.len() != 3".into()));
                         }
                         let index = from_expr(&args[0])?;
                         let value = from_expr(&args[1])?;
+                        // list 변수: Var/Str/Path 매칭. 그 외는 raw emit.
                         let list = match &args[2] {
                             Expr::Var(name) => name.clone(),
-                            _ => return Err(SyntaxError("change_value_list_index".into())),
+                            Expr::Str(s) => s.clone(),
+                            Expr::Path(segments) => segments.last().cloned().unwrap_or_default(),
+                            other => return Err(UnmappedBlock(format!(
+                                "change_value_list_index: list arg form {other:?}"
+                            ))),
                         };
 
                         return Ok(Block::ChangeValueListIndex { index, value, list });
@@ -2665,7 +2670,7 @@ pub fn from_stmt_with_fn_scope(
                         args,
                     })
                 }
-                _ => Err(SyntaxError("stmt-level expr not a call".into())),
+                _ => Err(UnmappedBlock("stmt-level expr not a call".into())),
             }
         }
         Stmt::If {
