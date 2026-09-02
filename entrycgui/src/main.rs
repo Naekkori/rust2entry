@@ -25,6 +25,7 @@ fn main() -> eframe::Result<()> {
 }
 #[derive(Default)]
 struct Arrow {
+    is_enabled: bool,
     current: f32,
     target: f32,
 }
@@ -123,26 +124,28 @@ impl eframe::App for EntryCApp {
 
                             // 회전 화살표
                             boxed(ui, |ui| {
-                                let (rect, _) =
-                                    ui.allocate_exact_size(Vec2::new(80.0, 80.0), Sense::hover());
+                                ui.add_enabled_ui(self.arrow.is_enabled, |ui|{ 
+                                        let (rect, _) =
+                                            ui.allocate_exact_size(Vec2::new(80.0, 80.0), Sense::hover());
 
-                                let texture = self
-                                    .arrow_texture
-                                    .get_or_insert_with(|| load_arrow_texture(ui.ctx()))
-                                    .clone();
+                                        let texture = self
+                                            .arrow_texture
+                                            .get_or_insert_with(|| load_arrow_texture(ui.ctx()))
+                                            .clone();
 
-                                let mut mesh = egui::Mesh::with_texture(texture.id());
-                                mesh.add_rect_with_uv(
-                                    rect,
-                                    Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
-                                    Color32::WHITE,
-                                );
-                                mesh.rotate(
-                                    emath::Rot2::from_angle(self.arrow.current),
-                                    rect.center(),
-                                );
+                                        let mut mesh = egui::Mesh::with_texture(texture.id());
+                                        mesh.add_rect_with_uv(
+                                            rect,
+                                            Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                                            Color32::WHITE,
+                                        );
+                                        mesh.rotate(
+                                            emath::Rot2::from_angle(self.arrow.current),
+                                            rect.center(),
+                                        );
 
-                                ui.painter().add(Shape::mesh(Arc::new(mesh)));
+                                        ui.painter().add(Shape::mesh(Arc::new(mesh)));
+                                });
                             });
 
                             ui.add_space(5.0);
@@ -165,13 +168,13 @@ impl eframe::App for EntryCApp {
                                 |ui| {
                                     ui.spacing_mut().item_spacing.x = 3.0;
                                     let half = ui.available_width() * 0.5;
-                                    ui.add_sized([half, 50.0], Button::new("Rust 소스폴더 열기"))
-                                        .on_hover_text("Rust소스 폴더 를 선택합니다, 여러개 의 소스를 컴파일 할때 사용합니다.");
+                                    ui.add_sized([half, 50.0], Button::new("Rust 소스 폴더 열기"))
+                                        .on_hover_text("Rust 소스 폴더를 선택합니다. 여러 개의 소스를 컴파일할 때 사용합니다.");
                                     ui.add_sized(
                                         [half, 50.0],
-                                        Button::new(".Ent 엔트리프로젝트 열기"),
+                                        Button::new("엔트리 프로젝트 열기"),
                                     )
-                                    .on_hover_text("엔트리프로젝트 를 선택합니다.");
+                                    .on_hover_text("엔트리 프로젝트를 선택합니다.");
                                 },
                             );
                             /*
@@ -180,11 +183,11 @@ impl eframe::App for EntryCApp {
                             */
                         });
                         let bottom_w = ui.available_width();
-                        ui.add_sized([bottom_w, 50.0], Button::new("Rust 소스 열기")).on_hover_text("Rust개별 소스 를 선택합니다, 하나만 선택할때 사용합니다.");
+                        ui.add_sized([bottom_w, 50.0], Button::new("Rust 소스 열기")).on_hover_text("Rust 개별 소스를 선택합니다. 하나만 선택할 때 사용합니다.");
                         ui.add_space(5.0);
                         ui.add_enabled_ui(self.enable_build_button, |ui| {
                             ui.add_sized([bottom_w, 50.0], Button::new("빌드 시작"))
-                                .on_hover_text("빌드 를 시작합니다.");
+                                .on_hover_text("빌드를 시작합니다.");
                         });
                         let actual_width = row.response.rect.width();
                         if (actual_width - self.group_width).abs() > 0.5 {
@@ -196,14 +199,17 @@ impl eframe::App for EntryCApp {
                             self.group_height = actual_height
                         }
 
-                        // 모드토글
-                        if self.entry_toggle_mode {
-                            self.entry_description =
-                                "엔트리 파일을 Rust 로 컴파일 합니다.".to_owned();
+                        // 모드토글 및 화살표 활성 상태에 따라 설명 갱신
+                        self.entry_description = if self.arrow.is_enabled {
+                            if self.entry_toggle_mode {
+                                "엔트리 파일을 Rust로 컴파일합니다."
+                            } else {
+                                "Rust 파일을 엔트리로 컴파일합니다."
+                            }
                         } else {
-                            self.entry_description =
-                                "Rust 파일을 엔트리 로 컴파일 합니다.".to_owned();
+                            "컴파일할 파일을 열어주세요."
                         }
+                        .to_owned();
                     },
                 );
             });
