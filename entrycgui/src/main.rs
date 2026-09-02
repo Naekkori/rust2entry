@@ -168,13 +168,25 @@ impl eframe::App for EntryCApp {
                                 |ui| {
                                     ui.spacing_mut().item_spacing.x = 3.0;
                                     let half = ui.available_width() * 0.5;
-                                    ui.add_sized([half, 50.0], Button::new("Rust 소스 폴더 열기"))
-                                        .on_hover_text("Rust 소스 폴더를 선택합니다. 여러 개의 소스를 컴파일할 때 사용합니다.");
-                                    ui.add_sized(
-                                        [half, 50.0],
-                                        Button::new("엔트리 프로젝트 열기"),
-                                    )
-                                    .on_hover_text("엔트리 프로젝트를 선택합니다.");
+                                    // Rust 소스 폴더 열기 버튼
+                                    if ui
+                                        .add_sized([half, 50.0], Button::new("Rust 소스 폴더 열기"))
+                                        .on_hover_text("Rust 소스 폴더를 선택합니다. 여러 개의 소스를 컴파일할 때 사용합니다.")
+                                        .clicked()
+                                    {
+                                        self.on_click_open_rust_source_folder();
+                                    }
+                                    // 엔트리 프로젝트 열기 버튼
+                                    if ui
+                                        .add_sized(
+                                            [half, 50.0],
+                                            Button::new("엔트리 프로젝트 열기"),
+                                        )
+                                        .on_hover_text("엔트리 프로젝트를 선택합니다.")
+                                        .clicked()
+                                    {
+                                        self.on_click_open_entry_project();
+                                    }
                                 },
                             );
                             /*
@@ -183,11 +195,24 @@ impl eframe::App for EntryCApp {
                             */
                         });
                         let bottom_w = ui.available_width();
-                        ui.add_sized([bottom_w, 50.0], Button::new("Rust 소스 열기")).on_hover_text("Rust 개별 소스를 선택합니다. 하나만 선택할 때 사용합니다.");
+                        // Rust 소스 열기 버튼
+                        if ui
+                            .add_sized([bottom_w, 50.0], Button::new("Rust 소스 열기"))
+                            .on_hover_text("Rust 개별 소스를 선택합니다. 하나만 선택할 때 사용합니다.")
+                            .clicked()
+                        {
+                            self.on_click_open_rust_source();
+                        }
                         ui.add_space(5.0);
                         ui.add_enabled_ui(self.enable_build_button, |ui| {
-                            ui.add_sized([bottom_w, 50.0], Button::new("빌드 시작"))
-                                .on_hover_text("빌드를 시작합니다.");
+                            // 빌드 시작 버튼
+                            if ui
+                                .add_sized([bottom_w, 50.0], Button::new("빌드 시작"))
+                                .on_hover_text("빌드를 시작합니다.")
+                                .clicked()
+                            {
+                                self.on_click_start_build();
+                            }
                         });
                         let actual_width = row.response.rect.width();
                         if (actual_width - self.group_width).abs() > 0.5 {
@@ -215,6 +240,41 @@ impl eframe::App for EntryCApp {
             });
     }
 }
+
+impl EntryCApp {
+    // Rust 소스 폴더 열기 버튼 핸들러
+    fn on_click_open_rust_source_folder(&mut self) {
+        // Rust → Entry 방향으로 화살표 회전
+        self.arrow.is_enabled = true;
+        self.entry_toggle_mode = false;
+        self.arrow.target = 0.0;
+        // TODO: 폴더 선택 dialog 호출 후 경로 저장
+    }
+
+    // 엔트리 프로젝트 열기 버튼 핸들러
+    fn on_click_open_entry_project(&mut self) {
+        // Entry → Rust 방향으로 화살표 회전 (반바퀴)
+        self.arrow.is_enabled = true;
+        self.entry_toggle_mode = true;
+        self.arrow.target = std::f32::consts::PI;
+        // TODO: 엔트리 프로젝트 파일 선택 dialog 호출
+    }
+
+    // Rust 소스 열기 버튼 핸들러
+    fn on_click_open_rust_source(&mut self) {
+        // Rust → Entry 방향으로 화살표 회전
+        self.arrow.is_enabled = true;
+        self.entry_toggle_mode = false;
+        self.arrow.target = 0.0;
+        // TODO: Rust 소스 파일 선택 dialog 호출
+    }
+
+    // 빌드 시작 버튼 핸들러
+    fn on_click_start_build(&mut self) {
+        // TODO: 컴파일 작업 시작, 화살표 활성화
+    }
+}
+
 fn setup_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     egui_extras::install_image_loaders(ctx);
