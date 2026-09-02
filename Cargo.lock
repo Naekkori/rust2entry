@@ -1199,7 +1199,12 @@ dependencies = [
  "eframe",
  "egui",
  "egui_extras",
+ "entrycore",
+ "flate2",
  "resvg 0.48.1",
+ "serde",
+ "serde_json",
+ "tar",
  "tiny-skia 0.12.0",
 ]
 
