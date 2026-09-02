@@ -6,6 +6,7 @@ use std::fmt;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 /// GUI 출력용 실행 결과/에러 통합 타입.
 /// `Ok(RunOutput { ok: true, status: "...", .. })` 이면 정상.
@@ -44,14 +45,31 @@ impl RunOutput {
     }
 }
 
-/// `RunOutput::stdout` 에 한 줄 push.
-fn outln(out: &mut Vec<String>, msg: impl fmt::Display) {
-    out.push(msg.to_string());
+/// `RunOutput::stdout` 에 한 줄 push, 진행 채널이 있으면 함께 push.
+/// progress 는 GUI 의 실시간 로그 표시용. None 이면 stdout/stderr 만 누적.
+fn outln(
+    out: &mut Vec<String>,
+    progress: Option<&Arc<Mutex<Vec<String>>>>,
+    msg: impl fmt::Display,
+) {
+    let s = msg.to_string();
+    if let Some(p) = progress {
+        p.lock().unwrap().push(s.clone());
+    }
+    out.push(s);
 }
 
-/// `RunOutput::stderr` 에 한 줄 push.
-fn errln(err: &mut Vec<String>, msg: impl fmt::Display) {
-    err.push(msg.to_string());
+/// `RunOutput::stderr` 에 한 줄 push, 진행 채널이 있으면 함께 push.
+fn errln(
+    err: &mut Vec<String>,
+    progress: Option<&Arc<Mutex<Vec<String>>>>,
+    msg: impl fmt::Display,
+) {
+    let s = msg.to_string();
+    if let Some(p) = progress {
+        p.lock().unwrap().push(s.clone());
+    }
+    err.push(s);
 }
 
 /// raw JSON 을 줄별로 들여쓰기 + `// ` 접두 붙여서 보기 좋게 변환.
@@ -94,10 +112,10 @@ fn format_error_block(msg: &str) -> String {
 
 /// entryjs 블럭 스키마 덤프를 읽어 Tier-0 스키마 검증을 실행하고 리포트를 출력.
 /// 위반이 있으면 nonzero exit 코드로 종료.
-pub fn run_validate(blocks: &Path) -> Result<RunOutput, RunOutput> {
+pub fn run_validate(blocks: &Path, progress: Option<&Arc<Mutex<Vec<String>>>>) -> Result<RunOutput, RunOutput> {
     let mut out = Vec::<String>::new();
     let mut err = Vec::<String>::new();
-    outln(&mut out, format!("[1/3] 스키마 덤프 읽는 중: {}", blocks.display()));
+    outln(&mut out, progress, format!("[1/3] 스키마 덤프 읽는 중: {}", blocks.display()));
     let json = fs::read_to_string(blocks).map_err(|e| {
         make_err(
             &mut out,
@@ -105,17 +123,17 @@ pub fn run_validate(blocks: &Path) -> Result<RunOutput, RunOutput> {
             format!("failed to read schema dump '{}': {e}", blocks.display()),
         )
     })?;
-    outln(&mut out, "[2/3] 스키마 검증 중...");
+    outln(&mut out, progress, "[2/3] 스키마 검증 중...");
     let registry = entrycore::block::registry::BlockRegistry::new();
     let report = registry.validate_json(&json).map_err(|e| {
         make_err(&mut out, &mut err, format!("failed to parse schema dump: {e}"))
     })?;
-    outln(&mut out, "[3/3] 결과 정리 중...");
-    outln(&mut out, "entryjs 블럭 스키마 검증");
-    outln(&mut out, format!("  검증 블럭 수   : {}", report.total_blocks));
-    outln(&mut out, format!("  위반 총계       : {}", report.violations.len()));
+    outln(&mut out, progress, "[3/3] 결과 정리 중...");
+    outln(&mut out, progress, "entryjs 블럭 스키마 검증");
+    outln(&mut out, progress, format!("  검증 블럭 수   : {}", report.total_blocks));
+    outln(&mut out, progress, format!("  위반 총계       : {}", report.violations.len()));
     if report.is_clean() {
-        outln(&mut out, "  결과            : PASS");
+        outln(&mut out, progress, "  결과            : PASS");
         return Ok(RunOutput {
             stdout: out,
             stderr: err,
@@ -125,32 +143,34 @@ pub fn run_validate(blocks: &Path) -> Result<RunOutput, RunOutput> {
     }
 
     // 체크별 요약
-    outln(&mut out, "  체크별 위반    :");
+    outln(&mut out, progress, "  체크별 위반    :");
     for (check, n) in report.counts_by_check() {
-        outln(&mut out, format!("    - {check:<22} {n}"));
+        outln(&mut out, progress, format!("    - {check:<22} {n}"));
     }
     // 위반 상세 (체크별, 파일별 그룹핑해 최대 60줄)
-    outln(&mut out, "  위반 상세      :");
+    outln(&mut out, progress, "  위반 상세      :");
     let mut shown = 0usize;
     for v in &report.violations {
         if shown >= 60 {
-            outln(
-                &mut out,
-                format!("    ... (나머지 {}건 생략)", report.violations.len() - shown),
-            );
-            break;
-        }
         outln(
             &mut out,
-            format!(
-                "    [{check}] {group}/{block} ({file}): {detail}",
-                check = v.check,
-                group = v.group,
-                block = v.block,
-                file = v.file,
-                detail = v.detail
-            ),
+            progress,
+            format!("    ... (나머지 {}건 생략)", report.violations.len() - shown),
         );
+        break;
+    }
+    outln(
+        &mut out,
+        progress,
+        format!(
+            "    [{check}] {group}/{block} ({file}): {detail}",
+            check = v.check,
+            group = v.group,
+            block = v.block,
+            file = v.file,
+            detail = v.detail
+        ),
+    );
         shown += 1;
     }
     Err(make_err(
@@ -211,25 +231,21 @@ fn maybe_set_hw_index(hw: Option<&Path>) -> Result<(), String> {
 }
 
 // .ent -> 임시폴더 언팩 -> 오브젝트별 .rs 생성
-pub fn run_extract(
-    ent: PathBuf,
-    out: Option<PathBuf>,
-    hw: Option<&Path>,
-) -> Result<RunOutput, RunOutput> {
+pub fn run_extract(ent: PathBuf, out: Option<PathBuf>, hw: Option<&Path>, progress: Option<&Arc<Mutex<Vec<String>>>>) -> Result<RunOutput, RunOutput> {
     let mut stdout_lines: Vec<String> = Vec::new();
     let mut stderr_lines: Vec<String> = Vec::new();
 
     let result: Result<String, String> = (|| {
-        stdout_lines.push(format!("[1/5] hw 인덱스 로드 중..."));
+        outln(&mut stdout_lines, progress, format!("[1/5] hw 인덱스 로드 중..."));
         maybe_set_hw_index(hw)?;
-        stdout_lines.push(format!("[2/5] .ent 언팩 중: {}", ent.display()));
+        outln(&mut stdout_lines, progress, format!("[2/5] .ent 언팩 중: {}", ent.display()));
         let temp_dir = unique_temp_dir();
         fs::create_dir_all(&temp_dir).map_err(|e| format!("temp mkdir failed: {e}"))?;
         let outcome: Result<String, String> = (|| {
             extract(&ent, &temp_dir)?;
-            stdout_lines.push("[3/5] project.json 로드 중...".to_string());
+            outln(&mut stdout_lines, progress, "[3/5] project.json 로드 중...".to_string());
             let project = load_project(&temp_dir)?;
-            stdout_lines.push(format!(
+            outln(&mut stdout_lines, progress, format!(
                 "[4/5] 오브젝트별 .rs 생성 중 ({} 개)...",
                 project.objects.len()
             ));
@@ -239,16 +255,16 @@ pub fn run_extract(
             if !unmapped.is_empty() {
                 let s: Vec<String> =
                     unmapped.iter().map(|(t, c)| format!("{t}({c})")).collect();
-                stderr_lines.push(format!("unmapped: {}", s.join(", ")));
+                errln(&mut stderr_lines, progress, format!("unmapped: {}", s.join(", ")));
                 stderr_lines
                     .push("hint: 미매핑 블록은 .rs 에 raw JSON 코멘트로 보존됨".to_string());
             }
             let out_dir = resolve_out_dir(&ent, out.as_deref(), &project)?;
             fs::create_dir_all(&out_dir).map_err(|e| format!("out mkdir failed: {e}"))?;
             write_object_scripts(&project, &out_dir)?;
-            stdout_lines.push("[5/5] 완료.".to_string());
-            stdout_lines.push(format!("project: {}", project.name));
-            stdout_lines.push(format!("out:     {}", out_dir.display()));
+            outln(&mut stdout_lines, progress, "[5/5] 완료.".to_string());
+            outln(&mut stdout_lines, progress, format!("project: {}", project.name));
+            outln(&mut stdout_lines, progress, format!("out:     {}", out_dir.display()));
             Ok(format!("extract OK -> {}", out_dir.display()))
         })();
         let _ = fs::remove_dir_all(&temp_dir);
@@ -561,14 +577,7 @@ fn unique_temp_dir() -> PathBuf {
 }
 
 // .rs -> IR -> codegen -> project.json 패치 -> tar+gzip (.ent) 패키징
-pub fn run_build(
-    rs_files: &[PathBuf],
-    template: Option<&Path>,
-    out: &Path,
-    scene: Option<&str>,
-    replace_variables: bool,
-    hw: Option<&Path>,
-) -> Result<RunOutput, RunOutput> {
+pub fn run_build(rs_files: &[PathBuf], template: Option<&Path>, out: &Path, scene: Option<&str>, replace_variables: bool, hw: Option<&Path>, progress: Option<&Arc<Mutex<Vec<String>>>>) -> Result<RunOutput, RunOutput> {
     let mut stdout_lines: Vec<String> = Vec::new();
     let mut stderr_lines: Vec<String> = Vec::new();
 
@@ -576,10 +585,10 @@ pub fn run_build(
         if rs_files.is_empty() {
             return Err("no --rs inputs".to_string());
         }
-        stdout_lines.push(format!("[1/6] hw 인덱스 로드 중..."));
+        outln(&mut stdout_lines, progress, format!("[1/6] hw 인덱스 로드 중..."));
         maybe_set_hw_index(hw)?;
 
-        stdout_lines.push("[2/6] base 프로젝트 로드 중...".to_string());
+        outln(&mut stdout_lines, progress, "[2/6] base 프로젝트 로드 중...".to_string());
         // base Value 로드 (template 또는 빈 프로젝트)
         let base = match template {
             Some(p) => load_project_value(p)?,
@@ -588,7 +597,7 @@ pub fn run_build(
 
         // .rs 소스 로드 (파일명 stem 을 오브젝트 이름으로 사용)
         let mut sources: Vec<(String, String)> = Vec::with_capacity(rs_files.len());
-        stdout_lines.push(format!("[3/6] .rs 파일 {}개 읽는 중...", rs_files.len()));
+        outln(&mut stdout_lines, progress, format!("[3/6] .rs 파일 {}개 읽는 중...", rs_files.len()));
         for rs in rs_files {
             let src = fs::read_to_string(rs)
                 .map_err(|e| format!("read {}: {e}", rs.display()))?;
@@ -609,7 +618,7 @@ pub fn run_build(
             replace_variables,
         };
 
-        stdout_lines.push("[4/6] parse + codegen 중...".to_string());
+        outln(&mut stdout_lines, progress, "[4/6] parse + codegen 중...".to_string());
         // lib::compile 으로 일괄 처리 (parse 합치기 + codegen + base 패치)
         let (final_project, unmapped) =
             entrycore::compile_with_options(&sources_ref, &base, &options).map_err(|e| {
@@ -620,17 +629,17 @@ pub fn run_build(
 
         // unmapped 블록 경고 (extract 와 동일하게 stderr 로)
         if !unmapped.is_empty() {
-            stderr_lines.push(format!("unmapped: {}", unmapped.join(", ")));
+            errln(&mut stderr_lines, progress, format!("unmapped: {}", unmapped.join(", ")));
             stderr_lines
                 .push("hint: 미매핑 블록은 .rs 에 raw JSON 코멘트로 보존됨".to_string());
         }
 
-        stdout_lines.push("[5/6] .ent 패키징 중...".to_string());
+        outln(&mut stdout_lines, progress, "[5/6] .ent 패키징 중...".to_string());
         // .ent 패키징
         pack_ent(template, &final_project, out)?;
 
-        stdout_lines.push("[6/6] 완료.".to_string());
-        stdout_lines.push(format!("out: {}", out.display()));
+        outln(&mut stdout_lines, progress, "[6/6] 완료.".to_string());
+        outln(&mut stdout_lines, progress, format!("out: {}", out.display()));
         Ok(format!("build OK -> {}", out.display()))
     })();
 

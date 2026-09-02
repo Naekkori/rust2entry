@@ -90,9 +90,11 @@ fn draw_header(
 }
 
 /// 하단 액션 바 — 좌측 status / 우측 buttons.
-fn draw_action_bar<F: FnOnce(&mut egui::Ui)>(
+/// trailing 은 status 와 buttons 사이 중앙에 배치 (예: 스피너).
+fn draw_action_bar<F: FnOnce(&mut egui::Ui), T: FnOnce(&mut egui::Ui)>(
     ui: &mut egui::Ui,
     status: Option<&str>,
+    trailing: Option<T>,
     right_buttons: F,
 ) {
     use style::*;
@@ -114,6 +116,10 @@ fn draw_action_bar<F: FnOnce(&mut egui::Ui)>(
     );
     if let Some(s) = status {
         child.label(egui::RichText::new(s).size(13.0).color(MUTED));
+    }
+    if let Some(t) = trailing {
+        child.add_space(12.0);
+        t(&mut child);
     }
     child.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
         right_buttons(ui);
@@ -412,62 +418,71 @@ impl EntryCApp {
             }
         }
 
-        // 헤더 우측에 스피너 — 진행 중 시그널.
+        // 헤더 — 스피너는 본문 액션 바로 이동.
         draw_header(
             ui,
             "컴파일 진행 중",
             Some("백그라운드에서 처리 중입니다"),
             PROGRESS,
-            Some(Box::new(|ui| {
-                ui.spinner();
-            })),
+            None,
         );
 
-        // ─── 로그 카드 (전체 본문) ───
+        // ─── 로그 영역 — ScrollArea 가 가용 영역 전체 사용 ───
         ui.horizontal(|ui| {
             ui.add_space(CONTENT_PAD_X);
             let available_w = ui.available_width() - CONTENT_PAD_X;
-            let available_h = ui.available_height() - ACTION_BAR_HEIGHT - 8.0;
             ui.allocate_ui_with_layout(
-                [available_w, available_h].into(),
+                [available_w, (ui.available_height() - ACTION_BAR_HEIGHT - 8.0).max(0.0)].into(),
                 egui::Layout::top_down(egui::Align::LEFT),
                 |ui| {
-                    card(ui, |ui| {
-                        let progress = self.progress.lock().unwrap().clone();
-                        egui::ScrollArea::vertical()
-                            .auto_shrink([false, false])
-                            .stick_to_bottom(true)
-                            .show(ui, |ui| {
-                                if progress.is_empty() {
+                    // 컨테이너 배경 + ScrollArea
+                    let rect = ui.available_rect_before_wrap();
+                    ui.painter().rect_filled(
+                        rect,
+                        egui::CornerRadius::same(8),
+                        CARD_BG,
+                    );
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false, false])
+                        .stick_to_bottom(true)
+                        .show(ui, |ui| {
+                            let progress = self.progress.lock().unwrap().clone();
+                            if progress.is_empty() {
+                                ui.label(
+                                    RichText::new("대기 중...")
+                                        .italics()
+                                        .color(MUTED),
+                                );
+                            } else {
+                                for line in &progress {
                                     ui.label(
-                                        RichText::new("대기 중...")
-                                            .italics()
-                                            .color(MUTED),
+                                        egui::RichText::new(line)
+                                            .family(egui::FontFamily::Monospace)
+                                            .size(12.0),
                                     );
-                                } else {
-                                    for line in &progress {
-                                        ui.label(
-                                            egui::RichText::new(line)
-                                                .family(egui::FontFamily::Monospace)
-                                                .size(12.0),
-                                        );
-                                    }
                                 }
-                            });
-                    });
+                            }
+                        });
                 },
             );
         });
 
-        // ─── 하단 액션 바 ───
-        draw_action_bar(ui, Some("취소하려면 창을 닫으세요 (TODO)"), |ui| {
-            if ui.button("홈으로").clicked() {
-                // 진행 중 중단 — join 핸들은 join 끝나기 전까지 drop 못 함
-                // 단순히 view 만 전환하고 백그라운드는 결과 무시
-                self.view = View::Home;
-                self.progress = Arc::new(Mutex::new(Vec::new()));
-            }
-        });
+        // ─── 하단 액션 바 — 스피너를 status 옆에 ───
+        draw_action_bar(
+            ui,
+            Some("진행 중"),
+            Some(|ui: &mut egui::Ui| {
+                ui.spinner();
+            }),
+            |ui| {
+                if ui.button("홈으로").clicked() {
+                    // 진행 중 중단 — join 핸들은 join 끝나기 전까지 drop 못 함
+                    // 단순히 view 만 전환하고 백그라운드는 결과 무시
+                    self.view = View::Home;
+                    self.progress = Arc::new(Mutex::new(Vec::new()));
+                }
+            },
+        );
     }
 
     /// 완료된 결과 화면.
@@ -492,69 +507,66 @@ impl EntryCApp {
             None,
         );
 
+        // ─── 결과 본문 — 단일 카드, ScrollArea 가 가용 영역 전체 사용 ───
         ui.horizontal(|ui| {
             ui.add_space(CONTENT_PAD_X);
             let available_w = ui.available_width() - CONTENT_PAD_X;
-            let available_h = ui.available_height() - ACTION_BAR_HEIGHT - 8.0;
             ui.allocate_ui_with_layout(
-                [available_w, available_h].into(),
+                [available_w, (ui.available_height() - ACTION_BAR_HEIGHT - 8.0).max(0.0)].into(),
                 egui::Layout::top_down(egui::Align::LEFT),
                 |ui| {
-                    if !out.stdout.is_empty() {
-                        ui.label(
-                            RichText::new("stdout")
-                                .size(13.0)
-                                .strong()
-                                .color(MUTED),
-                        );
-                        ui.add_space(4.0);
-                        card(ui, |ui| {
-                            egui::ScrollArea::vertical()
-                                .auto_shrink([false, false])
-                                .stick_to_bottom(true)
-                                .max_height(220.0)
-                                .show(ui, |ui| {
-                                    for line in &out.stdout {
-                                        ui.label(
-                                            egui::RichText::new(line)
-                                                .family(egui::FontFamily::Monospace)
-                                                .size(12.0),
-                                        );
-                                    }
-                                });
+                    let rect = ui.available_rect_before_wrap();
+                    ui.painter().rect_filled(
+                        rect,
+                        egui::CornerRadius::same(8),
+                        CARD_BG,
+                    );
+                    egui::ScrollArea::vertical()
+                        .auto_shrink([false, false])
+                        .stick_to_bottom(false)
+                        .show(ui, |ui| {
+                            if !out.stdout.is_empty() {
+                                ui.label(
+                                    RichText::new("stdout")
+                                        .size(13.0)
+                                        .strong()
+                                        .color(MUTED),
+                                );
+                                ui.add_space(4.0);
+                                for line in &out.stdout {
+                                    ui.label(
+                                        egui::RichText::new(line)
+                                            .family(egui::FontFamily::Monospace)
+                                            .size(12.0),
+                                    );
+                                }
+                            }
+                            if !out.stderr.is_empty() {
+                                if !out.stdout.is_empty() {
+                                    ui.add_space(12.0);
+                                }
+                                ui.label(
+                                    RichText::new("stderr")
+                                        .size(13.0)
+                                        .strong()
+                                        .color(DANGER),
+                                );
+                                ui.add_space(4.0);
+                                for line in &out.stderr {
+                                    ui.label(
+                                        egui::RichText::new(line)
+                                            .family(egui::FontFamily::Monospace)
+                                            .size(12.0)
+                                            .color(DANGER),
+                                    );
+                                }
+                            }
                         });
-                        ui.add_space(12.0);
-                    }
-                    if !out.stderr.is_empty() {
-                        ui.label(
-                            RichText::new("stderr")
-                                .size(13.0)
-                                .strong()
-                                .color(DANGER),
-                        );
-                        ui.add_space(4.0);
-                        card(ui, |ui| {
-                            egui::ScrollArea::vertical()
-                                .auto_shrink([false, false])
-                                .stick_to_bottom(true)
-                                .max_height(160.0)
-                                .show(ui, |ui| {
-                                    for line in &out.stderr {
-                                        ui.label(
-                                            egui::RichText::new(line)
-                                                .family(egui::FontFamily::Monospace)
-                                                .size(12.0)
-                                                .color(DANGER),
-                                        );
-                                    }
-                                });
-                        });
-                    }
                 },
             );
         });
 
-        draw_action_bar(ui, None, |ui| {
+        draw_action_bar(ui, None, None::<fn(&mut egui::Ui)>, |ui| {
             if ui.button("홈으로").clicked() {
                 self.view = View::Home;
                 self.last_output = None;
@@ -579,7 +591,7 @@ impl EntryCApp {
             // 진행 메시지를 별도 Arc 로 받아서 run_build 끝난 뒤 merge
             // (run_build 내부에서 progress 직접 접근은 못하므로,
             //  RunOutput 의 stdout/stderr 를 그대로 progress 로 전달)
-            let result = entryc::run_build(&rs_files, None, &out, None, false, None);
+            let result = entryc::run_build(&rs_files, None, &out, None, false, None, Some(&progress));
             let o = match result {
                 Ok(o) => o,
                 Err(o) => o,
@@ -604,7 +616,7 @@ impl EntryCApp {
 
         self.view = View::Compiling;
         self.join = Some(std::thread::spawn(move || {
-            let result = entryc::run_extract(ent, out, None);
+            let result = entryc::run_extract(ent, out, None, Some(&progress));
             let o = match result {
                 Ok(o) => o,
                 Err(o) => o,
@@ -694,12 +706,24 @@ fn setup_fonts(ctx: &egui::Context) {
         "nanum".to_owned(),
         egui::FontData::from_static(include_bytes!("../assets/font/NanumSquareR.ttf")).into(),
     );
+    fonts.font_data.insert(
+        "d2coding".to_owned(),
+        egui::FontData::from_static(include_bytes!("../assets/font/D2Coding.ttf")).into(),
+    );
 
+    // Proportional: 한글 본문 (NanumSquareR)
     fonts
         .families
         .get_mut(&egui::FontFamily::Proportional)
         .expect("Proportional family missing")
         .insert(0, "nanum".to_owned());
+
+    // Monospace: 한글 로그 (D2Coding — 진짜 모노스페이스 + 한글 glyph)
+    fonts
+        .families
+        .get_mut(&egui::FontFamily::Monospace)
+        .expect("Monospace family missing")
+        .insert(0, "d2coding".to_owned());
 
     ctx.set_fonts(fonts);
 }
