@@ -52,10 +52,8 @@ fn draw_header(
     ui.add_space(HEADER_PAD_TOP);
     let bar_height = 40.0;
     let (_id, bar_rect) = ui.allocate_space(egui::vec2(ui.available_width(), bar_height));
-    let inner = egui::Rect::from_min_max(
-        bar_rect.min + egui::vec2(CONTENT_PAD_X, 0.0),
-        bar_rect.max,
-    );
+    let inner =
+        egui::Rect::from_min_max(bar_rect.min + egui::vec2(CONTENT_PAD_X, 0.0), bar_rect.max);
     let mut child = ui.new_child(
         egui::UiBuilder::new()
             .max_rect(inner)
@@ -79,10 +77,7 @@ fn draw_header(
     }
     ui.add_space(HEADER_PAD_BOTTOM);
     ui.painter().rect_filled(
-        egui::Rect::from_min_size(
-            ui.cursor().min,
-            egui::vec2(ui.available_width(), 1.0),
-        ),
+        egui::Rect::from_min_size(ui.cursor().min, egui::vec2(ui.available_width(), 1.0)),
         0.0,
         DIVIDER,
     );
@@ -124,17 +119,6 @@ fn draw_action_bar<F: FnOnce(&mut egui::Ui), T: FnOnce(&mut egui::Ui)>(
     child.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
         right_buttons(ui);
     });
-}
-
-/// 둥근 카드 안에 콘텐츠.
-fn card<R>(ui: &mut egui::Ui, add_contents: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    use style::CARD_BG;
-    egui::Frame::new()
-        .fill(CARD_BG)
-        .corner_radius(egui::CornerRadius::same(8))
-        .inner_margin(egui::Margin::same(16))
-        .show(ui, add_contents)
-        .inner
 }
 
 fn main() -> eframe::Result<()> {
@@ -427,45 +411,39 @@ impl EntryCApp {
             None,
         );
 
-        // ─── 로그 영역 — ScrollArea 가 가용 영역 전체 사용 ───
-        ui.horizontal(|ui| {
-            ui.add_space(CONTENT_PAD_X);
-            let available_w = ui.available_width() - CONTENT_PAD_X;
-            ui.allocate_ui_with_layout(
-                [available_w, (ui.available_height() - ACTION_BAR_HEIGHT - 8.0).max(0.0)].into(),
-                egui::Layout::top_down(egui::Align::LEFT),
-                |ui| {
-                    // 컨테이너 배경 + ScrollArea
-                    let rect = ui.available_rect_before_wrap();
-                    ui.painter().rect_filled(
-                        rect,
-                        egui::CornerRadius::same(8),
-                        CARD_BG,
-                    );
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .stick_to_bottom(true)
-                        .show(ui, |ui| {
-                            let progress = self.progress.lock().unwrap().clone();
-                            if progress.is_empty() {
-                                ui.label(
-                                    RichText::new("대기 중...")
-                                        .italics()
-                                        .color(MUTED),
-                                );
-                            } else {
-                                for line in &progress {
-                                    ui.label(
-                                        egui::RichText::new(line)
-                                            .family(egui::FontFamily::Monospace)
-                                            .size(12.0),
-                                    );
-                                }
-                            }
-                        });
-                },
-            );
-        });
+        // ─── 로그 영역 — 가용 영역 전체 사용 ───
+        // 좌우 여백 CONTENT_PAD_X 두고 박스 할당 후 카드 + ScrollArea.
+        let total_h = (ui.available_height() - ACTION_BAR_HEIGHT - 8.0).max(0.0);
+        let (_id, outer_rect) = ui.allocate_space(egui::vec2(ui.available_width(), total_h));
+        let card_rect = egui::Rect::from_min_max(
+            outer_rect.min + egui::vec2(CONTENT_PAD_X, 0.0),
+            outer_rect.max - egui::vec2(CONTENT_PAD_X, 0.0),
+        );
+        ui.painter()
+            .rect_filled(card_rect, egui::CornerRadius::same(8), CARD_BG);
+        let inner = card_rect.shrink(16.0);
+        let mut child = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(inner)
+                .layout(egui::Layout::top_down(egui::Align::LEFT)),
+        );
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .stick_to_bottom(true)
+            .show(&mut child, |ui| {
+                let progress = self.progress.lock().unwrap().clone();
+                if progress.is_empty() {
+                    ui.label(RichText::new("대기 중...").italics().color(MUTED));
+                } else {
+                    for line in &progress {
+                        ui.label(
+                            egui::RichText::new(line)
+                                .family(egui::FontFamily::Monospace)
+                                .size(12.0),
+                        );
+                    }
+                }
+            });
 
         // ─── 하단 액션 바 — 스피너를 status 옆에 ───
         draw_action_bar(
@@ -475,12 +453,9 @@ impl EntryCApp {
                 ui.spinner();
             }),
             |ui| {
-                if ui.button("홈으로").clicked() {
-                    // 진행 중 중단 — join 핸들은 join 끝나기 전까지 drop 못 함
-                    // 단순히 view 만 전환하고 백그라운드는 결과 무시
-                    self.view = View::Home;
-                    self.progress = Arc::new(Mutex::new(Vec::new()));
-                }
+                ui.add_enabled(false, |ui: &mut egui::Ui| {
+                    ui.add_sized([100.0, 32.0], Button::new("홈으로"))
+                });
             },
         );
     }
@@ -499,75 +474,57 @@ impl EntryCApp {
 
         let title = if out.ok { "성공" } else { "실패" };
         let color = if out.ok { SUCCESS } else { DANGER };
-        draw_header(
-            ui,
-            title,
-            Some(&out.status),
-            color,
-            None,
-        );
+        draw_header(ui, title, Some(&out.status), color, None);
 
-        // ─── 결과 본문 — 단일 카드, ScrollArea 가 가용 영역 전체 사용 ───
-        ui.horizontal(|ui| {
-            ui.add_space(CONTENT_PAD_X);
-            let available_w = ui.available_width() - CONTENT_PAD_X;
-            ui.allocate_ui_with_layout(
-                [available_w, (ui.available_height() - ACTION_BAR_HEIGHT - 8.0).max(0.0)].into(),
-                egui::Layout::top_down(egui::Align::LEFT),
-                |ui| {
-                    let rect = ui.available_rect_before_wrap();
-                    ui.painter().rect_filled(
-                        rect,
-                        egui::CornerRadius::same(8),
-                        CARD_BG,
-                    );
-                    egui::ScrollArea::vertical()
-                        .auto_shrink([false, false])
-                        .stick_to_bottom(false)
-                        .show(ui, |ui| {
-                            if !out.stdout.is_empty() {
-                                ui.label(
-                                    RichText::new("stdout")
-                                        .size(13.0)
-                                        .strong()
-                                        .color(MUTED),
-                                );
-                                ui.add_space(4.0);
-                                for line in &out.stdout {
-                                    ui.label(
-                                        egui::RichText::new(line)
-                                            .family(egui::FontFamily::Monospace)
-                                            .size(12.0),
-                                    );
-                                }
-                            }
-                            if !out.stderr.is_empty() {
-                                if !out.stdout.is_empty() {
-                                    ui.add_space(12.0);
-                                }
-                                ui.label(
-                                    RichText::new("stderr")
-                                        .size(13.0)
-                                        .strong()
-                                        .color(DANGER),
-                                );
-                                ui.add_space(4.0);
-                                for line in &out.stderr {
-                                    ui.label(
-                                        egui::RichText::new(line)
-                                            .family(egui::FontFamily::Monospace)
-                                            .size(12.0)
-                                            .color(DANGER),
-                                    );
-                                }
-                            }
-                        });
-                },
-            );
-        });
+        // ─── 결과 본문 — 가용 영역 전체 사용 ───
+        let total_h = (ui.available_height() - ACTION_BAR_HEIGHT - 8.0).max(0.0);
+        let (_id, outer_rect) = ui.allocate_space(egui::vec2(ui.available_width(), total_h));
+        let card_rect = egui::Rect::from_min_max(
+            outer_rect.min + egui::vec2(CONTENT_PAD_X, 0.0),
+            outer_rect.max - egui::vec2(CONTENT_PAD_X, 0.0),
+        );
+        ui.painter()
+            .rect_filled(card_rect, egui::CornerRadius::same(8), CARD_BG);
+        let inner = card_rect.shrink(16.0);
+        let mut child = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(inner)
+                .layout(egui::Layout::top_down(egui::Align::LEFT)),
+        );
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .stick_to_bottom(false)
+            .show(&mut child, |ui| {
+                if !out.stdout.is_empty() {
+                    ui.label(RichText::new("stdout").size(13.0).strong().color(MUTED));
+                    ui.add_space(4.0);
+                    for line in &out.stdout {
+                        ui.label(
+                            egui::RichText::new(line)
+                                .family(egui::FontFamily::Monospace)
+                                .size(12.0),
+                        );
+                    }
+                }
+                if !out.stderr.is_empty() {
+                    if !out.stdout.is_empty() {
+                        ui.add_space(12.0);
+                    }
+                    ui.label(RichText::new("stderr").size(13.0).strong().color(DANGER));
+                    ui.add_space(4.0);
+                    for line in &out.stderr {
+                        ui.label(
+                            egui::RichText::new(line)
+                                .family(egui::FontFamily::Monospace)
+                                .size(12.0)
+                                .color(DANGER),
+                        );
+                    }
+                }
+            });
 
         draw_action_bar(ui, None, None::<fn(&mut egui::Ui)>, |ui| {
-            if ui.button("홈으로").clicked() {
+            if ui.add_sized([100.0, 32.0], Button::new("홈으로")).clicked() {
                 self.view = View::Home;
                 self.last_output = None;
             }
@@ -591,7 +548,8 @@ impl EntryCApp {
             // 진행 메시지를 별도 Arc 로 받아서 run_build 끝난 뒤 merge
             // (run_build 내부에서 progress 직접 접근은 못하므로,
             //  RunOutput 의 stdout/stderr 를 그대로 progress 로 전달)
-            let result = entryc::run_build(&rs_files, None, &out, None, false, None, Some(&progress));
+            let result =
+                entryc::run_build(&rs_files, None, &out, None, false, None, Some(&progress));
             let o = match result {
                 Ok(o) => o,
                 Err(o) => o,
