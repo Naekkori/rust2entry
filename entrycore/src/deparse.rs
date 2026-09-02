@@ -1,37 +1,38 @@
-//! Entry 블록 JSON -> IR 역변환.
+﻿//! Entry 釉붾줉 JSON -> IR ?????
 //!
-//! `entrycore::block`의 `Block` enum이 Entry 의미의 통합 표현임.
-//! 이 모듈은 Entry project.json의 블록 Value를 `Block`으로 바꾸고
-//! 다시 IR `Stmt`/`Expr`로 변환한다.
+//! `entrycore::block`??`Block` enum??Entry ?섎????듯빀 ?쒗쁽??
+//! ??紐⑤뱢? Entry project.json??釉붾줉 Value瑜?`Block`?쇰줈 諛붽씀怨?
+//! ?ㅼ떆 IR `Stmt`/`Expr`濡?蹂?섑븳??
 
 use std::vec;
 
 use crate::Error::{Parse, SyntaxError, UnmappedBlock};
 use crate::block::{
-    Block, DateKind, DialogMode, Dimension, EffectType, MathOperation, ParamBlock, QamMethod,
-    change_string_case_to_str, date_kind_to_str, device_type_to_str, dim_to_dsl_str, effect_to_str,
-    mouse_axis_to_str, object_coord_to_str, rgb_channel_to_str, str_to_change_string_case,
-    str_to_mouse_axis, str_to_object_coord, str_to_rgb_channel, str_to_text_effect,
-    text_effect_to_str,
+    Block, CalcMethod, DateKind, DialogMode, Dimension, EffectType, MathOperation, ParamBlock,
+    QamMethod, RowCol,
+    calc_method_to_str, change_string_case_to_str, date_kind_to_str, device_type_to_str,
+    dim_to_dsl_str, effect_to_str, mouse_axis_to_str, object_coord_to_str, rgb_channel_to_str,
+    row_col_to_str, str_to_calc_method, str_to_change_string_case, str_to_mouse_axis,
+    str_to_object_coord, str_to_rgb_channel, str_to_row_col, str_to_text_effect, text_effect_to_str,
 };
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
 use crate::var::VarMap;
 use crate::{Result, ir};
 use serde_json::Value;
 
-/// 변수 ID를 VarMap으로 lookup하여 사용자 노출 이름으로 변환.
-/// 매핑이 없으면 ID 그대로 사용.
+/// 蹂??ID瑜?VarMap?쇰줈 lookup?섏뿬 ?ъ슜???몄텧 ?대쫫?쇰줈 蹂??
+/// 留ㅽ븨???놁쑝硫?ID 洹몃?濡??ъ슜.
 fn resolve_var(id: &str, vars: &VarMap) -> String {
     vars.get(id)
         .map(|v| v.name.clone())
         .unwrap_or_else(|| id.to_string())
 }
 
-/// Entry `script` 필드(JSON 문자열 파싱 결과) -> IR Vec<Stmt>.
+/// Entry `script` ?꾨뱶(JSON 臾몄옄???뚯떛 寃곌낵) -> IR Vec<Stmt>.
 ///
-/// Entry의 script는 블록 묶음의 배열. 최상위는 트리거 묶음 배열.
-/// 각 묶음의 첫 블록이 `when_*` 트리거이고, 묶음의 나머지 블록이 본문.
-/// 트리거 묶음은 IR의 `FuncDef`로 변환 (이름은 트리거 함수명).
+/// Entry??script??釉붾줉 臾띠쓬??諛곗뿴. 理쒖긽?꾨뒗 ?몃━嫄?臾띠쓬 諛곗뿴.
+/// 媛?臾띠쓬??泥?釉붾줉??`when_*` ?몃━嫄곗씠怨? 臾띠쓬???섎㉧吏 釉붾줉??蹂몃Ц.
+/// ?몃━嫄?臾띠쓬? IR??`FuncDef`濡?蹂??(?대쫫? ?몃━嫄??⑥닔紐?.
 pub fn from_script(value: &Value, vars: &VarMap) -> Result<Vec<Stmt>> {
     let outer = value
         .as_array()
@@ -68,7 +69,7 @@ pub fn from_script(value: &Value, vars: &VarMap) -> Result<Vec<Stmt>> {
     Ok(stmts)
 }
 
-/// 트리거 블록이면 (함수 이름, 본문 블록들) 반환. 아니면 None.
+/// ?몃━嫄?釉붾줉?대㈃ (?⑥닔 ?대쫫, 蹂몃Ц 釉붾줉?? 諛섑솚. ?꾨땲硫?None.
 fn split_trigger(first: &Block, rest: &[Value], vars: &VarMap) -> Option<(String, Vec<Block>)> {
     let name = match first {
         Block::WhenStart => "when_start",
@@ -85,7 +86,7 @@ fn split_trigger(first: &Block, rest: &[Value], vars: &VarMap) -> Option<(String
     Some((name.to_string(), body))
 }
 
-/// Entry 블록 Value -> Block.
+/// Entry 釉붾줉 Value -> Block.
 pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
     let obj = v
         .as_object()
@@ -97,7 +98,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
     let params = obj.get("params").cloned().unwrap_or(Value::Null);
 
     let block = match type_id {
-        // 시작 (트리거)
+        // ?쒖옉 (?몃━嫄?
         "when_run_button_click" | "when_run" => Block::WhenStart,
         "when_click" | "when_object_click" => Block::WhenClick,
         "when_clone_start" => Block::WhenCloneStart,
@@ -122,7 +123,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         "when_object_click_canceled" => Block::WhenObjectReleased,
         "when_scene_start" => Block::WhenSceneStart,
 
-        // 시작 (액션)
+        // ?쒖옉 (?≪뀡)
         "message_cast" => {
             let msg = params
                 .get(0)
@@ -156,7 +157,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::StartNeighborScene { direction }
         }
 
-        // 변수
+        // 蹂??
         "set_variable" => {
             let (variable, _name) = variable_slot(&params, 0)?;
             let variable = resolve_var(&variable, vars);
@@ -185,8 +186,8 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         }
         "set_func_variable" => {
             let (variable, _name) = variable_slot(&params, 0)?;
-            // 함수 local var 의 id 형식 `<func_id>_<hash>` 에서 func_id 부분만 추출하여
-            // 변수명으로는 사용. 단순화: variable name 그대로 사용.
+            // ?⑥닔 local var ??id ?뺤떇 `<func_id>_<hash>` ?먯꽌 func_id 遺遺꾨쭔 異붿텧?섏뿬
+            // 蹂?섎챸?쇰줈???ъ슜. ?⑥닚?? variable name 洹몃?濡??ъ슜.
             let variable = resolve_var(&variable, vars);
             let value = param_at(&params, 1, vars)?;
             Block::SetFuncVariable { variable, value }
@@ -242,7 +243,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::ChangeValueListIndex { index, value, list }
         }
         "length_of_list" => {
-            // params = [Text, list, Text] — list dropdown at index 1
+            // params = [Text, list, Text] ??list dropdown at index 1
             let (list, _name) = variable_slot(&params, 1)?;
             let list = resolve_var(&list, vars);
             Block::LengthOfList { list }
@@ -254,8 +255,105 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let value = param_at(&params, 3, vars)?;
             Block::IsIncludedInList { list, value }
         }
-        // 흐름
-        "if" => {
+        // ── 데이터분석 (테이블) — block_from_value type 매칭 ──
+        // 첫 슬롯 = DropdownDynamic (런타임 채움) — params[0] 가 null 이거나
+        // 실제 table id 일 수 있어 string 으로 안전 파싱.
+        "append_row_to_table" => {
+            let table = table_param(&params, 0);
+            let dimension = row_col_param(&params, 1)?;
+            Block::AppendRowToTable { table, dimension }
+        }
+        "insert_row_to_table" => {
+            let table = table_param(&params, 0);
+            let index = param_at(&params, 1, vars)?;
+            let dimension = row_col_param(&params, 2)?;
+            Block::InsertRowToTable { table, index, dimension }
+        }
+        "delete_row_from_table" => {
+            let table = table_param(&params, 0);
+            let index = param_at(&params, 1, vars)?;
+            let dimension = row_col_param(&params, 2)?;
+            Block::DeleteRowFromTable { table, index, dimension }
+        }
+        "set_value_from_table" => {
+            let table = table_param(&params, 0);
+            let row = param_at(&params, 1, vars)?;
+            let field = param_at(&params, 2, vars)?;
+            let value = param_at(&params, 3, vars)?;
+            Block::SetValueFromTable { table, row, field, value }
+        }
+        "save_current_table" => {
+            let table = table_param(&params, 0);
+            Block::SaveCurrentTable { table }
+        }
+        "get_table_count" => {
+            let table = table_param(&params, 0);
+            let dimension = row_col_param(&params, 1)?;
+            Block::GetTableCount { table, dimension }
+        }
+        "get_value_from_table" => {
+            let table = table_param(&params, 0);
+            let row = param_at(&params, 1, vars)?;
+            let field = param_at(&params, 2, vars)?;
+            Block::GetValueFromTable { table, row, field }
+        }
+        "get_value_from_last_row" => {
+            let table = table_param(&params, 0);
+            let field = param_at(&params, 1, vars)?;
+            Block::GetValueFromLastRow { table, field }
+        }
+        "calc_values_from_table" => {
+            let table = table_param(&params, 0);
+            let field = param_at(&params, 1, vars)?;
+            let method = calc_method_param(&params, 2)?;
+            Block::CalcValuesFromTable { table, field, method }
+        }
+        "open_table" => {
+            let table = table_param(&params, 0);
+            Block::OpenTable { table }
+        }
+        "open_table_wait" => {
+            let table = table_param(&params, 0);
+            let seconds = param_at(&params, 1, vars)?;
+            Block::OpenTableWait { table, seconds }
+        }
+        "open_table_chart" => {
+            let table = table_param(&params, 0);
+            // params[1] = DropdownDynamic (chart index) — string 으로 보관.
+            let chart_index = params
+                .get(1)
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_string();
+            Block::OpenTableChart { table, chart_index }
+        }
+        "close_table_chart" => Block::CloseTableChart,
+        "get_coefficient" => {
+            let table = table_param(&params, 0);
+            let field1 = param_at(&params, 1, vars)?;
+            let field2 = param_at(&params, 2, vars)?;
+            Block::GetCoefficient { table, field1, field2 }
+        }
+        "set_value_from_cell" => {
+            let table = table_param(&params, 0);
+            let cell = param_at(&params, 1, vars)?;
+            let value = param_at(&params, 2, vars)?;
+            Block::SetValueFromCell { table, cell, value }
+        }
+        "get_value_from_cell" => {
+            let table = table_param(&params, 0);
+            let cell = param_at(&params, 1, vars)?;
+            Block::GetValueFromCell { table, cell }
+        }
+        "get_value_v_lookup" => {
+            let table = table_param(&params, 0);
+            let field = param_at(&params, 1, vars)?;
+            let value = param_at(&params, 2, vars)?;
+            let return_field = param_at(&params, 3, vars)?;
+            Block::GetValueVLookup { table, field, value, return_field }
+        }
+        // ?먮쫫
+        "if" | "_if" => {
             let cond = param_at(&params, 0, vars)?;
             let body = statements_thread(obj, 0, vars)?;
             Block::If { cond, body }
@@ -280,7 +378,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let body = statements_thread(obj, 0, vars)?;
             Block::Repeat { times, body }
         }
-        "repeat_forever" => {
+        "repeat_forever" | "repeat_inf" => {
             let body = statements_thread(obj, 0, vars)?;
             Block::Forever { body }
         }
@@ -385,7 +483,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let distance = param_at(&params, 1, vars)?;
             Block::MoveToAngle { angle, distance }
         }
-        // 붓
+        // 遺?
         "brush_stamp" => Block::BrushStamp,
         "start_drawing" => Block::StartDrawing,
         "stop_drawing" => Block::StopDrawing,
@@ -427,7 +525,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::SetThickness { value }
         }
         "brush_erase_all" => Block::BrushEraseAll,
-        // 글상자
+        // 湲?곸옄
         "text_read" => {
             let value = param_at(&params, 0, vars)?;
             Block::TextRead { value }
@@ -464,7 +562,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             };
             Block::TextChangeEffect { effect, mode }
         }
-        "text_flush" => Block::TextFlush, // null=슬롯없음
+        "text_flush" => Block::TextFlush, // null=?щ’?놁쓬
         "text_change_font" => {
             let font = match param_at(&params, 0, vars)? {
                 ParamBlock::Text(font) => font,
@@ -480,7 +578,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let color = param_at(&params, 0, vars)?;
             Block::TextChangeBgColor { color }
         }
-        // 산술/비교/논리
+        // ?곗닠/鍮꾧탳/?쇰━
         "calc_basic" => {
             let lhs = param_at(&params, 0, vars)?;
             let op = op_at(&params, 1)?;
@@ -611,10 +709,10 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         }
         "reach_something" => {
             let target = params
-                // EntryJS 슬롯은 [Indicator, DropdownDynamic, Indicator]
+                // EntryJS ?щ’? [Indicator, DropdownDynamic, Indicator]
                 .get(1)
                 .and_then(Value::as_str)
-                // 이전에 생성된 2슬롯 형식([target, Indicator])도 읽음
+                // ?댁쟾???앹꽦??2?щ’ ?뺤떇([target, Indicator])???쎌쓬
                 .or_else(|| params.get(0).and_then(Value::as_str))
                 .unwrap_or("self")
                 .to_string();
@@ -676,7 +774,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 .unwrap_or(true);
             Block::SetVisibleAnswer { value }
         }
-        "calc_unary" => {
+        "calc_unary" | "boolean_not" => {
             let expr = param_at(&params, 0, vars)?;
             let op_str = params.get(1).and_then(Value::as_str).unwrap_or("");
             let op = match op_str {
@@ -748,7 +846,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
 
             Block::QuotientAndMod { a, b, mode }
         }
-        // 리터럴
+        // 由ы꽣??
         "number" => {
             let n = params
                 .get(0)
@@ -793,7 +891,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::Color(s.to_string())
         }
 
-        // 문자열
+        // 臾몄옄??
         "string_concat" => {
             let parts = params
                 .as_array()
@@ -811,7 +909,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let needle = param_at(&params, 1, vars)?;
             Block::StringIncludes { haystack, needle }
         }
-        // 모양
+        // 紐⑥뼇
         "show" => Block::Show {},
         "hide" => Block::Hide {},
         "remove_dialog" => Block::RemoveDialog {},
@@ -851,7 +949,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 .to_string();
             Block::ChangeObjectIndex { direction }
         }
-        // 소리
+        // ?뚮━
         "sound_something_with_block" => {
             let sound_name = param_at(&params, 0, vars)?;
             Block::SoundSomethingWithBlock { sound_name }
@@ -936,7 +1034,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 .to_string();
             Block::GetSoundDuration { sound_name }
         }
-        // 함수
+        // ?⑥닔
         "function_call" => {
             let name = params
                 .get(0)
@@ -953,8 +1051,8 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::FuncCall { name, args }
         }
         "change_to_some_shape" => {
-            // 현재 EntryJS 형식은 `get_pictures` 값 블록 안에 이미지 ID를 둔다.
-            // 이전에 생성한 원시 문자열 형식도 extract 호환을 위해 읽는다.
+            // ?꾩옱 EntryJS ?뺤떇? `get_pictures` 媛?釉붾줉 ?덉뿉 ?대?吏 ID瑜??붾떎.
+            // ?댁쟾???앹꽦???먯떆 臾몄옄???뺤떇??extract ?명솚???꾪빐 ?쎈뒗??
             let picture = params
                 .get(0)
                 .and_then(|value| {
@@ -1017,11 +1115,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let amount = param_at(&params, 0, vars)?;
             Block::ChangeScaleSize { amount }
         }
-        // EntryJS 의 동적 함수 호출 블록. type = `func_<id>` 형식이며
-        // id 는 project.functions[].id 와 매칭된다. args 슬롯은
-        // EntryJS 가 동적 확장하므로 params[0] 만 (Indicator) 있다.
-        // name 으로 id 를 그대로 두고 FuncCall 변환 (라운드트립 시
-        // id 가 보존되어 build 가 다시 같은 func_<id> 블록을 생성).
+        // EntryJS ???숈쟻 ?⑥닔 ?몄텧 釉붾줉. type = `func_<id>` ?뺤떇?대ŉ
+        // id ??project.functions[].id ? 留ㅼ묶?쒕떎. args ?щ’?
+        // EntryJS 媛 ?숈쟻 ?뺤옣?섎?濡?params[0] 留?(Indicator) ?덈떎.
+        // name ?쇰줈 id 瑜?洹몃?濡??먭퀬 FuncCall 蹂??(?쇱슫?쒗듃由???
+        // id 媛 蹂댁〈?섏뼱 build 媛 ?ㅼ떆 媛숈? func_<id> 釉붾줉???앹꽦).
         t if t.starts_with("func_") => {
             let name = t.to_string();
             Block::FuncCall {
@@ -1051,7 +1149,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             }
         }
         "function_create_value" => {
-            // function_create_value 의 paramsKeyMap: FIELD=0, VALUE=3
+            // function_create_value ??paramsKeyMap: FIELD=0, VALUE=3
             // params = [function_field_label_chain, Indicator(null), LineBreak(null), VALUE block]
             let name = params
                 .get(0)
@@ -1067,7 +1165,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 _ => Vec::new(),
             };
             let mut body = statements_thread(obj, 0, vars)?;
-            // VALUE 슬롯 (params[3]) → Block::Return { value } 로 변환 후 본문 끝에 push.
+            // VALUE ?щ’ (params[3]) ??Block::Return { value } 濡?蹂????蹂몃Ц ?앹뿉 push.
             let return_value: Option<ParamBlock> = params
                 .get(3)
                 .filter(|v| !v.is_null())
@@ -1090,7 +1188,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             Block::Return { value }
         }
 
-        // 하드웨어 블럭 (소스맵 인덱스) — 원본 .ent 블럭 JSON 을 raw 로 보존.
+        // ?섎뱶?⑥뼱 釉붾윮 (?뚯뒪留??몃뜳?? ???먮낯 .ent 釉붾윮 JSON ??raw 濡?蹂댁〈.
         other if crate::block::registry::is_hw_block(other) => Block::Raw {
             type_id: other.to_string(),
             raw: v.clone(),
@@ -1106,9 +1204,9 @@ fn value_to_param(v: &Value, vars: &VarMap) -> Result<ParamBlock> {
         return Ok(ParamBlock::Null);
     }
     if v.is_object() {
-        // variable dropdown: codegen 이 `{id, name, variableType}` 형태로 emit.
-        // `type` 키 없음 → block_from_value 호출하면 "block.type missing" 에러.
-        // 이 분기를 먼저 처리해 ParamBlock::Variable 로 변환.
+        // variable dropdown: codegen ??`{id, name, variableType}` ?뺥깭濡?emit.
+        // `type` ???놁쓬 ??block_from_value ?몄텧?섎㈃ "block.type missing" ?먮윭.
+        // ??遺꾧린瑜?癒쇱? 泥섎━??ParamBlock::Variable 濡?蹂??
         if v.get("type").is_none() && v.get("id").is_some() && v.get("name").is_some() {
             let id = v["id"].as_str().unwrap_or("");
             let name = resolve_var(id, vars);
@@ -1136,7 +1234,7 @@ fn value_to_param(v: &Value, vars: &VarMap) -> Result<ParamBlock> {
                         return Ok(ParamBlock::Text(s.to_string()));
                     }
                 }
-                "boolean" => {
+                "boolean" | "True" | "False" => {
                     if let Some(b) = v
                         .get("params")
                         .and_then(Value::as_array)
@@ -1145,6 +1243,8 @@ fn value_to_param(v: &Value, vars: &VarMap) -> Result<ParamBlock> {
                     {
                         return Ok(ParamBlock::Boolean(b));
                     }
+                    // True/False literal 블록은 params 가 빈 경우도 있음 — 그 경우 true/false 자체가 의미.
+                    return Ok(ParamBlock::Boolean(t == "True"));
                 }
                 "get_sounds" => {
                     if let Some(id) = v
@@ -1155,6 +1255,107 @@ fn value_to_param(v: &Value, vars: &VarMap) -> Result<ParamBlock> {
                     {
                         return Ok(ParamBlock::Text(id.to_string()));
                     }
+                }
+                "get_pictures" => {
+                    if let Some(id) = v
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|items| items.first())
+                        .and_then(Value::as_str)
+                    {
+                        return Ok(ParamBlock::Text(id.to_string()));
+                    }
+                }
+                "text_color" => {
+                    if let Some(c) = v
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|items| items.first())
+                        .and_then(Value::as_str)
+                    {
+                        return Ok(ParamBlock::Text(c.to_string()));
+                    }
+                }
+                "function_field_label" => {
+                    // 함수 정의 헤드. 라운드트립은 lib.rs 가 처리 — 자리 유지.
+                    let name = v
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|items| items.first())
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string();
+                    return Ok(ParamBlock::Text(name));
+                }
+                "function_field_string" => {
+                    let name = v
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|items| items.first())
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string();
+                    return Ok(ParamBlock::Text(name));
+                }
+                "function_field_boolean" => {
+                    let b = v
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|items| items.first())
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false);
+                    return Ok(ParamBlock::Boolean(b));
+                }
+                "text_box_with_self" | "textBoxWithSelf" => {
+                    // 글상자 dropdown — 라운드트립용 placeholder.
+                    let id = v
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|items| items.first())
+                        .and_then(Value::as_str)
+                        .unwrap_or("self")
+                        .to_string();
+                    return Ok(ParamBlock::Text(id));
+                }
+                "get_table_fields" => {
+                    let id = v
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|items| items.first())
+                        .and_then(Value::as_str)
+                        .unwrap_or("")
+                        .to_string();
+                    return Ok(ParamBlock::Text(id));
+                }
+                "angle" => {
+                    if let Some(n) = v
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|a| a.first())
+                        .and_then(Value::as_f64)
+                    {
+                        return Ok(ParamBlock::Number(n));
+                    }
+                }
+                "wildcard_string" | "wildcard_boolean" => {
+                    // 함수 param placeholder. 값 슬롯 자리.
+                    return Ok(ParamBlock::Null);
+                }
+                "boolean_not" => {
+                    // 단항 부정 — 값 자리 placeholder.
+                    let expr = if let Some(p) = v
+                        .get("params")
+                        .and_then(Value::as_array)
+                        .and_then(|items| items.first())
+                    {
+                        value_to_param(p, vars)?
+                    } else {
+                        ParamBlock::Null
+                    };
+                    return Ok(ParamBlock::Sub(Box::new(Block::UnaryOp {
+                        op: UnaryOp::Not,
+                        expr,
+                    })));
                 }
                 "get_sound_volume" => {
                     return Ok(ParamBlock::Sub(Box::new(Block::GetSoundVolume)));
@@ -1188,7 +1389,7 @@ fn value_to_param(v: &Value, vars: &VarMap) -> Result<ParamBlock> {
     Err(crate::Error::Parse("unknown param shape".into()))
 }
 
-/// `params` 배열에서 인덱스 위치의 값 -> ParamBlock.
+/// `params` 諛곗뿴?먯꽌 ?몃뜳???꾩튂??媛?-> ParamBlock.
 fn param_at(params: &Value, idx: usize, vars: &VarMap) -> Result<ParamBlock> {
     match params.get(idx) {
         Some(v) => value_to_param(v, vars),
@@ -1196,7 +1397,34 @@ fn param_at(params: &Value, idx: usize, vars: &VarMap) -> Result<ParamBlock> {
     }
 }
 
-/// `params` 배열에서 변수 ID(첫 번째 슬롯) 추출.
+/// `params[idx]` 에서 table id string 추출. DropdownDynamic 이 비어있으면 "".
+fn table_param(params: &Value, idx: usize) -> String {
+    params
+        .get(idx)
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_string()
+}
+
+/// `params[idx]` 에서 RowCol 드롭다운 문자열 파싱.
+fn row_col_param(params: &Value, idx: usize) -> Result<RowCol> {
+    let s = params
+        .get(idx)
+        .and_then(Value::as_str)
+        .unwrap_or("ROW");
+    str_to_row_col(s).map_err(|_| SyntaxError(format!("invalid row/col dropdown: {s}")))
+}
+
+/// `params[idx]` 에서 CalcMethod 드롭다운 문자열 파싱.
+fn calc_method_param(params: &Value, idx: usize) -> Result<CalcMethod> {
+    let s = params
+        .get(idx)
+        .and_then(Value::as_str)
+        .unwrap_or("SUM");
+    str_to_calc_method(s).map_err(|_| SyntaxError(format!("invalid calc method dropdown: {s}")))
+}
+
+/// `params` 諛곗뿴?먯꽌 蹂??ID(泥?踰덉㎏ ?щ’) 異붿텧.
 fn variable_slot(params: &Value, idx: usize) -> Result<(String, Option<String>)> {
     let v = params.get(idx).cloned().unwrap_or(Value::Null);
     if v.is_null() {
@@ -1213,7 +1441,7 @@ fn variable_slot(params: &Value, idx: usize) -> Result<(String, Option<String>)>
     Ok((id, name))
 }
 
-/// Entry 블록 obj의 `statements[N]` 슬롯에서 블록 배열 추출.
+/// Entry 釉붾줉 obj??`statements[N]` ?щ’?먯꽌 釉붾줉 諛곗뿴 異붿텧.
 fn statements_thread(
     obj: &serde_json::Map<String, Value>,
     idx: usize,
@@ -1228,7 +1456,7 @@ fn statements_thread(
     }
 }
 
-/// `params` 배열에서 연산자 문자열 추출.
+/// `params` 諛곗뿴?먯꽌 ?곗궛??臾몄옄??異붿텧.
 fn op_at(params: &Value, idx: usize) -> Result<BinOp> {
     let s = params
         .get(idx)
@@ -1252,7 +1480,7 @@ fn op_at(params: &Value, idx: usize) -> Result<BinOp> {
     })
 }
 
-/// `Block` 한 개를 IR `Vec<Stmt>`에 누적.
+/// `Block` ??媛쒕? IR `Vec<Stmt>`???꾩쟻.
 fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Result<()> {
     match block {
         Block::WhenStart => {
@@ -1410,8 +1638,8 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             Ok(())
         }
         Block::SetFuncVariable { variable, value } => {
-            // 함수 본문 local var 설정. IR 레벨에서는 일반 Stmt::SetVar (scope=Local 표시 안 됨 —
-            // from_stmt_with_fn_scope 가 다시 여기 들어오면 set_func_variable 로 emit 됨).
+            // ?⑥닔 蹂몃Ц local var ?ㅼ젙. IR ?덈꺼?먯꽌???쇰컲 Stmt::SetVar (scope=Local ?쒖떆 ??????
+            // from_stmt_with_fn_scope 媛 ?ㅼ떆 ?ш린 ?ㅼ뼱?ㅻ㈃ set_func_variable 濡?emit ??.
             stmts.push(Stmt::SetVar(
                 variable.clone(),
                 expr_from_param(value, vars)?,
@@ -1419,7 +1647,7 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             Ok(())
         }
         Block::GetFuncVariable { variable } => {
-            // 함수 본문 local var 읽기. 값 슬롯 자리에 Expr::Var 로 표현.
+            // ?⑥닔 蹂몃Ц local var ?쎄린. 媛??щ’ ?먮━??Expr::Var 濡??쒗쁽.
             stmts.push(Stmt::Expr(Expr::Var(variable.clone())));
             Ok(())
         }
@@ -1477,6 +1705,106 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             )));
             Ok(())
         }
+        // ?? ?곗씠?곕텇??(?뚯씠釉? ??
+        Block::AppendRowToTable { table, dimension } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef { name: "append_row_to_table".to_string(), arity: 2, raw: None },
+                vec![Expr::Str(table.clone()), Expr::Str(row_col_to_str(*dimension).to_string())],
+            )));
+            Ok(())
+        }
+        Block::InsertRowToTable { table, index, dimension } => {
+            let index = expr_from_param(index, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef { name: "insert_row_to_table".to_string(), arity: 3, raw: None },
+                vec![Expr::Str(table.clone()), index, Expr::Str(row_col_to_str(*dimension).to_string())],
+            )));
+            Ok(())
+        }
+        Block::DeleteRowFromTable { table, index, dimension } => {
+            let index = expr_from_param(index, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef { name: "delete_row_from_table".to_string(), arity: 3, raw: None },
+                vec![Expr::Str(table.clone()), index, Expr::Str(row_col_to_str(*dimension).to_string())],
+            )));
+            Ok(())
+        }
+        Block::SetValueFromTable { table, row, field, value } => {
+            let row = expr_from_param(row, vars)?;
+            let field = expr_from_param(field, vars)?;
+            let value = expr_from_param(value, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef { name: "set_value_from_table".to_string(), arity: 4, raw: None },
+                vec![Expr::Str(table.clone()), row, field, value],
+            )));
+            Ok(())
+        }
+        Block::SaveCurrentTable { table } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef { name: "save_current_table".to_string(), arity: 1, raw: None },
+                vec![Expr::Str(table.clone())],
+            )));
+            Ok(())
+        }
+        Block::GetTableCount { .. } => Err(SyntaxError(
+            "get_table_count is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetValueFromTable { .. } => Err(SyntaxError(
+            "get_value_from_table is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetValueFromLastRow { .. } => Err(SyntaxError(
+            "get_value_from_last_row is a value block and cannot be used as a statement".into(),
+        )),
+        Block::CalcValuesFromTable { .. } => Err(SyntaxError(
+            "calc_values_from_table is a value block and cannot be used as a statement".into(),
+        )),
+        Block::OpenTable { table } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef { name: "open_table".to_string(), arity: 1, raw: None },
+                vec![Expr::Str(table.clone())],
+            )));
+            Ok(())
+        }
+        Block::OpenTableWait { table, seconds } => {
+            let seconds = expr_from_param(seconds, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef { name: "open_table_wait".to_string(), arity: 2, raw: None },
+                vec![Expr::Str(table.clone()), seconds],
+            )));
+            Ok(())
+        }
+        Block::OpenTableChart { table, chart_index } => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef { name: "open_table_chart".to_string(), arity: 2, raw: None },
+                vec![Expr::Str(table.clone()), Expr::Str(chart_index.clone())],
+            )));
+            Ok(())
+        }
+        Block::CloseTableChart => {
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef { name: "close_table_chart".to_string(), arity: 0, raw: None },
+                Vec::new(),
+            )));
+            Ok(())
+        }
+        Block::GetCoefficient { .. } => Err(SyntaxError(
+            "get_coefficient is a value block and cannot be used as a statement".into(),
+        )),
+        Block::SetValueFromCell { table, cell, value } => {
+            let cell = expr_from_param(cell, vars)?;
+            let value = expr_from_param(value, vars)?;
+            stmts.push(Stmt::Expr(Expr::Call(
+                crate::ir::FuncRef { name: "set_value_from_cell".to_string(), arity: 3, raw: None },
+                vec![Expr::Str(table.clone()), cell, value],
+            )));
+            Ok(())
+        }
+        Block::GetValueFromCell { .. } => Err(SyntaxError(
+            "get_value_from_cell is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetValueVLookup { .. } => Err(SyntaxError(
+            "get_value_v_lookup is a value block and cannot be used as a statement".into(),
+        )),
 
         Block::If { cond, body } => {
             let cond = expr_from_param(cond, vars)?;
@@ -1626,8 +1954,8 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             for b in body {
                 from_block_owned(b, &mut bb, vars)?;
             }
-            // Block::FuncDef 는 param name 만 보유. kind (String/Bool) 는
-            // block layer 에서 손실 → 복원 불가. default String 처리.
+            // Block::FuncDef ??param name 留?蹂댁쑀. kind (String/Bool) ??
+            // block layer ?먯꽌 ?먯떎 ??蹂듭썝 遺덇?. default String 泥섎━.
             let param_pairs: Vec<(String, crate::ir::ParamKind)> = params
                 .iter()
                 .map(|n| (n.clone(), crate::ir::ParamKind::String))
@@ -2181,6 +2509,27 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         }
         Block::CoordinateMouse { .. } => Err(SyntaxError(
             "coordinate_mouse is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetTableCount { .. } => Err(SyntaxError(
+            "get_table_count is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetValueFromTable { .. } => Err(SyntaxError(
+            "get_value_from_table is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetValueFromLastRow { .. } => Err(SyntaxError(
+            "get_value_from_last_row is a value block and cannot be used as a statement".into(),
+        )),
+        Block::CalcValuesFromTable { .. } => Err(SyntaxError(
+            "calc_values_from_table is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetCoefficient { .. } => Err(SyntaxError(
+            "get_coefficient is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetValueFromCell { .. } => Err(SyntaxError(
+            "get_value_from_cell is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetValueVLookup { .. } => Err(SyntaxError(
+            "get_value_v_lookup is a value block and cannot be used as a statement".into(),
         )),
         Block::BounceWall => {
             stmts.push(Stmt::Expr(Expr::Call(
@@ -3003,6 +3352,27 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::GetBooleanValue { .. } => Err(SyntaxError(
             "get_boolean_value is a value block and cannot be used as a statement".into(),
         )),
+        Block::GetTableCount { .. } => Err(SyntaxError(
+            "get_table_count is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetValueFromTable { .. } => Err(SyntaxError(
+            "get_value_from_table is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetValueFromLastRow { .. } => Err(SyntaxError(
+            "get_value_from_last_row is a value block and cannot be used as a statement".into(),
+        )),
+        Block::CalcValuesFromTable { .. } => Err(SyntaxError(
+            "calc_values_from_table is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetCoefficient { .. } => Err(SyntaxError(
+            "get_coefficient is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetValueFromCell { .. } => Err(SyntaxError(
+            "get_value_from_cell is a value block and cannot be used as a statement".into(),
+        )),
+        Block::GetValueVLookup { .. } => Err(SyntaxError(
+            "get_value_v_lookup is a value block and cannot be used as a statement".into(),
+        )),
     }
 }
 
@@ -3026,10 +3396,10 @@ fn math_op_to_name(op: &MathOperation) -> &'static str {
 /// `ParamBlock` -> IR `Expr`.
 fn expr_from_param(p: &ParamBlock, _vars: &VarMap) -> Result<Expr> {
     match p {
-        ParamBlock::Null => Err(UnmappedBlock("null in expr slot".into())),
+        ParamBlock::Null => Ok(Expr::Int(0)),
         ParamBlock::Number(n) => Ok(Expr::Float(*n)),
         ParamBlock::Text(s) => {
-            // Entry `text` 블록이 숫자처럼 보이면 정수로 변환 (산술/비교 컨텍스트).
+            // Entry `text` 釉붾줉???レ옄泥섎읆 蹂댁씠硫??뺤닔濡?蹂??(?곗닠/鍮꾧탳 而⑦뀓?ㅽ듃).
             if let Ok(i) = s.parse::<i64>() {
                 Ok(Expr::Int(i))
             } else if let Ok(f) = s.parse::<f64>() {
@@ -3044,7 +3414,7 @@ fn expr_from_param(p: &ParamBlock, _vars: &VarMap) -> Result<Expr> {
     }
 }
 
-/// `Block` -> IR `Expr` (값으로 쓰이는 블록).
+/// `Block` -> IR `Expr` (媛믪쑝濡??곗씠??釉붾줉).
 fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
     match b {
         Block::Number(n) => Ok(Expr::Float(*n)),
@@ -3312,6 +3682,202 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                     raw: None,
                 },
                 vec![Expr::Var(list.clone()), value],
+            ))
+        }
+        // ── 데이터분석 (테이블) stmt 전용 — expr 자리 거부 (expr_from_block) ──
+        Block::AppendRowToTable { .. } => Err(SyntaxError(
+            "append_row_to_table is a statement block and cannot be used as a value".into(),
+        )),
+        Block::InsertRowToTable { .. } => Err(SyntaxError(
+            "insert_row_to_table is a statement block and cannot be used as a value".into(),
+        )),
+        Block::DeleteRowFromTable { .. } => Err(SyntaxError(
+            "delete_row_from_table is a statement block and cannot be used as a value".into(),
+        )),
+        Block::SetValueFromTable { .. } => Err(SyntaxError(
+            "set_value_from_table is a statement block and cannot be used as a value".into(),
+        )),
+        Block::SaveCurrentTable { .. } => Err(SyntaxError(
+            "save_current_table is a statement block and cannot be used as a value".into(),
+        )),
+        Block::OpenTable { .. } => Err(SyntaxError(
+            "open_table is a statement block and cannot be used as a value".into(),
+        )),
+        Block::OpenTableWait { .. } => Err(SyntaxError(
+            "open_table_wait is a statement block and cannot be used as a value".into(),
+        )),
+        Block::OpenTableChart { .. } => Err(SyntaxError(
+            "open_table_chart is a statement block and cannot be used as a value".into(),
+        )),
+        Block::CloseTableChart => Err(SyntaxError(
+            "close_table_chart is a statement block and cannot be used as a value".into(),
+        )),
+        Block::SetValueFromCell { .. } => Err(SyntaxError(
+            "set_value_from_cell is a statement block and cannot be used as a value".into(),
+        )),
+        Block::GetTableCount { table, dimension } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "get_table_count".to_string(),
+                arity: 2,
+                raw: None,
+            },
+            vec![Expr::Str(table.clone()), Expr::Str(row_col_to_str(*dimension).to_string())],
+        )),
+        Block::GetValueFromTable { table, row, field } => {
+            let row = expr_from_param(row, vars)?;
+            let field = expr_from_param(field, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "get_value_from_table".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![Expr::Str(table.clone()), row, field],
+            ))
+        }
+        Block::GetValueFromLastRow { table, field } => {
+            let field = expr_from_param(field, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "get_value_from_last_row".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![Expr::Str(table.clone()), field],
+            ))
+        }
+        Block::CalcValuesFromTable { table, field, method } => {
+            let field = expr_from_param(field, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "calc_values_from_table".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![
+                    Expr::Str(table.clone()),
+                    field,
+                    Expr::Str(calc_method_to_str(*method).to_string()),
+                ],
+            ))
+        }
+        Block::GetCoefficient { table, field1, field2 } => {
+            let field1 = expr_from_param(field1, vars)?;
+            let field2 = expr_from_param(field2, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "get_coefficient".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![Expr::Str(table.clone()), field1, field2],
+            ))
+        }
+        Block::GetValueFromCell { table, cell } => {
+            let cell = expr_from_param(cell, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "get_value_from_cell".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![Expr::Str(table.clone()), cell],
+            ))
+        }
+        Block::GetValueVLookup { table, field, value, return_field } => {
+            let field = expr_from_param(field, vars)?;
+            let value = expr_from_param(value, vars)?;
+            let return_field = expr_from_param(return_field, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "get_value_v_lookup".to_string(),
+                    arity: 4,
+                    raw: None,
+                },
+                vec![Expr::Str(table.clone()), field, value, return_field],
+            ))
+        }
+        // ?? ?곗씠?곕텇??(?뚯씠釉? ??媛??щ’ ?먮━ ??
+        Block::GetTableCount { table, dimension } => Ok(Expr::Call(
+            ir::FuncRef {
+                name: "get_table_count".to_string(),
+                arity: 2,
+                raw: None,
+            },
+            vec![Expr::Str(table.clone()), Expr::Str(row_col_to_str(*dimension).to_string())],
+        )),
+        Block::GetValueFromTable { table, row, field } => {
+            let row = expr_from_param(row, vars)?;
+            let field = expr_from_param(field, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "get_value_from_table".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![Expr::Str(table.clone()), row, field],
+            ))
+        }
+        Block::GetValueFromLastRow { table, field } => {
+            let field = expr_from_param(field, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "get_value_from_last_row".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![Expr::Str(table.clone()), field],
+            ))
+        }
+        Block::CalcValuesFromTable { table, field, method } => {
+            let field = expr_from_param(field, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "calc_values_from_table".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![
+                    Expr::Str(table.clone()),
+                    field,
+                    Expr::Str(calc_method_to_str(*method).to_string()),
+                ],
+            ))
+        }
+        Block::GetCoefficient { table, field1, field2 } => {
+            let field1 = expr_from_param(field1, vars)?;
+            let field2 = expr_from_param(field2, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "get_coefficient".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![Expr::Str(table.clone()), field1, field2],
+            ))
+        }
+        Block::GetValueFromCell { table, cell } => {
+            let cell = expr_from_param(cell, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "get_value_from_cell".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![Expr::Str(table.clone()), cell],
+            ))
+        }
+        Block::GetValueVLookup { table, field, value, return_field } => {
+            let field = expr_from_param(field, vars)?;
+            let value = expr_from_param(value, vars)?;
+            let return_field = expr_from_param(return_field, vars)?;
+            Ok(Expr::Call(
+                ir::FuncRef {
+                    name: "get_value_v_lookup".to_string(),
+                    arity: 4,
+                    raw: None,
+                },
+                vec![Expr::Str(table.clone()), field, value, return_field],
             ))
         }
         Block::Raw { type_id, raw } => Ok(Expr::Call(
@@ -3830,7 +4396,7 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
             ))
         }
         Block::SetFuncVariable { variable, value } => {
-            // stmt 자리. expr 컨텍스트로 올 일은 거의 없지만 안전하게 단항 emit.
+            // stmt ?먮━. expr 而⑦뀓?ㅽ듃濡????쇱? 嫄곗쓽 ?놁?留??덉쟾?섍쾶 ?⑦빆 emit.
             let v = expr_from_param(value, vars)?;
             Ok(Expr::Call(
                 ir::FuncRef {
@@ -3844,8 +4410,8 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
     }
 }
 
-/// Block::Raw 의 raw.params 에서 Rust 인자 표현을 best-effort 로 뽑는다.
-/// (정확한 재구성은 @hwraw 주석이 담당하므로, 여기선 읽기 좋은 수준으로만.)
+/// Block::Raw ??raw.params ?먯꽌 Rust ?몄옄 ?쒗쁽??best-effort 濡?戮묐뒗??
+/// (?뺥솗???ш뎄?깆? @hwraw 二쇱꽍???대떦?섎?濡? ?ш린???쎄린 醫뗭? ?섏??쇰줈留?)
 fn hw_raw_arg_count(raw: &Value) -> usize {
     raw.get("params")
         .and_then(|p| p.as_array())
@@ -3853,7 +4419,7 @@ fn hw_raw_arg_count(raw: &Value) -> usize {
         .unwrap_or(0)
 }
 
-/// Block::Raw 의 raw.params 를 IR Expr 인자로 변환 (실패 요소는 건너뜀).
+/// Block::Raw ??raw.params 瑜?IR Expr ?몄옄濡?蹂??(?ㅽ뙣 ?붿냼??嫄대꼫?).
 fn hw_raw_args(raw: &Value, vars: &VarMap) -> Vec<Expr> {
     let mut out = Vec::new();
     if let Some(Value::Array(params)) = raw.get("params") {
@@ -3868,18 +4434,18 @@ fn hw_raw_args(raw: &Value, vars: &VarMap) -> Vec<Expr> {
     out
 }
 
-/// Entry 프로젝트 `script` (JSON 문자열) -> IR `Program`. 변수 없음.
+/// Entry ?꾨줈?앺듃 `script` (JSON 臾몄옄?? -> IR `Program`. 蹂???놁쓬.
 pub fn program_from_script_string(s: &str) -> Result<crate::ir::Program> {
     program_from_script_string_with_vars(s, &VarMap::new())
 }
 
-/// Entry 프로젝트 `script` (JSON 문자열) -> IR `Program`. 변수 맵 전달.
+/// Entry ?꾨줈?앺듃 `script` (JSON 臾몄옄?? -> IR `Program`. 蹂??留??꾨떖.
 pub fn program_from_script_string_with_vars(s: &str, vars: &VarMap) -> Result<crate::ir::Program> {
     let v: Value = serde_json::from_str(s).map_err(|e| crate::Error::Parse(e.to_string()))?;
     program_from_script_value_with_vars(&v, vars)
 }
 
-/// Entry 오브젝트 script를 복원하며 현재 오브젝트의 자산 ID를 이름으로 바꾼다.
+/// Entry ?ㅻ툕?앺듃 script瑜?蹂듭썝?섎ŉ ?꾩옱 ?ㅻ툕?앺듃???먯궛 ID瑜??대쫫?쇰줈 諛붽씔??
 pub fn program_from_script_string_with_vars_and_assets(
     s: &str,
     vars: &VarMap,
@@ -3890,18 +4456,18 @@ pub fn program_from_script_string_with_vars_and_assets(
     Ok(resolve_asset_ids(program, assets, object_name))
 }
 
-/// Entry 오브젝트 `script` (`Value::String` 안의 JSON) -> IR `Program`.
+/// Entry ?ㅻ툕?앺듃 `script` (`Value::String` ?덉쓽 JSON) -> IR `Program`.
 pub fn program_from_script_value(v: &Value) -> Result<crate::ir::Program> {
     program_from_script_value_with_vars(v, &VarMap::new())
 }
 
-/// Entry 오브젝트 `script` (`Value::String` 안의 JSON) -> IR `Program`. 변수 맵 전달.
+/// Entry ?ㅻ툕?앺듃 `script` (`Value::String` ?덉쓽 JSON) -> IR `Program`. 蹂??留??꾨떖.
 pub fn program_from_script_value_with_vars(v: &Value, vars: &VarMap) -> Result<crate::ir::Program> {
     let stmts = from_script(v, vars)?;
     Ok(crate::ir::Program { stmts })
 }
 
-/// Entry 오브젝트 script Value를 복원하며 현재 오브젝트의 자산 ID를 이름으로 바꾼다.
+/// Entry ?ㅻ툕?앺듃 script Value瑜?蹂듭썝?섎ŉ ?꾩옱 ?ㅻ툕?앺듃???먯궛 ID瑜??대쫫?쇰줈 諛붽씔??
 pub fn program_from_script_value_with_vars_and_assets(
     v: &Value,
     vars: &VarMap,
@@ -3912,7 +4478,7 @@ pub fn program_from_script_value_with_vars_and_assets(
     Ok(resolve_asset_ids(program, assets, object_name))
 }
 
-/// 자산 ID를 DSL에서 사용할 자산 이름으로 복원한다.
+/// ?먯궛 ID瑜?DSL?먯꽌 ?ъ슜???먯궛 ?대쫫?쇰줈 蹂듭썝?쒕떎.
 fn resolve_asset_ids(
     mut program: crate::ir::Program,
     assets: &crate::AssetMap,
@@ -3926,8 +4492,8 @@ fn resolve_asset_ids(
             {
                 *id = name.to_string();
             }
-            // 오브젝트 dropdown 슬롯 — IR args 의 target 위치 id → name.
-            // (forward 의 EntryJS params idx 와 다름 — IR 은 라벨 슬롯 제외하고 value 만 args 에 담는다.)
+            // ?ㅻ툕?앺듃 dropdown ?щ’ ??IR args ??target ?꾩튂 id ??name.
+            // (forward ??EntryJS params idx ? ?ㅻ쫫 ??IR ? ?쇰꺼 ?щ’ ?쒖쇅?섍퀬 value 留?args ???대뒗??)
             let object_target_idx: Option<usize> = match fref.name.as_str() {
                 "create_clone" | "see_angle_object" | "locate" | "distance_something"
                 | "reach_something" => Some(0),
@@ -3978,7 +4544,7 @@ fn resolve_asset_ids(
                         *id = name.to_string();
                     }
                 }
-                // 오브젝트 dropdown 슬롯 — EntryJS 가 emit 한 id 를 DSL 의 name 으로 복원.
+                // ?ㅻ툕?앺듃 dropdown ?щ’ ??EntryJS 媛 emit ??id 瑜?DSL ??name ?쇰줈 蹂듭썝.
                 Stmt::Expr(Expr::Call(fref, args))
                     if matches!(
                         fref.name.as_str(),
@@ -4024,23 +4590,23 @@ fn resolve_asset_ids(
     program
 }
 
-/// scripts Value (`[[block, ...], ...]` 형태) 를 순회하며 매핑 안 되는 블록 타입을 집계.
-/// 비파괴적 — IR 변환 없이 직접 walk. 재귀로 `statements` 안의 블록도 탐색.
+/// scripts Value (`[[block, ...], ...]` ?뺥깭) 瑜??쒗쉶?섎ŉ 留ㅽ븨 ???섎뒗 釉붾줉 ??낆쓣 吏묎퀎.
+/// 鍮꾪뙆愿댁쟻 ??IR 蹂???놁씠 吏곸젒 walk. ?ш?濡?`statements` ?덉쓽 釉붾줉???먯깋.
 ///
-/// `block_from_value` 가 single source of truth — 화이트리스트 유지 불필요.
-/// 새 블록 추가 시 `block_from_value` 에 매핑만 추가하면 자동 반영.
+/// `block_from_value` 媛 single source of truth ???붿씠?몃━?ㅽ듃 ?좎? 遺덊븘??
+/// ??釉붾줉 異붽? ??`block_from_value` ??留ㅽ븨留?異붽??섎㈃ ?먮룞 諛섏쁺.
 ///
-/// ## 반환
-/// `(type_name, count)` 목록. count 내림차순 → 이름 오름차순 정렬.
+/// ## 諛섑솚
+/// `(type_name, count)` 紐⑸줉. count ?대┝李⑥닚 ???대쫫 ?ㅻ쫫李⑥닚 ?뺣젹.
 ///
-/// ## 사용
-/// extract 시 오브젝트별 raw 폴백 외에, 전체 프로젝트의 미매핑 블록을 요약 출력할 때.
+/// ## ?ъ슜
+/// extract ???ㅻ툕?앺듃蹂?raw ?대갚 ?몄뿉, ?꾩껜 ?꾨줈?앺듃??誘몃ℓ??釉붾줉???붿빟 異쒕젰????
 pub fn collect_unmapped_blocks(scripts: &Value, vars: &VarMap) -> Vec<(String, usize)> {
     use std::collections::HashMap;
     let mut counts: HashMap<String, usize> = HashMap::new();
     walk_blocks(scripts, &mut |block: &Value| {
         if let Some(t) = block.get("type").and_then(|x| x.as_str()) {
-            // 하드웨어 블럭은 소스맵 인덱스로 인식되므로 미매핑 집계에서 제외.
+            // ?섎뱶?⑥뼱 釉붾윮? ?뚯뒪留??몃뜳?ㅻ줈 ?몄떇?섎?濡?誘몃ℓ??吏묎퀎?먯꽌 ?쒖쇅.
             if !crate::block::registry::is_hw_block(t) && block_from_value(block, vars).is_err() {
                 *counts.entry(t.to_string()).or_insert(0) += 1;
             }
@@ -4051,7 +4617,7 @@ pub fn collect_unmapped_blocks(scripts: &Value, vars: &VarMap) -> Vec<(String, u
     v
 }
 
-/// scripts 트리를 재귀 walk. 각 block 마다 `f` 호출.
+/// scripts ?몃━瑜??ш? walk. 媛?block 留덈떎 `f` ?몄텧.
 fn walk_blocks(value: &Value, f: &mut impl FnMut(&Value)) {
     match value {
         Value::Array(arr) => arr.iter().for_each(|v| walk_blocks(v, f)),

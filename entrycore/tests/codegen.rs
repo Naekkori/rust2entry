@@ -213,3 +213,181 @@ fn timer_named_var_registers_as_timer() {
     let info = vars.get(&entrycore::block::id_for("초시계")).expect("timer registered");
     assert!(matches!(info.kind, VarKind::Timer));
 }
+
+// ── 데이터분석 (테이블) 매핑 ──
+
+fn block_stmt(json: &Value) -> &Value {
+    let arr = json["scripts"].as_array().expect("scripts array");
+    // generate() 는 scripts = [block,...] (스레드 wrapper 없이 직접).
+    &arr[0]
+}
+
+#[test]
+fn table_append_row_to_table_emits_correct_block() {
+    let src = r#"
+        fn when_start() {
+            append_row_to_table("mytable", "row");
+        }
+    "#;
+    let p = parse(src).expect("parse");
+    let json = generate(&p, &empty_project()).expect("generate");
+    let stmt = block_stmt(&json);
+    assert_eq!(stmt["type"], "append_row_to_table");
+    let params = stmt["params"].as_array().expect("params array");
+    assert!(params[0].is_null(), "MATRIX dropdown -> null");
+    assert_eq!(params[1], "ROW");
+    assert!(params[2].is_null(), "Indicator -> null");
+}
+
+#[test]
+fn table_calc_values_from_table_emits_correct_block() {
+    let src = r#"
+        fn when_start() {
+            let v = calc_values_from_table("t", 1, "avg");
+        }
+    "#;
+    let p = parse(src).expect("parse");
+    let json = generate(&p, &empty_project()).expect("generate");
+    let stmt = block_stmt(&json);
+    assert_eq!(stmt["type"], "set_variable");
+    let val = &stmt["params"][1];
+    assert_eq!(val["type"], "calc_values_from_table");
+    let params = val["params"].as_array().expect("params array");
+    assert!(params[0].is_null(), "MATRIX dropdown");
+    assert_eq!(params[1]["type"], "number");
+    assert_eq!(params[2], "AVG");
+}
+
+#[test]
+fn table_set_value_from_cell_emits_correct_block() {
+    let src = r#"
+        fn when_start() {
+            set_value_from_cell("t", "A2", 10);
+        }
+    "#;
+    let p = parse(src).expect("parse");
+    let json = generate(&p, &empty_project()).expect("generate");
+    let stmt = block_stmt(&json);
+    assert_eq!(stmt["type"], "set_value_from_cell");
+    let params = stmt["params"].as_array().expect("params array");
+    assert!(params[0].is_null(), "MATRIX dropdown");
+    assert_eq!(params[1]["type"], "text");
+    assert_eq!(params[1]["params"][0], "A2");
+    assert_eq!(params[2]["type"], "number");
+    assert!(params[3].is_null(), "Indicator");
+}
+
+#[test]
+fn table_close_table_chart_has_no_args() {
+    let src = r#"
+        fn when_start() {
+            close_table_chart();
+        }
+    "#;
+    let p = parse(src).expect("parse");
+    let json = generate(&p, &empty_project()).expect("generate");
+    let stmt = block_stmt(&json);
+    assert_eq!(stmt["type"], "close_table_chart");
+}
+
+#[test]
+fn table_value_block_in_value_position_emits_value_block() {
+    // 값 슬롯 전용 table 블록을 값 자리에서 정상 사용 가능.
+    let src = r#"
+        fn when_start() {
+            let n = get_table_count("t", "row");
+        }
+    "#;
+    let p = parse(src).expect("parse");
+    let json = generate(&p, &empty_project()).expect("generate");
+    let stmt = block_stmt(&json);
+    assert_eq!(stmt["type"], "set_variable");
+    let val = &stmt["params"][1];
+    assert_eq!(val["type"], "get_table_count");
+    // params[0] = table dropdown (null placeholder)
+    assert!(val["params"][0].is_null());
+    // params[1] = "ROW" dimension
+    assert_eq!(val["params"][1], "ROW");
+}
+
+#[test]
+fn table_invalid_enum_string_rejected() {
+    // 잘못된 dimension enum ("DIAG") → parse_enum_arg 에서 거부.
+    let src = r#"
+        fn when_start() {
+            append_row_to_table("t", "DIAG");
+        }
+    "#;
+    let p = parse(src).expect("parse");
+    let err = generate(&p, &empty_project()).expect_err("should reject");
+    let msg = format!("{err:?}");
+    assert!(msg.contains("invalid row/col") || msg.contains("unknown RowCol"), "got: {msg}");
+}
+
+#[test]
+fn table_arity_mismatch_rejected() {
+    // insert_row_to_table 는 3 args 필수.
+    let src = r#"
+        fn when_start() {
+            insert_row_to_table("t", 2);
+        }
+    "#;
+    let p = parse(src).expect("parse");
+    let err = generate(&p, &empty_project()).expect_err("should reject");
+    let msg = format!("{err:?}");
+    assert!(msg.contains("insert_row_to_table needs 3 args"), "got: {msg}");
+}
+
+#[test]
+fn table_roundtrip_stmt_preserved() {
+    // stmt 형 table 블록 라운드트립: 함수 이름 + 차원 enum 보존.
+    let src = r#"
+        fn when_start() {
+            append_row_to_table("t1", "row");
+            insert_row_to_table("t1", 3, "col");
+            delete_row_from_table("t1", 2, "row");
+            save_current_table("t1");
+            open_table("t1");
+            open_table_wait("t1", 5);
+            close_table_chart();
+        }
+    "#;
+    let p1 = parse(src).expect("parse1");
+    let json = generate(&p1, &empty_project()).expect("generate");
+    let vars = collect_var_map(&p1);
+    let scripts_wrapped = serde_json::json!([json["scripts"].clone()]);
+    let p2 = program_from_script_value_with_vars(&scripts_wrapped, &vars).expect("deparse");
+    assert_eq!(p1.stmts.len(), p2.stmts.len());
+    // 함수 호출 이름/인자 보존 확인.
+    for (a, b) in p1.stmts.iter().zip(p2.stmts.iter()) {
+        let (n1, args1) = match a {
+            entrycore::ir::Stmt::Expr(entrycore::ir::Expr::Call(f, args)) => (&f.name, args),
+            other => panic!("p1 not call: {other:?}"),
+        };
+        let (n2, args2) = match b {
+            entrycore::ir::Stmt::Expr(entrycore::ir::Expr::Call(f, args)) => (&f.name, args),
+            other => panic!("p2 not call: {other:?}"),
+        };
+        assert_eq!(n1, n2);
+        assert_eq!(args1.len(), args2.len());
+    }
+}
+
+#[test]
+fn table_roundtrip_value_block_preserved() {
+    // 값 슬롯 table 블록 라운드트립.
+    let src = r#"
+        fn when_start() {
+            let n = get_table_count("t", "row");
+            let v = get_value_from_table("t", 2, 1);
+            let s = calc_values_from_table("t", 1, "sum");
+            let c = get_coefficient("t", 1, 2);
+        }
+    "#;
+    let p1 = parse(src).expect("parse1");
+    let json = generate(&p1, &empty_project()).expect("generate");
+    let vars = collect_var_map(&p1);
+    let scripts_wrapped = serde_json::json!([json["scripts"].clone()]);
+    let p2 = program_from_script_value_with_vars(&scripts_wrapped, &vars).expect("deparse");
+    assert_eq!(p1.stmts.len(), p2.stmts.len());
+}
