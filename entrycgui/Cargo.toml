@@ -14,3 +14,4 @@ tar = "0.4"
 serde = { workspace = true }
 serde_json = { workspace = true }
 entrycore = { path = "../entrycore" }
+rfd = "0.17.2"
