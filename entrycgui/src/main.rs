@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use egui::{Color32, Pos2, Rect, RichText, Sense, Shape, TextureHandle, Vec2, emath};
+use egui::{Button, Color32, Pos2, Rect, RichText, Sense, Shape, TextureHandle, Vec2, emath};
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
@@ -32,13 +32,21 @@ struct Arrow {
 #[derive(Default)]
 struct EntryCApp {
     name: String,
+    entry_description: String,
+    entry_toggle_mode: bool,
     group_width: f32,
+    group_height: f32,
     arrow: Arrow,
     arrow_texture: Option<TextureHandle>,
 }
 
 impl eframe::App for EntryCApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.name = format!(
+            "{0} v{1}",
+            env!("CARGO_PKG_NAME"),
+            env!("CARGO_PKG_VERSION")
+        );
         // ─────────────────────────────────────
         // 애니메이션
         // ─────────────────────────────────────
@@ -50,17 +58,18 @@ impl eframe::App for EntryCApp {
         // ─────────────────────────────────────
         // 메뉴바
         // ─────────────────────────────────────
-        egui::Panel::top("menubar").show(ui, |ui| {
-            egui::menu::MenuBar::new().ui(ui, |ui| {
-                ui.label(&self.name);
-
-                ui.menu_button("도움말", |ui| {
-                    if ui.button("정보").clicked() {
-                        ui.close();
-                    }
+        egui::Panel::top("menubar")
+            .show_separator_line(true)
+            .show(ui, |ui| {
+                egui::menu::MenuBar::new().ui(ui, |ui| {
+                    ui.label(&self.name);
+                    ui.menu_button("도움말", |ui| {
+                        if ui.button("정보").clicked() {
+                            ui.close();
+                        }
+                    });
                 });
             });
-        });
 
         // ─────────────────────────────────────
         // 메인 화면
@@ -81,7 +90,7 @@ impl eframe::App for EntryCApp {
                 // 이렇게 해야 내부 크기가 바뀌어도 그룹 전체의
                 // 중앙을 기준으로 배치할 수 있다.
                 let group_width = available.width().min(self.group_width);
-                let group_height = 160.0;
+                let group_height = self.group_height;
 
                 let group_rect =
                     egui::Rect::from_center_size(center, egui::vec2(group_width, group_height));
@@ -92,7 +101,7 @@ impl eframe::App for EntryCApp {
                         .layout(egui::Layout::top_down(egui::Align::Center)),
                     |ui| {
                         // 제목
-                        ui.label(RichText::new("엔트리 파일을 Rust 로 변환합니다.").size(20.0));
+                        ui.label(RichText::new(&self.entry_description).size(20.0));
 
                         ui.add_space(20.0);
 
@@ -146,26 +155,68 @@ impl eframe::App for EntryCApp {
                             });
                         });
 
+                        ui.add_space(20.0);
+
+                        ui.horizontal(|ui| {
+                            ui.allocate_ui_with_layout(
+                                [ui.available_width(), 50.0].into(),
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    let half = ui.available_width() * 0.5;
+                                    ui.add_sized([half, 50.0], Button::new("Rust 소스폴더 열기"));
+                                    ui.add_sized(
+                                        [half, 50.0],
+                                        Button::new(".Ent 엔트리프로젝트 열기"),
+                                    );
+                                },
+                            );
+                            /*
+                                self.arrow.target += std::f32::consts::PI;
+                                self.entry_toggle_mode = !self.entry_toggle_mode;
+                            */
+                            // 모드토글
+                            if self.entry_toggle_mode {
+                                self.entry_description =
+                                    "엔트리 파일을 Rust 로 컴파일 합니다.".to_owned();
+                            } else {
+                                self.entry_description =
+                                    "Rust 파일을 엔트리 로 컴파일 합니다.".to_owned();
+                            }
+                        });
+                        ui.vertical(|ui| {
+                            ui.allocate_ui_with_layout(
+                                [ui.available_width(), 50.0].into(),
+                                egui::Layout::left_to_right(egui::Align::Center),
+                                |ui| {
+                                    ui.add_sized(
+                                        [ui.available_width(), 50.0],
+                                        Button::new("Rust 소스 열기"),
+                                    );
+                                },
+                            );
+                            // 모드토글
+                            if self.entry_toggle_mode {
+                                self.entry_description =
+                                    "엔트리 파일을 Rust 로 컴파일 합니다.".to_owned();
+                            } else {
+                                self.entry_description =
+                                    "Rust 파일을 엔트리 로 컴파일 합니다.".to_owned();
+                            }
+                        });
                         let actual_width = row.response.rect.width();
                         if (actual_width - self.group_width).abs() > 0.5 {
                             self.group_width = actual_width
                         }
 
-                        ui.add_space(20.0);
-
-                        ui.horizontal(|ui| {
-                            if ui.button("방향전환").clicked() {
-                                self.arrow.target += std::f32::consts::PI;
-                            }
-                            // 화살표 180도 회전 = PI 라디안
-                            // 한 번 누를 때마다 180도씩 더해 반대 방향 가리킴
-                        })
+                        let actual_height = ui.min_rect().height();
+                        if (actual_height - self.group_height).abs() > 0.5 {
+                            self.group_height = actual_height
+                        }
                     },
                 );
             });
     }
 }
-
 fn setup_fonts(ctx: &egui::Context) {
     let mut fonts = egui::FontDefinitions::default();
     egui_extras::install_image_loaders(ctx);
