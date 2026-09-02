@@ -39,7 +39,6 @@ struct EntryCApp {
     group_height: f32,
     arrow: Arrow,
     arrow_texture: Option<TextureHandle>,
-    explain_build_text: String,
 }
 
 impl eframe::App for EntryCApp {
