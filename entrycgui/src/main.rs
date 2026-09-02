@@ -34,10 +34,12 @@ struct EntryCApp {
     name: String,
     entry_description: String,
     entry_toggle_mode: bool,
+    enable_build_button: bool,
     group_width: f32,
     group_height: f32,
     arrow: Arrow,
     arrow_texture: Option<TextureHandle>,
+    explain_build_text: String,
 }
 
 impl eframe::App for EntryCApp {
@@ -162,46 +164,28 @@ impl eframe::App for EntryCApp {
                                 [ui.available_width(), 50.0].into(),
                                 egui::Layout::left_to_right(egui::Align::Center),
                                 |ui| {
+                                    ui.spacing_mut().item_spacing.x = 3.0;
                                     let half = ui.available_width() * 0.5;
-                                    ui.add_sized([half, 50.0], Button::new("Rust 소스폴더 열기"));
+                                    ui.add_sized([half, 50.0], Button::new("Rust 소스폴더 열기"))
+                                        .on_hover_text("Rust소스 폴더 를 선택합니다.");
                                     ui.add_sized(
                                         [half, 50.0],
                                         Button::new(".Ent 엔트리프로젝트 열기"),
-                                    );
+                                    )
+                                    .on_hover_text("엔트리프로젝트 를 선택합니다.");
                                 },
                             );
                             /*
                                 self.arrow.target += std::f32::consts::PI;
                                 self.entry_toggle_mode = !self.entry_toggle_mode;
                             */
-                            // 모드토글
-                            if self.entry_toggle_mode {
-                                self.entry_description =
-                                    "엔트리 파일을 Rust 로 컴파일 합니다.".to_owned();
-                            } else {
-                                self.entry_description =
-                                    "Rust 파일을 엔트리 로 컴파일 합니다.".to_owned();
-                            }
                         });
-                        ui.vertical(|ui| {
-                            ui.allocate_ui_with_layout(
-                                [ui.available_width(), 50.0].into(),
-                                egui::Layout::left_to_right(egui::Align::Center),
-                                |ui| {
-                                    ui.add_sized(
-                                        [ui.available_width(), 50.0],
-                                        Button::new("Rust 소스 열기"),
-                                    );
-                                },
-                            );
-                            // 모드토글
-                            if self.entry_toggle_mode {
-                                self.entry_description =
-                                    "엔트리 파일을 Rust 로 컴파일 합니다.".to_owned();
-                            } else {
-                                self.entry_description =
-                                    "Rust 파일을 엔트리 로 컴파일 합니다.".to_owned();
-                            }
+                        let bottom_w = ui.available_width();
+                        ui.add_sized([bottom_w, 50.0], Button::new("Rust 소스 열기"));
+                        ui.add_space(5.0);
+                        ui.add_enabled_ui(self.enable_build_button, |ui| {
+                            ui.add_sized([bottom_w, 50.0], Button::new("빌드 시작"))
+                                .on_hover_text("빌드 를 시작합니다.");
                         });
                         let actual_width = row.response.rect.width();
                         if (actual_width - self.group_width).abs() > 0.5 {
@@ -211,6 +195,15 @@ impl eframe::App for EntryCApp {
                         let actual_height = ui.min_rect().height();
                         if (actual_height - self.group_height).abs() > 0.5 {
                             self.group_height = actual_height
+                        }
+
+                        // 모드토글
+                        if self.entry_toggle_mode {
+                            self.entry_description =
+                                "엔트리 파일을 Rust 로 컴파일 합니다.".to_owned();
+                        } else {
+                            self.entry_description =
+                                "Rust 파일을 엔트리 로 컴파일 합니다.".to_owned();
                         }
                     },
                 );
@@ -222,7 +215,7 @@ fn setup_fonts(ctx: &egui::Context) {
     egui_extras::install_image_loaders(ctx);
     fonts.font_data.insert(
         "nanum".to_owned(),
-        egui::FontData::from_static(include_bytes!("../assets/font/NanumGothic.ttf")).into(),
+        egui::FontData::from_static(include_bytes!("../assets/font/NanumSquareR.ttf")).into(),
     );
 
     fonts
