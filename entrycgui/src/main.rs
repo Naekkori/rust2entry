@@ -1,6 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use egui::{RichText, Vec2};
+use std::sync::Arc;
+
+use egui::{Color32, Pos2, Rect, RichText, Sense, Shape, TextureHandle, Vec2, emath};
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {
@@ -21,23 +23,30 @@ fn main() -> eframe::Result<()> {
         }),
     )
 }
+#[derive(Default)]
+struct Arrow {
+    current: f32,
+    target: f32,
+}
 
+#[derive(Default)]
 struct EntryCApp {
     name: String,
     group_width: f32,
-}
-
-impl Default for EntryCApp {
-    fn default() -> Self {
-        Self {
-            name: "EntryC GUI 판".to_string(),
-            group_width: 250.0,
-        }
-    }
+    arrow: Arrow,
+    arrow_texture: Option<TextureHandle>,
 }
 
 impl eframe::App for EntryCApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // ─────────────────────────────────────
+        // 애니메이션
+        // ─────────────────────────────────────
+        let dt = ui.ctx().input(|i| i.stable_dt);
+        let k = 1.0 - (-8.0 * dt).exp();
+        self.arrow.current += (self.arrow.target - self.arrow.current) * k;
+        ui.ctx().request_repaint();
+
         // ─────────────────────────────────────
         // 메뉴바
         // ─────────────────────────────────────
@@ -97,21 +106,43 @@ impl eframe::App for EntryCApp {
                                     uri: "bytes://rust.svg".into(),
                                     bytes: include_bytes!("../assets/image/rust.svg").into(),
                                 });
-                                ui.add_sized(Vec2::new(50.0, 50.0), img);
+                                ui.add_sized(Vec2::new(80.0, 80.0), img);
                             });
 
-                            ui.add_space(10.0);
+                            ui.add_space(5.0);
 
-                            ui.label("->");
+                            // 회전 화살표
+                            boxed(ui, |ui| {
+                                let (rect, _) =
+                                    ui.allocate_exact_size(Vec2::new(80.0, 80.0), Sense::hover());
 
-                            ui.add_space(10.0);
+                                let texture = self
+                                    .arrow_texture
+                                    .get_or_insert_with(|| load_arrow_texture(ui.ctx()))
+                                    .clone();
+
+                                let mut mesh = egui::Mesh::with_texture(texture.id());
+                                mesh.add_rect_with_uv(
+                                    rect,
+                                    Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                                    Color32::WHITE,
+                                );
+                                mesh.rotate(
+                                    emath::Rot2::from_angle(self.arrow.current),
+                                    rect.center(),
+                                );
+
+                                ui.painter().add(Shape::mesh(Arc::new(mesh)));
+                            });
+
+                            ui.add_space(5.0);
 
                             boxed(ui, |ui| {
                                 let img = egui::Image::new(egui::ImageSource::Bytes {
                                     uri: "bytes://entry.png".into(),
                                     bytes: include_bytes!("../assets/image/entry.png").into(),
                                 });
-                                ui.add_sized(Vec2::new(50.0, 50.0), img);
+                                ui.add_sized(Vec2::new(80.0, 80.0), img);
                             });
                         });
 
@@ -119,6 +150,16 @@ impl eframe::App for EntryCApp {
                         if (actual_width - self.group_width).abs() > 0.5 {
                             self.group_width = actual_width
                         }
+
+                        ui.add_space(20.0);
+
+                        ui.horizontal(|ui| {
+                            if ui.button("방향전환").clicked() {
+                                self.arrow.target += std::f32::consts::PI;
+                            }
+                            // 화살표 180도 회전 = PI 라디안
+                            // 한 번 누를 때마다 180도씩 더해 반대 방향 가리킴
+                        })
                     },
                 );
             });
@@ -141,7 +182,23 @@ fn setup_fonts(ctx: &egui::Context) {
 
     ctx.set_fonts(fonts);
 }
+fn load_arrow_texture(ctx: &egui::Context) -> TextureHandle {
+    let svg_bytes = include_bytes!("../assets/image/arrow.svg").as_ref();
+    let color_image = svg_to_color_image(svg_bytes, 80, 80);
+    ctx.load_texture("arrow_tex", color_image, egui::TextureOptions::default())
+}
 
+fn svg_to_color_image(svg_bytes: &[u8], width: u32, height: u32) -> egui::ColorImage {
+    let tree = resvg::usvg::Tree::from_data(svg_bytes, &resvg::usvg::Options::default())
+        .expect("failed parse svg");
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(width, height).expect("pixmap alloc");
+    let scale = resvg::tiny_skia::Transform::from_scale(
+        width as f32 / tree.size().width(),
+        height as f32 / tree.size().height(),
+    );
+    resvg::render(&tree, scale, &mut pixmap.as_mut());
+    egui::ColorImage::from_rgba_unmultiplied([width as usize, height as usize], pixmap.data())
+}
 fn boxed(ui: &mut egui::Ui, content: impl FnOnce(&mut egui::Ui)) {
     egui::Frame::new()
         .inner_margin(egui::Margin::same(20))

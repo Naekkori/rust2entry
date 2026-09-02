@@ -7,3 +7,5 @@ edition = "2024"
 eframe = "0.36.1"
 egui = "0.36.1"
 egui_extras = { version = "0.36", features = ["all_loaders"] }
+resvg = "0.48.1"
+tiny-skia = "0.12.0"
