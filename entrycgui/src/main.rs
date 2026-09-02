@@ -166,7 +166,7 @@ impl eframe::App for EntryCApp {
                                     ui.spacing_mut().item_spacing.x = 3.0;
                                     let half = ui.available_width() * 0.5;
                                     ui.add_sized([half, 50.0], Button::new("Rust 소스폴더 열기"))
-                                        .on_hover_text("Rust소스 폴더 를 선택합니다.");
+                                        .on_hover_text("Rust소스 폴더 를 선택합니다, 여러개 의 소스를 컴파일 할때 사용합니다.");
                                     ui.add_sized(
                                         [half, 50.0],
                                         Button::new(".Ent 엔트리프로젝트 열기"),
@@ -180,7 +180,7 @@ impl eframe::App for EntryCApp {
                             */
                         });
                         let bottom_w = ui.available_width();
-                        ui.add_sized([bottom_w, 50.0], Button::new("Rust 소스 열기"));
+                        ui.add_sized([bottom_w, 50.0], Button::new("Rust 소스 열기")).on_hover_text("Rust개별 소스 를 선택합니다, 하나만 선택할때 사용합니다.");
                         ui.add_space(5.0);
                         ui.add_enabled_ui(self.enable_build_button, |ui| {
                             ui.add_sized([bottom_w, 50.0], Button::new("빌드 시작"))
