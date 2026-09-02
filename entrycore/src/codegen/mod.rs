@@ -91,6 +91,7 @@ pub fn collect_var_map(program: &Program) -> VarMap {
     let analysis = analyze_variables(program);
     let mut map = VarMap::new();
     let names = analysis.names;
+    let mut used_names: std::collections::HashSet<String> = std::collections::HashSet::new();
     for name in names {
         let id = crate::block::id_for(&name);
         let kind = analysis
@@ -104,9 +105,31 @@ pub fn collect_var_map(program: &Program) -> VarMap {
             .get(&name)
             .copied()
             .unwrap_or(crate::var::VarScope::Local);
+        // sanitize + 충돌 시 suffix.
+        let base_name = crate::block::sanitize_ident(&name);
+        let final_name = if used_names.contains(&base_name) {
+            let suffix = {
+                let mut h: u64 = 5381;
+                for b in name.bytes() {
+                    h = h.wrapping_mul(33).wrapping_add(b as u64);
+                }
+                format!("_{:x}", h & 0xFFF)
+            };
+            let mut candidate = format!("{base_name}{suffix}");
+            let mut n = 0;
+            while used_names.contains(&candidate) {
+                n += 1;
+                candidate = format!("{base_name}{suffix}_{n}");
+            }
+            candidate
+        } else {
+            base_name
+        };
+        used_names.insert(final_name.clone());
         map.insert(VarInfo {
             id,
-            name: name.clone(),
+            name: final_name,
+            original_name: name.clone(),
             kind: kind,
             init: match kind {
                 VarKind::List => VarInit::EmptyList,

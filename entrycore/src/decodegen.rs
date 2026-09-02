@@ -76,6 +76,11 @@ fn emit_trigger_block(stmts: &[&Stmt], out: &mut String, vars: &VarMap) -> Resul
         emit_var_decl(out, 1, v);
     }
     for s in stmts {
+        // EntryJS 의 `stop_object`/`_continue` 가 trigger body 최상위에 있으면
+        // 무의미 — break/continue 는 loop 안에서만 동작. 그냥 skip.
+        if matches!(s, Stmt::Break | Stmt::Continue) {
+            continue;
+        }
         emit_stmt(s, out, 1, vars)?;
     }
     out.push_str("}\n");
@@ -211,9 +216,16 @@ fn emit_stmt(
             }
         }
         Stmt::While { cond, body } => {
+            // `while true { ... }` -> `while r#true { ... }` (Rust keyword 충돌 회피).
             out.push_str(&indent);
             out.push_str("while ");
-            emit_expr(cond, out)?;
+            if matches!(cond, crate::ir::Expr::Bool(true)) {
+                out.push_str("r#true");
+            } else if matches!(cond, crate::ir::Expr::Bool(false)) {
+                out.push_str("r#false");
+            } else {
+                emit_expr(cond, out)?;
+            }
             out.push_str(" {\n");
             for s in body {
                 emit_stmt(s, out, level + 1, vars)?;
@@ -224,7 +236,7 @@ fn emit_stmt(
         Stmt::For { var, iter, body } => {
             out.push_str(&indent);
             out.push_str("for ");
-            out.push_str(var);
+            out.push_str(&crate::block::sanitize_ident(var));
             out.push_str(" in ");
             emit_expr(iter, out)?;
             out.push_str(" {\n");
@@ -282,13 +294,23 @@ fn emit_var_decl(out: &mut String, level: usize, v: &VarInfo) {
 fn emit_global_var_decl(out: &mut String, v: &VarInfo) {
     out.push_str("static mut ");
     out.push_str(&v.name);
+    out.push_str(": ");
+    // Rust static mut 는 type annotation 필수.
+    let ty = match &v.init {
+        VarInit::Int0 => "i64",
+        VarInit::Float0 => "f64",
+        VarInit::EmptyStr => "&'static str",
+        VarInit::False => "bool",
+        VarInit::EmptyList => "Vec<_>",
+    };
+    out.push_str(ty);
     out.push_str(" = ");
     match &v.init {
         VarInit::Int0 => out.push('0'),
         VarInit::Float0 => out.push_str("0.0"),
         VarInit::EmptyStr => out.push_str("\"\""),
         VarInit::False => out.push_str("false"),
-        VarInit::EmptyList => out.push_str("[]"),
+        VarInit::EmptyList => out.push_str("Vec::new()"),
     }
     out.push_str(";\n");
 }

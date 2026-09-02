@@ -2103,9 +2103,7 @@ pub fn from_stmt_with_fn_scope(
                         ));
                     }
                     // ── 데이터분석 (테이블) stmt 자리 거부 (from_stmt_with_fn_scope) ──
-                    eprintln!("DEBUG: fref.name={}", fref.name);
                     if fref.name == "get_table_count" {
-                        eprintln!("DEBUG: matched get_table_count");
                         return Err(SyntaxError(
                             "get_table_count is a value block and cannot be used as a statement"
                                 .into(),
@@ -2725,14 +2723,15 @@ pub fn from_stmt_with_fn_scope(
                 lhs: end_pb,
                 rhs: start_pb.clone(),
             }));
+            let var_san = sanitize_ident(&var);
             let mut new_body = Vec::with_capacity(body.len() + 2);
             new_body.push(Block::SetVar {
-                variable: var.clone(),
+                variable: var_san.clone(),
                 value: start_pb,
             });
             new_body.extend(body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?);
             new_body.push(Block::ChangeVar {
-                variable: var.clone(),
+                variable: var_san,
                 value: ParamBlock::Number(1.0),
             });
             Ok(Block::Repeat {
@@ -4409,6 +4408,99 @@ fn list_variable_param(name: &str) -> Value {
     json!({ "id": id_for(name), "name": name, "variableType": "list" })
 }
 
+/// EntryJS 변수명 → Rust 식별자로 변환.
+///
+/// EntryJS 는 한글/공백/특수문자/숫자 시작 변수명을 허용하지만
+/// Rust raw identifier 외에는 invalid syntax.
+/// - 모든 char 가 ASCII alphanumeric/underscore 이면 그대로
+/// - 그 외 (한글/특수문자 포함) 가 있으면 invalid char 를 `_` 로 치환
+/// - 숫자로 시작하면 prefix `_` 추가
+/// - Rust keyword 와 충돌하면 raw identifier `r#name` 로 감싸기
+pub fn sanitize_ident(name: &str) -> String {
+    if name.is_empty() {
+        return "v_empty".to_string();
+    }
+    let mut out = String::with_capacity(name.len());
+    for c in name.chars() {
+        if c.is_ascii_alphanumeric() {
+            out.push(c);
+        } else {
+            out.push('_');
+        }
+    }
+    // 첫 글자가 underscore 인 경우 wildcard 회피 — 'v' prefix.
+    // 첫 글자가 letter 가 아니면 (숫자 등) 'v_' prefix.
+    let first = out.chars().next().unwrap();
+    if first == '_' {
+        out = format!("v{out}");
+    } else if !first.is_ascii_alphabetic() {
+        out = format!("v_{out}");
+    }
+    // 모두 underscore 인 경우 'v_empty' 로 강제.
+    if out.chars().all(|c| c == '_') {
+        out = "v_empty".to_string();
+    }
+    // Rust keyword 충돌 회피.
+    if is_rust_keyword(&out) {
+        out = format!("r#{out}");
+    }
+    out
+}
+
+fn is_rust_keyword(s: &str) -> bool {
+    matches!(
+        s,
+        "as" | "break"
+            | "const"
+            | "continue"
+            | "crate"
+            | "else"
+            | "enum"
+            | "extern"
+            | "false"
+            | "fn"
+            | "for"
+            | "if"
+            | "impl"
+            | "in"
+            | "let"
+            | "loop"
+            | "match"
+            | "mod"
+            | "move"
+            | "mut"
+            | "pub"
+            | "ref"
+            | "return"
+            | "self"
+            | "Self"
+            | "static"
+            | "super"
+            | "trait"
+            | "true"
+            | "type"
+            | "unsafe"
+            | "use"
+            | "where"
+            | "while"
+            | "async"
+            | "await"
+            | "dyn"
+            | "abstract"
+            | "become"
+            | "box"
+            | "do"
+            | "final"
+            | "macro"
+            | "override"
+            | "priv"
+            | "typeof"
+            | "unsized"
+            | "virtual"
+            | "yield"
+    )
+}
+
 /// 이름 -> 해시 ID (간단한 해시).
 pub fn id_for(name: &str) -> String {
     let mut h: u64 = 5381;
@@ -4417,7 +4509,7 @@ pub fn id_for(name: &str) -> String {
     }
     format!("{:x}", h)
 }
-/// 이름 -> kind?
+/// 이름 -> kind? (EntryJS 원본 이름 그대로 매칭)
 pub fn kind_for(name: &str) -> crate::var::VarKind {
     match name {
         "초시계" | "timer" | "Timer" => VarKind::Timer,

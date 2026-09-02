@@ -1,6 +1,7 @@
 //! syn::Expr -> IR Expr 변환.
 
 use syn::Expr;
+use syn::spanned::Spanned;
 
 use crate::Error::ParseUnsupported;
 use crate::Result;
@@ -35,6 +36,7 @@ fn pop_raw() -> Option<serde_json::Value> {
 }
 
 pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
+    let line = e.span().start().line;
     // 엔트리는 자바스크립트 기반으로 돌아가고 있다, 사용자가 넣을수있는건
     // Int, Float, String 뿐 그외는 판단블럭 에서 True/Flase 반환
     match e {
@@ -136,7 +138,8 @@ pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
             ))
         }
         Expr::Reference(r) => convert_expr(*r.expr),
-        _ => Err(ParseUnsupported("expr".into())),
+        Expr::Assign(_) => Err(ParseUnsupported("expr at assign; convert_stmt로 처리".into())),
+        _ => Err(ParseUnsupported(format!("expr at line {line}"))),
     }
 }
 

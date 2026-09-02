@@ -9,8 +9,10 @@ pub use crate::ir::VarScope;
 pub struct VarInfo {
     /// project.json `variables[*].id`
     pub id: String,
-    /// 사용자 노출 이름 (project.json `variables[*].name`). 없을 수 있음.
+    /// Rust DSL 에서 쓸 sanitize 이름 (한글/특수문자 변수명을 raw identifier 등으로 변환).
     pub name: String,
+    /// EntryJS 원본 이름 (`variables[*].name` 그대로, 빌드 시 보존).
+    pub original_name: String,
     /// 변수 종류: 일반 / 타이머 / 대답 / 리스트 / 클라우드 / 실시간.
     pub kind: VarKind,
     /// 초기값 (있다면).
@@ -75,11 +77,20 @@ impl VarMap {
         self.names.get(name).and_then(|id| self.inner.get(id))
     }
 
+    /// sanitize 이름 (DSL 식별자) 으로 lookup.
     pub fn id_by_name(&self, name: &str) -> Option<&str> {
-        self.names.get(name).map(String::as_str)
+        let s = crate::block::sanitize_ident(name);
+        self.names.get(&s).map(String::as_str)
     }
 
+    /// EntryJS 원본 이름 (`variables[*].name` 그대로) 반환.
+    /// 빌드 시 EntryJS variables[*] 이름 보존에 사용.
     pub fn name_by_id(&self, id: &str) -> Option<&str> {
+        self.get(id).map(|info| info.original_name.as_str())
+    }
+
+    /// DSL 식별자 이름 (= sanitize 이름) 반환.
+    pub fn dsl_name_by_id(&self, id: &str) -> Option<&str> {
         self.get(id).map(|info| info.name.as_str())
     }
 
@@ -100,6 +111,7 @@ pub fn var_map_from_value(v: &serde_json::Value) -> VarMap {
     let Some(arr) = v.as_array() else {
         return map;
     };
+    let mut used_names: std::collections::HashSet<String> = std::collections::HashSet::new();
     for entry in arr {
         let Some(obj) = entry.as_object() else {
             continue;
@@ -108,11 +120,33 @@ pub fn var_map_from_value(v: &serde_json::Value) -> VarMap {
             Some(s) => s.to_string(),
             None => continue,
         };
-        let name = obj
+        let original = obj
             .get("name")
             .and_then(serde_json::Value::as_str)
             .unwrap_or(&id)
             .to_string();
+        // DSL 식별자로 sanitize (raw identifier 처리) — 충돌 시 hash suffix.
+        let base_name = crate::block::sanitize_ident(&original);
+        let name = if used_names.contains(&base_name) {
+            // 충돌 시 짧은 해시 suffix 로 unique 보장.
+            let suffix = {
+                let mut h: u64 = 5381;
+                for b in original.bytes() {
+                    h = h.wrapping_mul(33).wrapping_add(b as u64);
+                }
+                format!("_{:x}", h & 0xFFF)
+            };
+            let mut candidate = format!("{base_name}{suffix}");
+            let mut n = 0;
+            while used_names.contains(&candidate) {
+                n += 1;
+                candidate = format!("{base_name}{suffix}_{n}");
+            }
+            candidate
+        } else {
+            base_name
+        };
+        used_names.insert(name.clone());
         let kind = match obj
             .get("variableType")
             .and_then(serde_json::Value::as_str)
@@ -150,6 +184,7 @@ pub fn var_map_from_value(v: &serde_json::Value) -> VarMap {
         map.insert(VarInfo {
             id,
             name,
+            original_name: original,
             kind,
             init,
             scope,

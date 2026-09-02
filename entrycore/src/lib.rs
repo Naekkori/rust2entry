@@ -889,6 +889,11 @@ fn build_threads(
             Err(e) => return Err(e),
         }
         for s in &t.body {
+            // EntryJS 의 trigger body 끝에 stop_object(=break) 가 있어도
+            // Rust 함수 본문에선 의미가 없음 — skip.
+            if matches!(s, crate::ir::Stmt::Break | crate::ir::Stmt::Continue) {
+                continue;
+            }
             let b = match crate::block::from_stmt(s) {
                 Ok(b) => b,
                 Err(Error::UnmappedBlock(m)) => {

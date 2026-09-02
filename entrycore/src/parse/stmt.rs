@@ -58,17 +58,23 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
         }
         SynStmt::Expr(expr, _semi) => {
             match expr {
-                //엔트리 IF 는 두가지 종류가 있다.
-                //IF
-                //   [만약 <참> 이 라면]
-                //    상태
-                //   [블럭 끝]
-                //IF ELSE
-                //   [만약 <참> 이 라면]
-                //    상태1
-                //   [아니면]
-                //    상태2
-                //   [블럭 끝]
+                // `break;` → `Stmt::Break`
+                syn::Expr::Break(_) => out.push(IrStmt::Break),
+                syn::Expr::Continue(_) => out.push(IrStmt::Continue),
+                // `var = expr;` → `Stmt::SetVar`
+                syn::Expr::Assign(a) => {
+                    let name = match &*a.left {
+                        syn::Expr::Path(p) => p
+                            .path
+                            .segments
+                            .last()
+                            .map(|s| s.ident.to_string())
+                            .ok_or_else(|| ParseUnsupported("assign left".into()))?,
+                        _ => return Err(ParseUnsupported("assign left".into())),
+                    };
+                    let value = convert_expr(*a.right)?;
+                    out.push(IrStmt::SetVar(crate::block::sanitize_ident(&name), value));
+                }
                 syn::Expr::If(e) => {
                     let cond = convert_expr(*e.cond)?;
                     let then_body = convert_block(Some(e.then_branch))?;
@@ -99,7 +105,8 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                 }
                 syn::Expr::ForLoop(f)=>{
                     let var = match &*f.pat {
-                        syn::Pat::Ident(pi)=>pi.ident.to_string(),
+                        syn::Pat::Ident(pi)=>crate::block::sanitize_ident(&pi.ident.to_string()),
+                        syn::Pat::Wild(_) => "_".to_string(),
                         _=> return Err(ParseUnsupported("for pat".into()))
                     };
                     let iter = convert_expr(*f.expr)?;

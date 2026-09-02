@@ -21,7 +21,8 @@ fn variable_map_supports_bidirectional_lookup() {
 fn variable_map_insert_is_bidirectional() {
     let mut vars = VarMap::new();
     vars.insert(entrycore::VarInfo {
-        id: "id-x".into(), name: "x".into(), kind: VarKind::Variable,
+        id: "id-x".into(), name: "x".into(), original_name: "x".into(),
+        kind: VarKind::Variable,
         init: entrycore::VarInit::Int0, scope: entrycore::ir::VarScope::Local,
     });
     assert_eq!(vars.id_by_name("x"), Some("id-x"));

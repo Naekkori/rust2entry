@@ -8,5 +8,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 zip = "8.6.0"
 syn = { version = "3.0.3", features = ["full"] }
+proc-macro2 = { version = "1.0", features = ["span-locations"] }
 rand = "0.10.2"
 clap = { version = "4.5", features = ["derive"] }
