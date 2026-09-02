@@ -4413,8 +4413,11 @@ fn list_variable_param(name: &str) -> Value {
 /// EntryJS 는 한글/공백/특수문자/숫자 시작 변수명을 허용하지만
 /// Rust raw identifier 외에는 invalid syntax.
 /// - 모든 char 가 ASCII alphanumeric/underscore 이면 그대로
-/// - 그 외 (한글/특수문자 포함) 가 있으면 invalid char 를 `_` 로 치환
-/// - 숫자로 시작하면 prefix `_` 추가
+/// - 한글 음절(U+AC00..=U+D7A3)은 발음대로 romanize (예: 점수→jeomsu)
+/// - 그 외 non-ASCII 는 invalid char 를 `_` 로 치환
+/// - 숫자로 시작하면 prefix `v_` 추가
+/// - 첫 글자가 `_` 이면 wildcard 회피 `v` prefix
+/// - 모두 underscore 인 경우 `v_empty` 로 강제
 /// - Rust keyword 와 충돌하면 raw identifier `r#name` 로 감싸기
 pub fn sanitize_ident(name: &str) -> String {
     if name.is_empty() {
@@ -4424,9 +4427,20 @@ pub fn sanitize_ident(name: &str) -> String {
     for c in name.chars() {
         if c.is_ascii_alphanumeric() {
             out.push(c);
+        } else if is_hangul_syllable(c) {
+            // 한글 음절 → 로마자 변환 (Revised Romanization 단순화).
+            if let Some(roman) = hangul_to_roman(c) {
+                out.push_str(&roman);
+            } else {
+                out.push('_');
+            }
         } else {
             out.push('_');
         }
+    }
+    // 모두 underscore 인 경우 'v_empty' 로 강제 (prefix 추가 전).
+    if out.chars().all(|c| c == '_') {
+        out = "v_empty".to_string();
     }
     // 첫 글자가 underscore 인 경우 wildcard 회피 — 'v' prefix.
     // 첫 글자가 letter 가 아니면 (숫자 등) 'v_' prefix.
@@ -4436,15 +4450,60 @@ pub fn sanitize_ident(name: &str) -> String {
     } else if !first.is_ascii_alphabetic() {
         out = format!("v_{out}");
     }
-    // 모두 underscore 인 경우 'v_empty' 로 강제.
-    if out.chars().all(|c| c == '_') {
-        out = "v_empty".to_string();
-    }
     // Rust keyword 충돌 회피.
     if is_rust_keyword(&out) {
         out = format!("r#{out}");
     }
     out
+}
+
+/// 한글 음절(U+AC00..=U+D7A3) 인지 확인.
+fn is_hangul_syllable(c: char) -> bool {
+    let n = c as u32;
+    (0xAC00..=0xD7A3).contains(&n)
+}
+
+/// 한글 음절 한 글자를 Revised Romanization of Korean 단순 변환으로
+/// 로마자 ASCII 문자열로 변환. 매핑 실패시 None.
+fn hangul_to_roman(c: char) -> Option<String> {
+    if !is_hangul_syllable(c) {
+        return None;
+    }
+    let n = (c as u32) - 0xAC00;
+    let initial = (n / 588) as usize;
+    let medial = ((n % 588) / 28) as usize;
+    let final_idx = (n % 28) as usize;
+    const INITIALS: &[&str] = &[
+        "g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h",
+    ];
+    const MEDIALS: &[&str] = &[
+        "a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "oa", "oe", "oi", "yo", "u", "ueo", "yu", "eu", "ui", "i", // 0..=18
+    ];
+    // medials 인덱스 0..=18 (19개) — 위 19개. Revised Romanization 이중모음 매핑 확인:
+    // ㅘ(oa), ㅙ(oe), ㅚ(oi), ㅝ(ueo), ㅞ(ue), ㅟ(ui), ㅢ(ui) — 우리 표와 일치.
+    // 위 표에서 ㅘ=oa (idx 9), ㅙ=oe (idx 10), ㅚ=oi (idx 11), ㅝ=ueo (idx 14), ㅞ=ue — 빠짐!
+    // Revised: ㅞ=ue, ㅟ=ui, ㅢ=ui — 표 보완.
+    const FINALS: &[&str] = &[
+        "", "g", "kk", "ks", "n", "nj", "nh", "d", "l", "lg", "lm", "lb", "ls", "lt", "lp", "lh", "m", "b", "bs", "s", "ss", "ng", "j", "ch", "k", "t", "p", "h",
+    ];
+    let init = INITIALS.get(initial)?;
+    let med = MEDIALS.get(medial)?;
+    let fin = FINALS.get(final_idx)?;
+    // medials 표 보완 — ㅞ(ue, idx 19?), ㅟ(ui), ㅢ(ui) 등 빠진 매핑.
+    let med_canonical = match medial {
+        // 0..=18 그대로 위 표 사용. 이중모음 보정:
+        19 => "ue", // ㅞ (위 표에 없음 — 실제로 19번째)
+        20 => "ui", // ㅟ
+        21 => "ui", // ㅢ (위 표에 없음)
+        _ => med,
+    };
+    // med 표 길이 19 — 즉 0..=18만 valid. 19~21 보정.
+    // 위 표가 19개만 있으니 추가: med_canonical.
+    if medial < 19 {
+        Some(format!("{init}{med}{fin}"))
+    } else {
+        Some(format!("{init}{med_canonical}{fin}"))
+    }
 }
 
 fn is_rust_keyword(s: &str) -> bool {

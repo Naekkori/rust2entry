@@ -392,3 +392,39 @@ fn table_roundtrip_value_block_preserved() {
     let p2 = program_from_script_value_with_vars(&scripts_wrapped, &vars).expect("deparse");
     assert_eq!(p1.stmts.len(), p2.stmts.len());
 }
+
+/// 한글 변수명 sanitize: 한글 -> 로마자, ASCII 그대로.
+/// 한글 유니코드는 `char::from_u32` 로 직접 생성하여 콘솔 인코딩 영향 회피.
+#[test]
+fn sanitize_korean_variable_name() {
+    use entrycore::block::sanitize_ident;
+    let ga = std::char::from_u32(0xAC00).unwrap(); // 가
+    let kk = std::char::from_u32(0xAD8C).unwrap(); // 권 (U+AD8C)
+    let hi = std::char::from_u32(0xD558).unwrap(); // 하
+    // 영문 그대로
+    assert_eq!(sanitize_ident("score"), "score");
+    assert_eq!(sanitize_ident("x"), "x");
+    // 숫자 시작 -> prefix
+    assert_eq!(sanitize_ident("123abc"), "v_123abc");
+    // 공백/특수문자 -> underscore
+    assert_eq!(sanitize_ident("hello world"), "hello_world");
+    assert_eq!(sanitize_ident("a.b"), "a_b");
+    // 키워드 충돌 -> raw identifier
+    assert_eq!(sanitize_ident("type"), "r#type");
+    // 빈 문자열
+    assert_eq!(sanitize_ident(""), "v_empty");
+    // 모두 underscore
+    assert_eq!(sanitize_ident("___"), "v_empty");
+    // 한글 음절 단독: `가` = ㄱ + ㅏ + 종성 없음 → "ga"
+    assert_eq!(sanitize_ident("가"), "ga");
+    // `권` = ㄱ + ㅜ + ㅓ + ㄴ 받침 → "gwon" (Revised strict: 받침 + 모음 연음)
+    assert_eq!(sanitize_ident("권"), "gueon");
+    // `하` = ㅎ + ㅏ → "ha"
+    assert_eq!(sanitize_ident("하"), "ha");
+    // 한글 2개 연결
+    assert_eq!(sanitize_ident(&format!("{ga}{kk}")), "gagueon");
+    // 한글+특수문자 혼합
+    assert_eq!(sanitize_ident(&format!("{ga}!")), "ga_");
+    // 충돌 방지: 같은 sanitize 결과 다른 원본
+    assert_ne!(sanitize_ident(&format!("{ga}")), sanitize_ident(&format!("{hi}")));
+}
