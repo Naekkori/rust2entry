@@ -35,7 +35,6 @@ struct EntryCApp {
     name: String,
     entry_description: String,
     entry_toggle_mode: bool,
-    enable_build_button: bool,
     group_width: f32,
     group_height: f32,
     arrow: Arrow,
@@ -203,17 +202,6 @@ impl eframe::App for EntryCApp {
                         {
                             self.on_click_open_rust_source();
                         }
-                        ui.add_space(5.0);
-                        ui.add_enabled_ui(self.enable_build_button, |ui| {
-                            // 빌드 시작 버튼
-                            if ui
-                                .add_sized([bottom_w, 50.0], Button::new("빌드 시작"))
-                                .on_hover_text("빌드를 시작합니다.")
-                                .clicked()
-                            {
-                                self.on_click_start_build();
-                            }
-                        });
                         let actual_width = row.response.rect.width();
                         if (actual_width - self.group_width).abs() > 0.5 {
                             self.group_width = actual_width
@@ -267,11 +255,6 @@ impl EntryCApp {
         self.entry_toggle_mode = false;
         self.arrow.target = 0.0;
         // TODO: Rust 소스 파일 선택 dialog 호출
-    }
-
-    // 빌드 시작 버튼 핸들러
-    fn on_click_start_build(&mut self) {
-        // TODO: 컴파일 작업 시작, 화살표 활성화
     }
 }
 
