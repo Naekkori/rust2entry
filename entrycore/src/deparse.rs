@@ -1481,6 +1481,7 @@ fn op_at(params: &Value, idx: usize) -> Result<BinOp> {
 }
 
 /// `Block` ??媛쒕? IR `Vec<Stmt>`???꾩쟻.
+#[allow(unreachable_patterns)]
 fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Result<()> {
     match block {
         Block::WhenStart => {
@@ -3415,6 +3416,7 @@ fn expr_from_param(p: &ParamBlock, _vars: &VarMap) -> Result<Expr> {
 }
 
 /// `Block` -> IR `Expr` (媛믪쑝濡??곗씠??釉붾줉).
+#[allow(unreachable_patterns)]
 fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
     match b {
         Block::Number(n) => Ok(Expr::Float(*n)),
