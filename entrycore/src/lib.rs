@@ -153,11 +153,8 @@ pub fn compile_with_options(
             let is_cloud = matches!(v.kind, crate::var::VarKind::Cloud);
             let is_realtime = matches!(v.kind, crate::var::VarKind::RealTime);
             json!({
-                "id": v.id,
-                // EntryJS native 변수명 그대로 보존 (한글/공백 포함 가능) —
-                // dropdown 에 표시되는 이름과 일치. v.name 은 sanitize 된
-                // DSL 식별자라 codegen/variable_param lookup 용도로만 쓰인다.
                 "name": v.original_name,
+                "id": v.id,
                 "variableType": match v.kind {
                     crate::var::VarKind::Variable => "variable",
                     crate::var::VarKind::Answer => "answer",
@@ -174,13 +171,8 @@ pub fn compile_with_options(
                     crate::var::VarInit::False => json!(false),
                     crate::var::VarInit::EmptyList => json!([]),
                 },
-                "visible": true,
-                "isCloud": is_cloud,
-                "isRealTime": is_realtime,
-                "cloudDate": false,
-                // EntryJS native variable 항목에 필수 필드. 누락 시 EntryJS 가
-                // variable list 파싱에 실패해서 dropdown 이 비고 socket 연결도
-                // 풀린다.
+                "x": 0,
+                "y": 0,
                 "array": [],
                 // 변수의 object 표시:
                 // - Global scope (`static`): 항상 null (모든 object 공유).
@@ -204,8 +196,10 @@ pub fn compile_with_options(
                         .map(|s| Value::String(s.clone()))
                         .unwrap_or(Value::Null)
                 },
-                "x": 0,
-                "y": 0,
+                "isCloud": is_cloud,
+                "isRealTime": is_realtime,
+                "cloudDate": false,
+                "visible": true,
             })
         })
         .collect();

@@ -1244,6 +1244,7 @@ fn compile_add_value_to_named_list_without_declaration() {
         .expect("fruit variable");
     assert_eq!(fruit["variableType"], "list");
     assert_eq!(fruit["value"], serde_json::json!([]));
+    assert_eq!(fruit["array"], serde_json::json!([]));
     assert!(fruit["object"].is_null());
 
     let thread = first_thread(&v["objects"].as_array().unwrap()[0]);
@@ -4572,6 +4573,7 @@ fn compile_variables_have_entry_format_fields() {
     assert_eq!(x["object"], "obj", "x 는 obj 의 변수");
     assert_eq!(x["x"], 0);
     assert_eq!(x["y"], 0);
+    assert_eq!(x["array"], json!([]));
 }
 
 /// 가짜 object 가 Entry 부수 필드 (rotateMethod, lock) 포함.
