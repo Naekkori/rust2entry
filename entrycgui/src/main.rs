@@ -156,6 +156,8 @@ enum View {
     Compiling,
     /// 완료된 결과 표시.
     Result,
+    /// egui 모달 — 에러 알림 + 사용자 결정.
+    Error,
 }
 
 #[derive(Default)]
@@ -174,6 +176,8 @@ struct EntryCApp {
     join: Option<JoinHandle<RunOutput>>,
     /// 완료된 컴파일 결과.
     last_output: Option<entryc::RunOutput>,
+    /// 모달에 표시할 메시지. Some 일 때만 View::Error 표시.
+    error_message: Option<String>,
 }
 
 impl eframe::App for EntryCApp {
@@ -218,6 +222,7 @@ impl eframe::App for EntryCApp {
                 View::Home => self.show_home(ui),
                 View::Compiling => self.show_compiling(ui),
                 View::Result => self.show_result(ui),
+                View::Error => self.show_error(ui),
             });
     }
 }
@@ -531,9 +536,63 @@ impl EntryCApp {
         });
     }
 
+    /// MSGBOX 헬퍼 — 메시지 받아서 모달 띄움. 다음 프레임의 `show_error` 가 렌더.
+    /// 어디서든 호출 가능 (핸들러, 스폰 직전 등). 모달 확인 시 자동 홈 복귀.
+    fn show_error_modal(&mut self, msg: impl Into<String>) {
+        self.error_message = Some(msg.into());
+        self.view = View::Error;
+    }
+
+    /// 모달 — 에러 알림. 메시지 영역 + 확인 버튼. 확인 시 홈으로.
+    /// `error_message` 가 None 이면 안전하게 홈으로 폴백.
+    fn show_error(&mut self, ui: &mut egui::Ui) {
+        use style::*;
+
+        let msg = self.error_message.clone().unwrap_or_else(|| {
+            "알 수 없는 오류".to_string()
+        });
+
+        draw_header(ui, "오류", None, DANGER, None);
+
+        // 메시지 카드
+        let total_h = (ui.available_height() - ACTION_BAR_HEIGHT - 8.0).max(0.0);
+        let (_id, outer_rect) = ui.allocate_space(egui::vec2(ui.available_width(), total_h));
+        let card_rect = egui::Rect::from_min_max(
+            outer_rect.min + egui::vec2(CONTENT_PAD_X, 0.0),
+            outer_rect.max - egui::vec2(CONTENT_PAD_X, 0.0),
+        );
+        ui.painter()
+            .rect_filled(card_rect, egui::CornerRadius::same(8), CARD_BG);
+        let inner = card_rect.shrink(16.0);
+        let mut child = ui.new_child(
+            egui::UiBuilder::new()
+                .max_rect(inner)
+                .layout(egui::Layout::top_down(egui::Align::LEFT)),
+        );
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .stick_to_bottom(false)
+            .show(&mut child, |ui| {
+                ui.label(
+                    egui::RichText::new(&msg)
+                        .family(egui::FontFamily::Monospace)
+                        .size(13.0)
+                        .color(DANGER),
+                );
+            });
+
+        draw_action_bar(ui, None, None::<fn(&mut egui::Ui)>, |ui| {
+            if ui.add_sized([100.0, 32.0], Button::new("확인")).clicked() {
+                self.view = View::Home;
+                self.error_message = None;
+            }
+        });
+    }
+
     /// 백그라운드 스레드에서 entryc::run_build 를 호출하고 결과로 전환.
     /// 진행 메시지는 progress Arc<Mutex<...>> 에 push 한다.
-    fn spawn_build(&mut self, rs_files: Vec<PathBuf>, out: PathBuf) {
+    /// `template` 이 Some 이면 base project.json 으로 머지, None 이면 빈 프로젝트.
+    fn spawn_build(&mut self, rs_files: Vec<PathBuf>, out: PathBuf, template: Option<PathBuf>) {
         // 화살표 / 토글 갱신
         self.arrow.is_enabled = true;
         self.entry_toggle_mode = false;
@@ -548,8 +607,16 @@ impl EntryCApp {
             // 진행 메시지를 별도 Arc 로 받아서 run_build 끝난 뒤 merge
             // (run_build 내부에서 progress 직접 접근은 못하므로,
             //  RunOutput 의 stdout/stderr 를 그대로 progress 로 전달)
-            let result =
-                entryc::run_build(&rs_files, None, &out, None, false, None, Some(&progress));
+            let template_ref = template.as_deref();
+            let result = entryc::run_build(
+                &rs_files,
+                template_ref,
+                &out,
+                None,
+                false,
+                None,
+                Some(&progress),
+            );
             let o = match result {
                 Ok(o) => o,
                 Err(o) => o,
@@ -623,7 +690,24 @@ impl EntryCApp {
             .and_then(|n| n.to_str())
             .unwrap_or("build");
         let out = folder.with_file_name(format!("{folder_name}.ent"));
-        self.spawn_build(rs_files, out);
+        match pick_template_for(&folder, Some(&folder_name)) {
+            TemplateChoice::Found(t) => self.spawn_build(rs_files, out, Some(t)),
+            TemplateChoice::Missing => {
+                self.show_error_modal(format!(
+                    "같은 이름의 .ent 가 없습니다: {folder_name}.ent\n폴더 안에 {folder_name}.ent 를 두거나 빈 프로젝트로 빌드합니다."
+                ));
+            }
+            TemplateChoice::PickFromUser => {
+                let picked = FileDialog::new()
+                    .add_filter("Entry Project", &["ent"])
+                    .set_title("머지할 템플릿 .ent 선택")
+                    .set_directory(&folder)
+                    .pick_file();
+                if let Some(t) = picked {
+                    self.spawn_build(rs_files, out, Some(t));
+                }
+            }
+        }
     }
 
     // 엔트리 프로젝트 열기 버튼 핸들러 — .ent → .rs 추출.
@@ -653,7 +737,72 @@ impl EntryCApp {
         // out: .rs 옆에 같은 stem 으로 .ent
         let stem = rs.file_stem().and_then(|n| n.to_str()).unwrap_or("build");
         let out = rs.with_file_name(format!("{stem}.ent"));
-        self.spawn_build(vec![rs], out);
+        let dir = rs.parent().unwrap_or_else(|| std::path::Path::new("."));
+        match pick_template_for(dir, Some(stem)) {
+            TemplateChoice::Found(t) => self.spawn_build(vec![rs], out, Some(t)),
+            TemplateChoice::Missing => {
+                self.show_error_modal(format!(
+                    "같은 이름의 .ent 가 없습니다: {stem}.ent\n옆에 {stem}.ent 를 두거나 빈 프로젝트로 빌드합니다."
+                ));
+            }
+            TemplateChoice::PickFromUser => {
+                let picked = FileDialog::new()
+                    .add_filter("Entry Project", &["ent"])
+                    .set_title("머지할 템플릿 .ent 선택")
+                    .set_directory(dir)
+                    .pick_file();
+                if let Some(t) = picked {
+                    self.spawn_build(vec![rs], out, Some(t));
+                }
+            }
+        }
+    }
+}
+
+/// template 선택 결과.
+enum TemplateChoice {
+    /// 후보 1개 — 바로 머지.
+    Found(PathBuf),
+    /// 후보 0개 — 같은 이름의 .ent 가 없음. 호출자가 모달 띄우고 빌드 취소.
+    Missing,
+    /// 후보 2개 이상 — 호출자가 rfd 로 사용자에게 선택 받음.
+    PickFromUser,
+}
+
+/// 같은 위치(또는 부모 디렉토리)에 있는 .ent 후보를 탐지해 template 선택 결과를 반환.
+///
+/// stem 이 주어지면 다음 위치에서 `<stem>.ent` 를 찾는다 (둘 다 후보 가능):
+///   1. `dir/<stem>.ent`           — `.rs` 와 같은 폴더
+///   2. `dir/../<stem>.ent`        — 부모 폴더 (.rs 폴더와 .ent 가 형제인 케이스)
+/// stem 이 None 이면 그 디렉토리의 모든 .ent 만 후보.
+fn pick_template_for(dir: &std::path::Path, stem: Option<&str>) -> TemplateChoice {
+    let candidates: Vec<PathBuf> = match stem {
+        Some(s) => {
+            let mut found = Vec::new();
+            let direct = dir.join(format!("{s}.ent"));
+            if direct.is_file() {
+                found.push(direct);
+            }
+            if let Some(parent) = dir.parent() {
+                let in_parent = parent.join(format!("{s}.ent"));
+                if in_parent.is_file() && !found.contains(&in_parent) {
+                    found.push(in_parent);
+                }
+            }
+            found
+        }
+        None => std::fs::read_dir(dir)
+            .into_iter()
+            .flatten()
+            .filter_map(|e| e.ok())
+            .map(|e| e.path())
+            .filter(|p| p.is_file() && p.extension().is_some_and(|x| x == "ent"))
+            .collect(),
+    };
+    match candidates.len() {
+        0 => TemplateChoice::Missing,
+        1 => TemplateChoice::Found(candidates.into_iter().next().unwrap()),
+        _ => TemplateChoice::PickFromUser,
     }
 }
 
