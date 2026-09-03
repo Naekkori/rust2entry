@@ -33,7 +33,12 @@ pub fn emit_with_var_map(program: &Program, vars: &VarMap) -> Result<String> {
     raw_acc().lock().unwrap().clear();
     let mut out = String::new();
     // 프로젝트 전역 변수는 트리거 함수 안에 선언하면 안 된다.
-    for v in vars.iter().filter(|v| matches!(v.scope, crate::var::VarScope::Global)) {
+    // Entry의 stock 변수(timer/answer)는 Entry가 자체 제공하므로 .rs 에 static 으로
+    // 다시 선언하면 안 된다 — base variables 와 중복되어 Entry 파서가 거부한다.
+    for v in vars.iter().filter(|v| {
+        matches!(v.scope, crate::var::VarScope::Global)
+            && !matches!(v.kind, crate::var::VarKind::Timer | crate::var::VarKind::Answer)
+    }) {
         emit_global_var_decl(&mut out, v);
     }
     if vars.iter().any(|v| matches!(v.scope, crate::var::VarScope::Global)) {
