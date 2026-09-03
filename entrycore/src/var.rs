@@ -69,6 +69,15 @@ impl VarMap {
         self.inner.insert(id, info);
     }
 
+    /// 같은 name 가진 기존 항목이 있으면 그 항목을 `info` 로 교체한다.
+    /// 없으면 `insert` 와 동일하게 추가. base 변수 id 보존용.
+    pub fn replace(&mut self, name: &str, info: VarInfo) {
+        if let Some(old_id) = self.names.get(name).cloned() {
+            self.inner.remove(&old_id);
+        }
+        self.insert(info);
+    }
+
     pub fn get(&self, id: &str) -> Option<&VarInfo> {
         self.inner.get(id)
     }
