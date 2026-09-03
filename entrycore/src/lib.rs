@@ -71,18 +71,60 @@ pub fn compile_with_options(
     let mut merged_stmts: Vec<crate::ir::Stmt> = Vec::new();
     let mut all_helpers: Vec<FunctionDef> = Vec::new();
     let mut all_messages: Vec<String> = Vec::new();
+    // base 변수는 parse 단계와 무관하게 보존. vars_map 빌드 시 base id 를
+    // override 하는 데 사용한다.
+    let base_var_map =
+        crate::var::var_map_from_value(base.get("variables").unwrap_or(&Value::Null));
+    // 1단계: parse + codegen vars_map 완성 후 build_threads 가 CURRENT_VAR_MAP
+    // 에서 base id 를 lookup 하도록 미리 등록. codegen 결과로 vars_map 만들고
+    // base 변수를 override 한 형태를 등록한다.
+    struct Parsed {
+        non_trigger_program: Program,
+        triggers: Vec<crate::parse::TriggerDef>,
+        stem: String,
+        flat_program: Program,
+    }
+    let mut parsed: Vec<Parsed> = Vec::with_capacity(rs_sources.len());
     for (name, src) in rs_sources {
         // variables 집계: 트리거 body 포함 모든 stmt 평탄화
         let flat_program = parse::parse(src)?;
         merged_stmts.extend(flat_program.stmts.clone());
-        // object.script thread: 트리거별 분리
         let (non_trigger_program, triggers) = parse::parse_with_triggers(src)?;
-        let mut tah = build_threads(&triggers, &non_trigger_program, &mut unmapped, &assets, name)?;
-        all_helpers.append(&mut tah.helpers);
-        all_messages.append(&mut tah.messages);
-        per_source.push((name.to_string(), tah));
+        parsed.push(Parsed {
+            non_trigger_program,
+            triggers,
+            stem: name.to_string(),
+            flat_program,
+        });
     }
     let merged_program = Program { stmts: merged_stmts };
+    let empty_var_map = VarMap::new();
+    let mut vars_map = codegen::collect_var_map(
+        &merged_program,
+        if options.replace_variables {
+            &empty_var_map
+        } else {
+            &base_var_map
+        },
+    );
+    if !options.replace_variables {
+        let base_names: Vec<String> = base_var_map.iter().map(|v| v.name.clone()).collect();
+        for name in base_names {
+            if let Some(v) = base_var_map.get_by_name(&name).cloned() {
+                vars_map.replace(&name, v);
+            }
+        }
+        // build_threads 호출 직전에 CURRENT_VAR_MAP 등록.
+        crate::block::set_current_var_map(vars_map.clone());
+    }
+    // 2단계: build_threads (이 시점에 variable_socket emit 이 CURRENT_VAR_MAP
+    // 에서 base id 를 lookup 할 수 있다).
+    for p in parsed {
+        let mut tah = build_threads(&p.triggers, &p.non_trigger_program, &mut unmapped, &assets, &p.stem)?;
+        all_helpers.append(&mut tah.helpers);
+        all_messages.append(&mut tah.messages);
+        per_source.push((p.stem, tah));
+    }
 
     // 2. variables 패치 (codegen::generate 를 통째로 부르지 않고 variables 만 직접 빌드)
     //    이유: generate 는 from_stmt 을 scripts 생성용으로 호출하는데, 이 경로의
@@ -100,36 +142,6 @@ pub fn compile_with_options(
         for var_name in collect_var_names(&flat) {
             var_object.entry(var_name).or_insert_with(|| name.to_string());
         }
-    }
-    let base_var_map =
-        crate::var::var_map_from_value(base.get("variables").unwrap_or(&Value::Null));
-    let empty_var_map = VarMap::new();
-    let mut vars_map = codegen::collect_var_map(
-        &merged_program,
-        if options.replace_variables {
-            &empty_var_map
-        } else {
-            &base_var_map
-        },
-    );
-    // replace_variables=true 모드에서는 base 변수를 통째 교체하는 동작을
-    // 유지해야 하므로 base merge 를 건너뛴다.
-    if !options.replace_variables {
-        // base 변수를 codegen 결과 위에 override 해서 EntryJS native id/name 을
-        // 보존한다. 그래야 variable_socket 의 id 가 EntryJS variable list 와
-        // 일치하고 (socket 연결), dropdown 이름이 EntryJS native 그대로 표시된다.
-        let base_names: Vec<String> = base_var_map.iter().map(|v| v.name.clone()).collect();
-        for name in base_names {
-            if let Some(v) = base_var_map.get_by_name(&name).cloned() {
-                vars_map.replace(&name, v);
-            }
-        }
-    }
-    // build_threads 안의 variable_socket emit 이 base 의 id 를 쓰도록
-    // CURRENT_VAR_MAP 에 등록해 둔다 (replace_variables=true 모드는 base 자체를
-    // 통째 교체하므로 등록하지 않는다).
-    if !options.replace_variables {
-        crate::block::set_current_var_map(vars_map.clone());
     }
     let vars_arr: Vec<Value> = vars_map
         .iter()
