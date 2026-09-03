@@ -115,6 +115,11 @@ impl VarMap {
 /// project.json `variables` 배열(serde_json::Value)로부터 VarMap 생성.
 ///
 /// 각 원소: `{id, name, variableType, value, ...}`
+///
+/// `name` (DSL 식별자) 은 sanitize 해서 Rust 정합성 보존 (raw identifier 회피,
+/// 충돌 시 hash suffix). `original_name` 은 EntryJS native 변수명 그대로
+/// (한글/공백 포함 가능) 보존해서 EntryJS variable list 의 name 과 일치시키고
+/// socket 연결에 사용한다.
 pub fn var_map_from_value(v: &serde_json::Value) -> VarMap {
     let mut map = VarMap::new();
     let Some(arr) = v.as_array() else {

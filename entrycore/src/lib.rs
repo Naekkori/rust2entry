@@ -101,30 +101,35 @@ pub fn compile_with_options(
             var_object.entry(var_name).or_insert_with(|| name.to_string());
         }
     }
-    let mut vars_map = codegen::collect_var_map(&merged_program);
-    // base .ent 의 변수를 미리 등록해서 codegen 의 새 변수 emit 시 같은 name 의
-    // base 변수 id 를 재사용하도록 한다. EntryJS variable list 의 id 와 우리
-    // script param 의 id 가 일치해야 socket 연결이 살아남는다 (그렇지 않으면
-    // dropdown socket 이 비고 placeholder 만 표시된다).
+    let base_var_map =
+        crate::var::var_map_from_value(base.get("variables").unwrap_or(&Value::Null));
+    let empty_var_map = VarMap::new();
+    let mut vars_map = codegen::collect_var_map(
+        &merged_program,
+        if options.replace_variables {
+            &empty_var_map
+        } else {
+            &base_var_map
+        },
+    );
     // replace_variables=true 모드에서는 base 변수를 통째 교체하는 동작을
     // 유지해야 하므로 base merge 를 건너뛴다.
     if !options.replace_variables {
-        let base_var_map =
-            crate::var::var_map_from_value(base.get("variables").unwrap_or(&Value::Null));
-        let base_names: Vec<String> =
-            base_var_map.iter().map(|v| v.name.clone()).collect();
+        // base 변수를 codegen 결과 위에 override 해서 EntryJS native id/name 을
+        // 보존한다. 그래야 variable_socket 의 id 가 EntryJS variable list 와
+        // 일치하고 (socket 연결), dropdown 이름이 EntryJS native 그대로 표시된다.
+        let base_names: Vec<String> = base_var_map.iter().map(|v| v.name.clone()).collect();
         for name in base_names {
             if let Some(v) = base_var_map.get_by_name(&name).cloned() {
-                // codegen 의 동일 name 항목 original_name 은 보존 (사용자 .rs 추적용).
-                let original = vars_map
-                    .get_by_name(&name)
-                    .map(|e| e.original_name.clone())
-                    .unwrap_or_else(|| v.original_name.clone());
-                let mut replaced = v;
-                replaced.original_name = original;
-                vars_map.replace(&name, replaced);
+                vars_map.replace(&name, v);
             }
         }
+    }
+    // build_threads 안의 variable_socket emit 이 base 의 id 를 쓰도록
+    // CURRENT_VAR_MAP 에 등록해 둔다 (replace_variables=true 모드는 base 자체를
+    // 통째 교체하므로 등록하지 않는다).
+    if !options.replace_variables {
+        crate::block::set_current_var_map(vars_map.clone());
     }
     let vars_arr: Vec<Value> = vars_map
         .iter()
@@ -137,7 +142,10 @@ pub fn compile_with_options(
             let is_realtime = matches!(v.kind, crate::var::VarKind::RealTime);
             json!({
                 "id": v.id,
-                "name": v.name,
+                // EntryJS native 변수명 그대로 보존 (한글/공백 포함 가능) —
+                // dropdown 에 표시되는 이름과 일치. v.name 은 sanitize 된
+                // DSL 식별자라 codegen/variable_param lookup 용도로만 쓰인다.
+                "name": v.original_name,
                 "variableType": match v.kind {
                     crate::var::VarKind::Variable => "variable",
                     crate::var::VarKind::Answer => "answer",

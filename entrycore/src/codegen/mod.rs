@@ -25,7 +25,7 @@ pub fn generate(program: &Program, original: &Value) -> Result<Value> {
         .into_iter()
         .map(|b| to_value(&b))
         .collect::<Result<Vec<_>>>()?;
-    let vars = collect_var_map(program);
+    let vars = collect_var_map(program, &VarMap::new());
     let vars_arr: Vec<Value> = vars
         .iter()
         .map(|v| {
@@ -87,7 +87,11 @@ pub fn generate(program: &Program, original: &Value) -> Result<Value> {
 ///
 /// `static x = ...` 같이 VarDecl 이 Global scope 를 가지면 VarInfo.scope 도
 /// Global 로 설정 — EntryJS variables[].object = null.
-pub fn collect_var_map(program: &Program) -> VarMap {
+///
+/// `base` 는 base .ent 에서 추출한 VarMap. 같은 name 의 변수가 base 에 있으면
+/// 우리 codegen 의 id 를 base 의 id 로 맞춰 script 안의 variable param id 가
+/// EntryJS variable list 와 일치하도록 한다 (socket 연결 복원).
+pub fn collect_var_map(program: &Program, base: &VarMap) -> VarMap {
     let analysis = analyze_variables(program);
     let mut map = VarMap::new();
     let names = analysis.names;
@@ -126,8 +130,16 @@ pub fn collect_var_map(program: &Program) -> VarMap {
             base_name
         };
         used_names.insert(final_name.clone());
+        // 같은 name 이 base 에 있으면 base 의 id 를 그대로 사용해서 EntryJS
+        // variable list 의 id 와 일치시킨다 (socket 연결 복원). base 에 없으면
+        // 우리 hash 로 신규 발급.
+        let final_id = base
+            .iter()
+            .find(|v| v.name == final_name || v.original_name == name)
+            .map(|v| v.id.clone())
+            .unwrap_or(id);
         map.insert(VarInfo {
-            id,
+            id: final_id,
             name: final_name,
             original_name: name.clone(),
             kind: kind,
@@ -142,6 +154,12 @@ pub fn collect_var_map(program: &Program) -> VarMap {
             },
             scope,
         });
+    }
+    // base 에만 있는 변수도 유지 (codegen 결과에 없는 base 변수 보존).
+    for v in base.iter() {
+        if !map.iter().any(|m| m.name == v.name) {
+            map.insert(v.clone());
+        }
     }
     map
 }

@@ -12,7 +12,22 @@ pub use registry::{BlockRegistry, HwDevice, HwSourcemap, SchemaDump, SchemaRepor
 
 pub use category::Category;
 
+use std::sync::{Mutex, OnceLock};
+
 use serde_json::{Value, json};
+
+/// 빌드 시점에 활성화되는 "현재 VarMap" — variable_socket emit 이 base 의
+/// EntryJS native id 를 그대로 사용하도록 한다. EntryJS variable list 와
+/// 우리 script param 의 id 가 일치해야 socket 연결이 살아남는다.
+static CURRENT_VAR_MAP: OnceLock<Mutex<crate::var::VarMap>> = OnceLock::new();
+
+pub(crate) fn set_current_var_map(map: crate::var::VarMap) {
+    CURRENT_VAR_MAP.get_or_init(|| Mutex::new(map));
+}
+
+fn current_var_map() -> Option<&'static Mutex<crate::var::VarMap>> {
+    CURRENT_VAR_MAP.get()
+}
 
 #[derive(Debug, Clone)]
 pub enum QamMethod {
@@ -4458,18 +4473,42 @@ fn param_to_value(p: &ParamBlock) -> Value {
 }
 
 /// 변수 드롭다운 슬롯.
+///
+/// `name` 은 DSL 식별자 (sanitize 후) 일 수도, EntryJS native 변수명 (한글 등)
+/// 일 수도 있다. 양쪽 모두 시도해서 EntryJS variable list 의 항목과 id/name 을
+/// 일치시킨다 (socket 연결 복원, dropdown 에 한글 이름 그대로 표시).
 fn variable_param(name: &str) -> Value {
-    let id = id_for(name);
-    let kind = kind_for(name);
-    // EntryJS 는 Rust raw identifier (`r#true` 등) 나 keyword 같은
-    // 비 Entry-식별자 이름은 거부한다. sanitize_ident 로 Entry 호환 이름으로
-    // 변환해 emit (id 는 원본 기반으로 stable 유지).
     let safe_name = sanitize_ident(name);
-    json!({ "id": id, "name": safe_name, "variableType": kind_to_str(&kind) })
+    // CURRENT_VAR_MAP 의 base 변수와 매칭:
+    // 1) DSL 식별자 (sanitize) 기준
+    // 2) EntryJS native name (original_name) 기준
+    let lookup = current_var_map().and_then(|m| {
+        let g = m.lock().ok()?;
+        g.get_by_name(&safe_name)
+            .or_else(|| g.iter().find(|v| v.original_name == name))
+            .map(|v| (v.id.clone(), v.original_name.clone()))
+    });
+    let (id, display_name) = match lookup {
+        Some((id, orig)) => (id, orig),
+        None => (id_for(&safe_name), safe_name.clone()),
+    };
+    let kind = kind_for(name);
+    json!({ "id": id, "name": display_name, "variableType": kind_to_str(&kind) })
 }
 
 fn list_variable_param(name: &str) -> Value {
-    json!({ "id": id_for(name), "name": sanitize_ident(name), "variableType": "list" })
+    let safe_name = sanitize_ident(name);
+    let lookup = current_var_map().and_then(|m| {
+        let g = m.lock().ok()?;
+        g.get_by_name(&safe_name)
+            .or_else(|| g.iter().find(|v| v.original_name == name))
+            .map(|v| (v.id.clone(), v.original_name.clone()))
+    });
+    let (id, display_name) = match lookup {
+        Some((id, orig)) => (id, orig),
+        None => (id_for(&safe_name), safe_name.clone()),
+    };
+    json!({ "id": id, "name": display_name, "variableType": "list" })
 }
 
 /// EntryJS 변수명 → Rust 식별자로 변환.
