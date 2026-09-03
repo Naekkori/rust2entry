@@ -85,7 +85,7 @@ fn if_block() {
     let block = &json["scripts"][0];
     assert_eq!(block["type"], "if");
     let cond = &block["params"][0];
-    assert_eq!(cond["type"], "boolean_basic");
+    assert_eq!(cond["type"], "boolean_basic_operator");
 }
 
 #[test]

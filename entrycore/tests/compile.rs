@@ -3,6 +3,7 @@
 //! parse + codegen 을 거치며 최종 project.json 구조 확인.
 
 use entrycore::compile;
+use entrycore::ir::{BinOp, Expr, Stmt, UnaryOp};
 use serde_json::{Value, json};
 
 fn empty_project() -> Value {
@@ -147,8 +148,8 @@ fn compile_if_block_structure() {
     let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2, "when_run + if");
     assert_eq!(thread[0]["type"], "when_run_button_click");
-    assert_eq!(thread[1]["type"], "if");
-    assert_eq!(thread[1]["params"][0]["type"], "boolean_basic");
+    assert_eq!(thread[1]["type"], "_if");
+    assert_eq!(thread[1]["params"][0]["type"], "boolean_basic_operator");
 }
 
 /// for-range 는 repeat_basic 으로 직렬화.
@@ -292,7 +293,7 @@ fn compile_wait_until_true_compare() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let wait = thread.iter().find(|b| b["type"] == "wait_until_true").expect("wait_until_true");
-    assert_eq!(wait["params"][0]["type"], "boolean_basic");
+    assert_eq!(wait["params"][0]["type"], "boolean_basic_operator");
 }
 
 /// `wait_until_true(flag)` → 변수 슬롯.
@@ -319,7 +320,7 @@ fn compile_wait_until_true_arith_cond() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let wait = thread.iter().find(|b| b["type"] == "wait_until_true").expect("wait_until_true");
-    assert_eq!(wait["params"][0]["type"], "boolean_basic");
+    assert_eq!(wait["params"][0]["type"], "boolean_basic_operator");
 }
 
 /// 라운드트립.
@@ -2164,7 +2165,7 @@ fn compile_is_press_some_key_in_cond() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     // when_run + if
-    assert_eq!(thread[1]["type"], "if");
+    assert_eq!(thread[1]["type"], "_if");
     // if 블록의 cond 슬롯 = is_press_some_key
     let cond = &thread[1]["params"][0];
     assert_eq!(cond["type"], "is_press_some_key");
@@ -3401,7 +3402,7 @@ fn compile_locate_y_roundtrip() {
                 Stmt::Expr(Expr::Call(fref, args)) => {
                     assert_eq!(fref.name, "locate_y");
                     assert_eq!(args.len(), 1);
-                    assert!(matches!(&args[0], Expr::UnaryOp(UnaryOp::Neg, inner) if matches!(**inner, Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON)));
+                    assert!(matches!(&args[0], Expr::BinOp(BinOp::Sub, lhs, rhs) if matches!(**lhs, Expr::Float(n) if n.abs() < f64::EPSILON) && matches!(**rhs, Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON)));
                 }
                 other => panic!("expected Call(locate_y), got {other:?}"),
             }
@@ -3445,7 +3446,7 @@ fn compile_locate_xy_roundtrip() {
                     assert_eq!(fref.name, "locate_xy");
                     assert_eq!(args.len(), 2);
                     assert!(matches!(&args[0], Expr::Float(n) if (n - 100.0).abs() < f64::EPSILON));
-                    assert!(matches!(&args[1], Expr::UnaryOp(UnaryOp::Neg, inner) if matches!(**inner, Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON)));
+                    assert!(matches!(&args[1], Expr::BinOp(BinOp::Sub, lhs, rhs) if matches!(**lhs, Expr::Float(n) if n.abs() < f64::EPSILON) && matches!(**rhs, Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON)));
                 }
                 other => panic!("expected Call(locate_xy), got {other:?}"),
             }
@@ -3490,7 +3491,7 @@ fn compile_locate_xy_time_roundtrip() {
                     assert_eq!(args.len(), 3);
                     assert!(matches!(&args[0], Expr::Float(n) if (n - 1.0).abs() < f64::EPSILON));
                     assert!(matches!(&args[1], Expr::Float(n) if (n - 100.0).abs() < f64::EPSILON));
-                    assert!(matches!(&args[2], Expr::UnaryOp(UnaryOp::Neg, inner) if matches!(**inner, Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON)));
+                    assert!(matches!(&args[2], Expr::BinOp(BinOp::Sub, lhs, rhs) if matches!(**lhs, Expr::Float(n) if n.abs() < f64::EPSILON) && matches!(**rhs, Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON)));
                 }
                 other => panic!("expected Call(locate_xy_time), got {other:?}"),
             }
@@ -4114,7 +4115,7 @@ fn compile_if_else_block() {
     assert_eq!(thread[0]["type"], "when_run_button_click");
     let block = &thread[1];
     assert_eq!(block["type"], "if_else");
-    assert_eq!(block["params"][0]["type"], "boolean_basic");
+    assert_eq!(block["params"][0]["type"], "boolean_basic_operator");
     let stmts = block["statements"].as_array().expect("statements");
     assert_eq!(stmts.len(), 2, "if_else 는 then/else 2개 thread");
     let then_first = &stmts[0][0];
@@ -4133,7 +4134,7 @@ fn compile_if_without_else_stays_if() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = &thread[1];
-    assert_eq!(block["type"], "if");
+    assert_eq!(block["type"], "_if");
     let stmts = block["statements"].as_array().expect("statements");
     assert_eq!(stmts.len(), 1, "if 는 then 1개 thread");
 }
@@ -6388,7 +6389,7 @@ fn compile_is_type_roundtrip() {
     let compiled = compile(&[("obj", src)], &empty_project()).expect("compile").0;
     let script = compiled["objects"][0]["script"].as_str().expect("script string");
     let value: Value = serde_json::from_str(script).expect("script JSON");
-    assert_eq!(value[0][1]["type"], "if");
+    assert_eq!(value[0][1]["type"], "_if");
     assert_eq!(value[0][1]["params"][0]["type"], "is_type");
     assert_eq!(value[0][1]["params"][0]["params"][2], "number");
 

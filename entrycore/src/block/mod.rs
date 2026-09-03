@@ -978,7 +978,7 @@ impl Block {
             Block::GetFuncVariable { .. } => "get_func_variable",
             Block::If { .. } => "if",
             Block::IfElse { .. } => "if_else",
-            Block::While { .. } => "repeat_while",
+            Block::While { .. } => "repeat_while_true",
             Block::Repeat { .. } => "repeat_basic",
             Block::Forever { .. } => "repeat_forever",
             Block::Break => "stop_object",
@@ -986,9 +986,9 @@ impl Block {
             Block::StopAll => "stop_run_all",
             Block::RestartProject => "restart_project",
             Block::CalcBinOp { .. } => "calc_basic",
-            Block::Compare { .. } => "boolean_basic",
+            Block::Compare { .. } => "boolean_basic_operator",
             Block::BoolOp { .. } => "boolean_and_or",
-            Block::UnaryOp { .. } => "calc_unary",
+            Block::UnaryOp { .. } => "calc_basic",
             Block::Number(_) => "number",
             Block::Text(_) => "text",
             Block::Boolean(_) => "boolean",
@@ -3396,8 +3396,11 @@ pub fn to_value(block: &Block) -> crate::Result<Value> {
     if let Some(stmts) = statements {
         obj.insert("statements".into(), Value::Array(stmts));
     }
-    obj.insert("x".into(), Value::from(0));
-    obj.insert("y".into(), Value::from(0));
+    // EntryJS startProject 기준 트리거 시작 위치 (40, 50). 사용자 drag로 옮기기
+    // 전까지 모든 block 이 이 위치에 겹쳐 표시되지만 적어도 board 영역 안에 있어
+    // 깨지지 않는다.
+    obj.insert("x".into(), Value::from(40));
+    obj.insert("y".into(), Value::from(50));
     obj.insert("movable".into(), Value::Null);
     obj.insert("deletable".into(), Value::from(1));
     obj.insert("emphasized".into(), Value::Bool(false));
@@ -3605,7 +3608,9 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ]),
         ),
         Block::While { cond, body } => (
-            vec![param_to_value(cond), Value::Null],
+            // EntryJS repeat_while_true params: [BOOL, OPTION('until' | 'while')].
+            // 'while' 선택 시 cond 가 true 인 동안 본문 반복.
+            vec![param_to_value(cond), Value::String("while".into())],
             Some(vec![blocks_to_thread(body)?]),
         ),
         Block::Repeat { times, body } => (
@@ -3640,17 +3645,30 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
-        Block::UnaryOp { op, expr } => (
-            vec![
-                param_to_value(expr),
-                Value::String(match op {
-                    UnaryOp::Neg => "-".into(),
-                    UnaryOp::Not => "!".into(),
-                }),
-                Value::Null,
-            ],
-            None,
-        ),
+        Block::UnaryOp { op, expr } => {
+            // EntryJS 는 단항 부정 (`-x`) 을 위한 별도 block 이 없다. calc_basic
+            // 으로 `0 - x` 또는 calc_basic + ! 로 변환해 native 형식을 따른다.
+            // EntryJS 가 모르는 type 으로 emit 하면 loadProject 가 깨지므로
+            // calc_basic 으로 매핑한다.
+            match op {
+                UnaryOp::Neg => (
+                    vec![
+                        Value::from(0.0),
+                        Value::String("-".into()),
+                        param_to_value(expr),
+                    ],
+                    None,
+                ),
+                UnaryOp::Not => (
+                    vec![
+                        Value::Bool(false),
+                        Value::String("==".into()),
+                        param_to_value(expr),
+                    ],
+                    None,
+                ),
+            }
+        }
         Block::CalcOperation { op, expr } => {
             let op_str = match op {
                 MathOperation::Abs => "abs",
@@ -4432,11 +4450,15 @@ fn param_to_value(p: &ParamBlock) -> Value {
 fn variable_param(name: &str) -> Value {
     let id = id_for(name);
     let kind = kind_for(name);
-    json!({ "id": id, "name": name, "variableType": kind_to_str(&kind) })
+    // EntryJS 는 Rust raw identifier (`r#true` 등) 나 keyword 같은
+    // 비 Entry-식별자 이름은 거부한다. sanitize_ident 로 Entry 호환 이름으로
+    // 변환해 emit (id 는 원본 기반으로 stable 유지).
+    let safe_name = sanitize_ident(name);
+    json!({ "id": id, "name": safe_name, "variableType": kind_to_str(&kind) })
 }
 
 fn list_variable_param(name: &str) -> Value {
-    json!({ "id": id_for(name), "name": name, "variableType": "list" })
+    json!({ "id": id_for(name), "name": sanitize_ident(name), "variableType": "list" })
 }
 
 /// EntryJS 변수명 → Rust 식별자로 변환.

@@ -231,7 +231,7 @@ fn if_else_block() {
     let block = &json["scripts"][0];
     assert_eq!(block["type"], "if_else");
     // params[0] = 조건 (boolean_basic)
-    assert_eq!(block["params"][0]["type"], "boolean_basic");
+    assert_eq!(block["params"][0]["type"], "boolean_basic_operator");
     // statements[0] = then, statements[1] = else
     let stmts = block["statements"].as_array().expect("statements");
     assert_eq!(stmts.len(), 2);
@@ -246,7 +246,7 @@ fn if_without_else_stays_if() {
     let json = generate(&program, &empty_project()).expect("generate");
     let block = &json["scripts"][0];
     // else 없으면 if (if_else 아님)
-    assert_eq!(block["type"], "if");
+    assert_eq!(block["type"], "_if");
 }
 
 #[test]
