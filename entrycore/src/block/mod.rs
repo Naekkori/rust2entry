@@ -945,7 +945,7 @@ impl Block {
     /// Entry 블록 ID (type 문자열).
     pub fn type_id(&self) -> &str {
         match self {
-            Block::WhenStart => "when_run",
+            Block::WhenStart => "when_run_button_click",
             Block::WhenClick => "when_click",
             Block::WhenCloneStart => "when_clone_start",
             Block::WhenMessageRecv { .. } => "when_message_cast",
@@ -3364,8 +3364,11 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
 
 /// Block -> serde_json::Value 변환.
 ///
-/// Entry project.json 형식: `{type, params, statements?}`.
+/// Entry project.json 형식: `{type, params, statements?, x, y}`.
 /// `statements[N]`은 본문 thread 배열 (없으면 키 생략).
+/// `x, y` 는 EntryJS 가 CodeView 에서 블럭 위치를 잡는 데 사용한다. 우리
+/// 빌드는 사용자 drag 를 모르므로 default 0,0 으로 emit — EntryJS 가 자체
+/// fallback 으로 표시한다.
 pub fn to_value(block: &Block) -> crate::Result<Value> {
     // 하드웨어 블럭은 원본 .ent JSON 을 그대로 반환 (손실 없는 왕복).
     if let Block::Raw { raw, .. } = block {
@@ -3379,6 +3382,8 @@ pub fn to_value(block: &Block) -> crate::Result<Value> {
     if let Some(stmts) = statements {
         obj.insert("statements".into(), Value::Array(stmts));
     }
+    obj.insert("x".into(), Value::from(0));
+    obj.insert("y".into(), Value::from(0));
     Ok(Value::Object(obj))
 }
 

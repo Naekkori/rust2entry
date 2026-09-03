@@ -53,7 +53,7 @@ fn compile_single_source() {
     );
     let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2, "when_run + body 1개");
-    assert_eq!(thread[0]["type"], "when_run");
+    assert_eq!(thread[0]["type"], "when_run_button_click");
     assert_eq!(thread[1]["type"], "set_variable");
     assert_eq!(thread[1]["params"][0]["name"], "x");
 }
@@ -70,8 +70,8 @@ fn compile_multi_source_merges_scripts() {
     let b_obj = objects.iter().find(|o| o["name"] == "b").expect("b");
     let a_thread = first_thread(a_obj);
     let b_thread = first_thread(b_obj);
-    assert_eq!(a_thread[0]["type"], "when_run");
-    assert_eq!(b_thread[0]["type"], "when_run");
+    assert_eq!(a_thread[0]["type"], "when_run_button_click");
+    assert_eq!(b_thread[0]["type"], "when_run_button_click");
     assert_eq!(a_thread[1]["params"][0]["name"], "x");
     assert_eq!(b_thread[1]["params"][0]["name"], "y");
 }
@@ -146,7 +146,7 @@ fn compile_if_block_structure() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2, "when_run + if");
-    assert_eq!(thread[0]["type"], "when_run");
+    assert_eq!(thread[0]["type"], "when_run_button_click");
     assert_eq!(thread[1]["type"], "if");
     assert_eq!(thread[1]["params"][0]["type"], "boolean_basic");
 }
@@ -4032,7 +4032,7 @@ fn compile_does_not_overwrite_existing_objects() {
     assert_eq!(objects.len(), 1, "기존 objects 보존, 추가 안 함");
     assert_eq!(objects[0]["name"], "existing_obj");
     let thread = first_thread(&objects[0]);
-    assert_eq!(thread[0]["type"], "when_run");
+    assert_eq!(thread[0]["type"], "when_run_button_click");
     assert_eq!(thread[1]["type"], "set_variable");
 }
 
@@ -4111,7 +4111,7 @@ fn compile_if_else_block() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2);
-    assert_eq!(thread[0]["type"], "when_run");
+    assert_eq!(thread[0]["type"], "when_run_button_click");
     let block = &thread[1];
     assert_eq!(block["type"], "if_else");
     assert_eq!(block["params"][0]["type"], "boolean_basic");
@@ -4304,7 +4304,7 @@ fn compile_helpers_go_to_project_functions() {
     let first_thread = first_thread(&objects[0]);
     // when_run + let x 만 있고 helper 본문(set y)은 없어야
     assert_eq!(first_thread.len(), 2);
-    assert_eq!(first_thread[0]["type"], "when_run");
+    assert_eq!(first_thread[0]["type"], "when_run_button_click");
     assert_eq!(first_thread[1]["type"], "set_variable");
     assert_eq!(first_thread[1]["params"][0]["name"], "x");
     // project.functions 에 helper 항목
@@ -4488,7 +4488,7 @@ fn compile_multiple_triggers_produce_multiple_threads() {
     assert_eq!(threads.len(), 2, "when_start + when_click");
     let t0 = threads[0].as_array().expect("t0");
     let t1 = threads[1].as_array().expect("t1");
-    assert_eq!(t0[0]["type"], "when_run");
+    assert_eq!(t0[0]["type"], "when_run_button_click");
     assert_eq!(t1[0]["type"], "when_click");
     assert_eq!(t0[1]["params"][0]["name"], "x");
     assert_eq!(t1[1]["params"][0]["name"], "y");
@@ -4519,7 +4519,7 @@ fn compile_collects_unmapped_blocks() {
     let first_thread = first_thread(&objects[0]);
     // when_run 만 들어가고 timer read stmt 는 빠짐
     assert_eq!(first_thread.len(), 1);
-    assert_eq!(first_thread[0]["type"], "when_run");
+    assert_eq!(first_thread[0]["type"], "when_run_button_click");
     assert!(!unmapped.is_empty(), "unmapped 가 비어있으면 안 됨");
     let joined = unmapped.join(" ");
     assert!(joined.contains("timer"), "unmapped 에 timer 사유 포함: {unmapped:?}");
@@ -5039,7 +5039,7 @@ fn compile_send_message_emits_message_cast() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     // thread[0] = when_run, thread[1] = message_cast
-    assert_eq!(thread[0]["type"], "when_run");
+    assert_eq!(thread[0]["type"], "when_run_button_click");
     assert_eq!(thread[1]["type"], "message_cast");
     assert_eq!(thread[1]["params"][0].as_str(), Some("foo"));
     assert!(thread[1]["params"][1].is_null());

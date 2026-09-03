@@ -39,7 +39,7 @@ fn forward_emits_hardware_block() {
 fn reverse_deparses_hardware_block() {
     set_index();
     let script = serde_json::json!([[
-        { "type": "when_run", "params": [] },
+        { "type": "when_run_button_click", "params": [] },
         { "type": "pyocoding_serial_set", "params": [{ "type": "text", "params": ["COM1"] }] },
         { "type": "pyocoding_get_analog_value", "params": [{ "type": "number", "params": [1.0] }] },
     ]]);
@@ -55,7 +55,7 @@ fn reverse_deparses_hardware_block() {
 fn hardware_roundtrip_is_lossless() {
     set_index();
     let original = serde_json::json!([[
-        { "type": "when_run", "params": [] },
+        { "type": "when_run_button_click", "params": [] },
         { "type": "pyocoding_serial_set", "params": [{ "type": "text", "params": ["COM1"] }] },
     ]]);
 
@@ -76,7 +76,7 @@ fn hardware_roundtrip_is_lossless() {
         .as_array()
         .unwrap()
         .iter()
-        .filter(|b| b["type"] != "when_run")
+        .filter(|b| b["type"] != "when_run_button_click")
         .cloned()
         .collect();
     assert_eq!(
