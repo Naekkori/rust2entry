@@ -195,6 +195,17 @@ pub fn compile_with_options(
                     *existing = v.clone();
                     continue;
                 }
+            // Entry 는 같은 이름의 변수를 허용하지 않는다. base 에 같은 name 이
+            // 이미 있으면 새 변수를 무시하고 base 항목을 그대로 사용한다 (.rs 의
+            // 정적 선언은 base 의 동일한 변수에 매핑되는 것으로 본다).
+            let new_name = v.get("name").and_then(|x| x.as_str());
+            if let Some(new_name) = new_name
+                && merged.iter().any(|e| {
+                    e.get("name").and_then(|x| x.as_str()) == Some(new_name)
+                })
+            {
+                continue;
+            }
             merged.push(v.clone());
         }
         merged
