@@ -83,7 +83,7 @@ fn if_block() {
     let program = parse(src).expect("parse");
     let json = generate(&program,&empty_project()).expect("generate");
     let block = &json["scripts"][0];
-    assert_eq!(block["type"], "if");
+    assert_eq!(block["type"], "_if");
     let cond = &block["params"][0];
     assert_eq!(cond["type"], "boolean_basic_operator");
 }
@@ -118,7 +118,7 @@ fn for_range_expands_to_repeat() {
     let times = &block["params"][0];
     assert_eq!(times["type"], "calc_basic");
     // 슬롯: [lhs, op, rhs]
-    assert_eq!(times["params"][1], "-");
+    assert_eq!(times["params"][1], "MINUS");
     // 본문 thread: [set_variable i 0, set_variable x 1, change_variable i 1]
     let thread = block["statements"][0].as_array().expect("thread array");
     assert_eq!(thread.len(), 3);

@@ -368,10 +368,17 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
                 else_body,
             }
         }
-        "repeat_while" => {
+        "repeat_while" | "repeat_while_true" => {
             let cond = param_at(&params, 0, vars)?;
             let body = statements_thread(obj, 0, vars)?;
-            Block::While { cond, body }
+            // EntryJS `repeat_while_true` 의 cond 가 literal true 면 무한
+            // 루프. Rust idiomatic 표현인 `loop { }` (EntryJS 의 `repeat_inf`)
+            // 로 normalize 해서 .rs 가 자연스럽게 emit 되도록 한다.
+            if matches!(cond, crate::block::ParamBlock::Boolean(true)) {
+                Block::Forever { body }
+            } else {
+                Block::While { cond, body }
+            }
         }
         "repeat_basic" => {
             let times = param_at(&params, 0, vars)?;

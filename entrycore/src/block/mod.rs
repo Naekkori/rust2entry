@@ -976,13 +976,13 @@ impl Block {
             Block::HideVar { .. } => "hide_variable",
             Block::SetFuncVariable { .. } => "set_func_variable",
             Block::GetFuncVariable { .. } => "get_func_variable",
-            Block::If { .. } => "if",
+            Block::If { .. } => "_if",
             Block::IfElse { .. } => "if_else",
             Block::While { .. } => "repeat_while_true",
             Block::Repeat { .. } => "repeat_basic",
-            Block::Forever { .. } => "repeat_forever",
+            Block::Forever { .. } => "repeat_inf",
             Block::Break => "stop_object",
-            Block::Continue => "_continue",
+            Block::Continue => "continue_repeat",
             Block::StopAll => "stop_run_all",
             Block::RestartProject => "restart_project",
             Block::CalcBinOp { .. } => "calc_basic",
@@ -4384,22 +4384,33 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
     })
 }
 
-/// BinOp -> Entry 산술 비교 기호 문자열.
+/// BinOp -> EntryJS native Dropdown operator 문자열.
+/// EntryJS native `calc_basic` / `boolean_basic_operator` / `boolean_and_or`
+/// 스키마는 Dropdown options 의 value 를 enum 문자열로 받는다. 우리 가 emit
+/// 하는 operator 가 거기 없으면 EntryJS 가 모르는 값이라 Dropdown 렌더링 또는
+/// field lookup 자체가 실패해 loadProject 가 깨질 수 있다. 따라서 EntryJS native
+/// enum 값으로 매핑한다.
 fn op_str(op: BinOp) -> &'static str {
     match op {
-        BinOp::Add => "+",
-        BinOp::Sub => "-",
-        BinOp::Mul => "*",
-        BinOp::Div => "/",
-        BinOp::Mod => "%",
-        BinOp::Eq => "==",
-        BinOp::Ne => "!=",
-        BinOp::Lt => "<",
-        BinOp::Le => "<=",
-        BinOp::Gt => ">",
-        BinOp::Ge => ">=",
-        BinOp::And => "&&",
-        BinOp::Or => "||",
+        // calc_basic options: ['+', 'PLUS'], ['-', 'MINUS'], ['x', 'MULTI'],
+        //                      ['/', 'DIVIDE'], ['%', 'MOD']
+        BinOp::Add => "PLUS",
+        BinOp::Sub => "MINUS",
+        BinOp::Mul => "MULTI",
+        BinOp::Div => "DIVIDE",
+        BinOp::Mod => "MOD",
+        // boolean_basic_operator options: ['=', 'EQUAL'], ['!=', 'NOT_EQUAL'],
+        //                                 ['>', 'GREATER'], ['<', 'LESS'],
+        //                                 ['≥', 'GREATER_OR_EQUAL'], ['≤', 'LESS_OR_EQUAL']
+        BinOp::Eq => "EQUAL",
+        BinOp::Ne => "NOT_EQUAL",
+        BinOp::Gt => "GREATER",
+        BinOp::Lt => "LESS",
+        BinOp::Ge => "GREATER_OR_EQUAL",
+        BinOp::Le => "LESS_OR_EQUAL",
+        // boolean_and_or options: ['and', 'AND'], ['or', 'OR']
+        BinOp::And => "AND",
+        BinOp::Or => "OR",
         BinOp::Range => "..",
     }
 }
