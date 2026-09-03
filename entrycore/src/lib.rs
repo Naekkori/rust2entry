@@ -166,6 +166,10 @@ pub fn compile_with_options(
                 "isCloud": is_cloud,
                 "isRealTime": is_realtime,
                 "cloudDate": false,
+                // EntryJS native variable 항목에 필수 필드. 누락 시 EntryJS 가
+                // variable list 파싱에 실패해서 dropdown 이 비고 socket 연결도
+                // 풀린다.
+                "array": [],
                 // 변수의 object 표시:
                 // - Global scope (`static`): 항상 null (모든 object 공유).
                 // - System kind (Timer/Answer/Cloud/RealTime/List): 항상 null
