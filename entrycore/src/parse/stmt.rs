@@ -103,6 +103,17 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                     let body = convert_block(Some(e.body))?;
                     out.push(IrStmt::While { cond, body });
                 }
+                // `loop { ... }` (Rust idiomatic 무한 루프) 지원.
+                // IR 단계에는 별도 Loop variant 가 없으므로
+                // `Stmt::While { cond: Expr::Bool(true), body }` 로 매핑한다
+                // (decodegen.rs 가 이를 다시 `loop { ... }` 로 emit 한다).
+                syn::Expr::Loop(l) => {
+                    let body = convert_block(Some(l.body))?;
+                    out.push(IrStmt::While {
+                        cond: Expr::Bool(true),
+                        body,
+                    });
+                }
                 syn::Expr::ForLoop(f)=>{
                     let var = match &*f.pat {
                         syn::Pat::Ident(pi)=>crate::block::sanitize_ident(&pi.ident.to_string()),

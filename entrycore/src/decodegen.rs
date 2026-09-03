@@ -221,16 +221,22 @@ fn emit_stmt(
             }
         }
         Stmt::While { cond, body } => {
-            // `while true { ... }` -> `while r#true { ... }` (Rust keyword 충돌 회피).
+            // cond 가 literal true 면 무한 루프. Rust idiomatic 표현인
+            // `loop { ... }` 로 emit (EntryJS repeat_inf 와 round-trip 자연스러움).
+            if matches!(cond, crate::ir::Expr::Bool(true)) {
+                out.push_str(&indent);
+                out.push_str("loop {\n");
+                for s in body {
+                    emit_stmt(s, out, level + 1, vars)?;
+                }
+                out.push_str(&indent);
+                out.push_str("}\n");
+                return Ok(());
+            }
+            // 일반 조건부 while.
             out.push_str(&indent);
             out.push_str("while ");
-            if matches!(cond, crate::ir::Expr::Bool(true)) {
-                out.push_str("r#true");
-            } else if matches!(cond, crate::ir::Expr::Bool(false)) {
-                out.push_str("r#false");
-            } else {
-                emit_expr(cond, out)?;
-            }
+            emit_expr(cond, out)?;
             out.push_str(" {\n");
             for s in body {
                 emit_stmt(s, out, level + 1, vars)?;
