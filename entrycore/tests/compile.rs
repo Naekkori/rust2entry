@@ -57,7 +57,10 @@ fn compile_single_source() {
     assert_eq!(thread.len(), 2, "when_run + body 1개");
     assert_eq!(thread[0]["type"], "when_run_button_click");
     assert_eq!(thread[1]["type"], "set_variable");
-    assert_eq!(thread[1]["params"][0]["name"], "x");
+    assert_eq!(
+        thread[1]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("x"))
+    );
 }
 
 /// rs 가 둘이고 base 비어있으면 둘 다 가짜 object 로 추가.
@@ -74,8 +77,14 @@ fn compile_multi_source_merges_scripts() {
     let b_thread = first_thread(b_obj);
     assert_eq!(a_thread[0]["type"], "when_run_button_click");
     assert_eq!(b_thread[0]["type"], "when_run_button_click");
-    assert_eq!(a_thread[1]["params"][0]["name"], "x");
-    assert_eq!(b_thread[1]["params"][0]["name"], "y");
+    assert_eq!(
+        a_thread[1]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("x"))
+    );
+    assert_eq!(
+        b_thread[1]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("y"))
+    );
 }
 
 /// base 메타(name/scenes/speed) 보존.
@@ -245,7 +254,12 @@ fn compile_wait_second_var() {
     let thread = first_thread(&objects[0]);
     // set x, wait_second(x)
     let wait = thread.iter().find(|b| b["type"] == "wait_second").expect("wait_second");
-    assert_eq!(wait["params"][0]["name"], "x");
+    // 값 슬롯 자리의 변수 ref 는 `get_variable` 블록으로 emit (EntryJS 호환).
+    assert_eq!(wait["params"][0]["type"], "get_variable");
+    assert_eq!(
+        wait["params"][0]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("x"))
+    );
 }
 
 /// wait_second 라운드트립: compile → deparse → IR 에 wait_second 호출 보존.
@@ -309,8 +323,9 @@ fn compile_wait_until_true_var() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let wait = thread.iter().find(|b| b["type"] == "wait_until_true").expect("wait_until_true");
-    // flag 는 미정의 변수 — codegen 은 drop-down 만 emit.
-    assert!(wait["params"][0].get("id").is_some() || wait["params"][0].get("name").is_some());
+    // flag 는 미정의 변수 — codegen 은 `get_variable` 값 슬롯 블록으로 emit.
+    // EntryJS 가 값 슬롯은 Block 객체만 받기 때문 (dropdown 슬롯과 다름).
+    assert_eq!(wait["params"][0]["type"], "get_variable");
 }
 
 /// 산술 포함 조건.
@@ -429,8 +444,21 @@ fn compile_calc_rand_var_args() {
     let thread = first_thread(&objects[0]);
     let set = thread.iter().rev().find(|b| b["type"] == "set_variable").expect("last set");
     assert_eq!(set["params"][1]["type"], "calc_rand");
-    assert_eq!(set["params"][1]["params"][1]["name"], "lo");
-    assert_eq!(set["params"][1]["params"][3]["name"], "hi");
+    // 값 슬롯 자리의 변수 ref 는 `get_variable` 블록으로 emit (EntryJS 호환).
+    assert_eq!(set["params"][1]["params"][1]["type"], "get_variable");
+    assert_eq!(
+        set["params"][1]["params"][1]["params"][0]
+            .as_str()
+            .map(|s| s.to_string()),
+        Some(entrycore::block::id_for("lo"))
+    );
+    assert_eq!(set["params"][1]["params"][3]["type"], "get_variable");
+    assert_eq!(
+        set["params"][1]["params"][3]["params"][0]
+            .as_str()
+            .map(|s| s.to_string()),
+        Some(entrycore::block::id_for("hi"))
+    );
 }
 
 /// 라운드트립: compile → deparse → IR 에 calc_rand 호출 보존.
@@ -633,7 +661,7 @@ fn compile_show_answer_roundtrip() {
 
 // ── dialog (말하기) ──
 
-/// `say("hello");` → `dialog` 블록, params[0] = text 슬롯, params[1] = "say".
+/// `say("hello");` → `dialog` 블록, params[0] = text 슬롯, params[1] = "speak".
 #[test]
 fn compile_say_text() {
     let src = r#"fn when_start() { say("hello"); }"#;
@@ -643,7 +671,8 @@ fn compile_say_text() {
     assert_eq!(thread[1]["type"], "dialog");
     assert_eq!(thread[1]["params"][0]["type"], "text");
     assert_eq!(thread[1]["params"][0]["params"][0].as_str(), Some("hello"));
-    assert_eq!(thread[1]["params"][1].as_str(), Some("say"));
+    // EntryJS dialog dropdown 의 value 는 'speak' / 'think'.
+    assert_eq!(thread[1]["params"][1].as_str(), Some("speak"));
 }
 
 /// `say(x);` → params[0] = 변수 dropdown.
@@ -659,7 +688,12 @@ fn compile_say_var() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let dlg = thread.iter().find(|b| b["type"] == "dialog").expect("dialog");
-    assert_eq!(dlg["params"][0]["name"], "x");
+    // 값 슬롯 자리의 변수 ref 는 `get_variable` 블록으로 emit (EntryJS 호환).
+    assert_eq!(dlg["params"][0]["type"], "get_variable");
+    assert_eq!(
+        dlg["params"][0]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("x"))
+    );
 }
 
 /// 라운드트립.
@@ -736,7 +770,7 @@ fn compile_think_roundtrip() {
     }
 }
 
-/// `say("hello", 2.0);` → `dialog_time` 블록, params[2] = number 슬롯, params[1] = "say".
+/// `say("hello", 2.0);` → `dialog_time` 블록, params[2] = number 슬롯, params[1] = "speak".
 #[test]
 fn compile_say_with_time() {
     let src = r#"fn when_start() { say("hello", 2.0); }"#;
@@ -745,7 +779,8 @@ fn compile_say_with_time() {
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "dialog_time");
     assert_eq!(thread[1]["params"][0]["params"][0].as_str(), Some("hello"));
-    assert_eq!(thread[1]["params"][1].as_str(), Some("say"));
+    // EntryJS dialog dropdown 의 value 는 'speak' / 'think'.
+    assert_eq!(thread[1]["params"][1].as_str(), Some("speak"));
     assert_eq!(thread[1]["params"][2]["params"][0].as_f64(), Some(2.0));
 }
 
@@ -1127,7 +1162,12 @@ fn compile_change_scale_size_var() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let css = thread.iter().find(|b| b["type"] == "change_scale_size").expect("change_scale_size");
-    assert_eq!(css["params"][0]["name"], "n");
+    // 값 슬롯 자리의 변수 ref 는 `get_variable` 블록으로 emit (EntryJS 호환).
+    assert_eq!(css["params"][0]["type"], "get_variable");
+    assert_eq!(
+        css["params"][0]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("n"))
+    );
 }
 
 /// `value_of_index_from_list(1, list)`는 set_variable의 값 슬롯 안에서
@@ -1148,15 +1188,22 @@ fn compile_value_of_index_from_list() {
 
     let set_x = thread
         .iter()
-        .find(|b| b["type"] == "set_variable" && b["params"][0]["name"] == "x")
+        .find(|b| b["type"] == "set_variable" && b["params"][0] == entrycore::block::id_for("x"))
         .expect("set x");
     let value = &set_x["params"][1];
     assert_eq!(value["type"], "value_of_index_from_list");
     assert_eq!(value["params"].as_array().unwrap().len(), 2);
     assert_eq!(value["params"][0]["type"], "number");
     assert_eq!(value["params"][0]["params"][0], 1.0);
-    assert_eq!(value["params"][1]["name"], "list");
-    assert_eq!(value["params"][1]["variableType"], "list");
+    assert_eq!(
+        value["params"][1].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("list"))
+    );
+    // EntryJS 호환: list dropdown 슬롯도 string id 만 emit (object 아님).
+    assert_eq!(
+        value["params"][1].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("list"))
+    );
 }
 
 /// 리스트 조회 표현식은 Entry JSON에서 DSL로 deparse한 뒤에도 보존되어야 한다.
@@ -1223,8 +1270,14 @@ fn compile_add_value_to_list() {
     assert_eq!(add["params"].as_array().unwrap().len(), 3);
     assert_eq!(add["params"][0]["type"], "text");
     assert_eq!(add["params"][0]["params"][0], "apple");
-    assert_eq!(add["params"][1]["name"], "list");
-    assert_eq!(add["params"][1]["variableType"], "list");
+    assert_eq!(
+        add["params"][1].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("list"))
+    );
+    assert_eq!(
+        add["params"][1].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("list"))
+    );
     assert!(add["params"][2].is_null());
 }
 
@@ -1252,8 +1305,11 @@ fn compile_add_value_to_named_list_without_declaration() {
         .iter()
         .find(|block| block["type"] == "add_value_to_list")
         .expect("add_value_to_list");
-    assert_eq!(add["params"][1]["name"], "fruit");
-    assert_eq!(add["params"][1]["variableType"], "list");
+    assert_eq!(
+        add["params"][1].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("fruit"))
+    );
+    // EntryJS 호환: list dropdown 슬롯은 string id 만 emit (object 아님).
 }
 
 /// 리스트 항목 추가 statement는 Entry JSON에서 DSL 호출로 deparse되어야 한다.
@@ -1316,8 +1372,14 @@ fn compile_remove_value_from_list() {
     assert_eq!(remove["params"].as_array().unwrap().len(), 3);
     assert_eq!(remove["params"][0]["type"], "number");
     assert_eq!(remove["params"][0]["params"][0], 1.0);
-    assert_eq!(remove["params"][1]["name"], "list");
-    assert_eq!(remove["params"][1]["variableType"], "list");
+    assert_eq!(
+        remove["params"][1].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("list"))
+    );
+    assert_eq!(
+        remove["params"][1].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("list"))
+    );
     assert!(remove["params"][2].is_null());
 }
 
@@ -1381,8 +1443,14 @@ fn compile_insert_value_to_list() {
     assert_eq!(insert["params"][0]["params"][0], "apple");
     assert_eq!(insert["params"][1]["type"], "number");
     assert_eq!(insert["params"][1]["params"][0], 2.0);
-    assert_eq!(insert["params"][2]["name"], "list");
-    assert_eq!(insert["params"][2]["variableType"], "list");
+    assert_eq!(
+        insert["params"][2].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("list"))
+    );
+    assert_eq!(
+        insert["params"][2].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("list"))
+    );
     assert!(insert["params"][3].is_null());
 }
 
@@ -1435,8 +1503,14 @@ fn compile_change_value_list_index() {
     assert_eq!(change["params"][0]["params"][0], 2.0);
     assert_eq!(change["params"][1]["type"], "text");
     assert_eq!(change["params"][1]["params"][0], "apple");
-    assert_eq!(change["params"][2]["name"], "list");
-    assert_eq!(change["params"][2]["variableType"], "list");
+    assert_eq!(
+        change["params"][2].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("list"))
+    );
+    assert_eq!(
+        change["params"][2].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("list"))
+    );
     assert!(change["params"][3].is_null());
 }
 
@@ -1494,8 +1568,14 @@ let params = len_block["params"].as_array().unwrap();
     assert_eq!(params.len(), 3);
     assert!(params[0].is_null());
     assert!(params[2].is_null());
-    assert_eq!(params[1]["name"], "list");
-    assert_eq!(params[1]["variableType"], "list");
+    assert_eq!(
+        params[1].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("list"))
+    );
+    assert_eq!(
+        params[1].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("list"))
+    );
 }
 
 /// 라운드트립.
@@ -1548,8 +1628,14 @@ fn compile_is_included_in_list() {
     let params = check_block["params"].as_array().unwrap();
     assert_eq!(params.len(), 5);
     assert!(params[0].is_null());
-    assert_eq!(params[1]["name"], "list");
-    assert_eq!(params[1]["variableType"], "list");
+    assert_eq!(
+        params[1].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("list"))
+    );
+    assert_eq!(
+        params[1].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("list"))
+    );
     assert!(params[2].is_null());
     assert_eq!(params[3]["type"], "text");
     assert_eq!(params[3]["params"][0], "x");
@@ -1642,7 +1728,12 @@ fn compile_set_scale_size_var() {
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let sss = thread.iter().find(|b| b["type"] == "set_scale_size").expect("set_scale_size");
-    assert_eq!(sss["params"][0]["name"], "n");
+    // 값 슬롯 자리의 변수 ref 는 `get_variable` 블록으로 emit (EntryJS 호환).
+    assert_eq!(sss["params"][0]["type"], "get_variable");
+    assert_eq!(
+        sss["params"][0]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("n"))
+    );
 }
 
 /// 라운드트립.
@@ -2286,7 +2377,12 @@ fn compile_move_direction_var() {
     let thread = first_thread(&objects[0]);
     let md = thread.iter().find(|b| b["type"] == "move_direction").expect("move_direction");
     assert_eq!(md["params"][0].as_str(), Some("backward"));
-    assert_eq!(md["params"][1]["name"], "n");
+    // 값 슬롯 자리의 변수 ref 는 `get_variable` 블록으로 emit (EntryJS 호환).
+    assert_eq!(md["params"][1]["type"], "get_variable");
+    assert_eq!(
+        md["params"][1]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("n"))
+    );
 }
 
 /// 라운드트립.
@@ -3623,9 +3719,12 @@ fn compile_ask_and_wait_var_arg() {
         .iter()
         .find(|b| b["type"] == "ask_and_wait")
         .expect("ask_and_wait");
-    assert_eq!(ask["params"][0]["name"], "name");
-    assert!(ask["params"][0]["id"].is_string());
-    assert!(ask["params"][0]["variableType"].is_string());
+    // EntryJS 호환: 값 슬롯 자리의 변수 ref 는 `get_variable` 블록으로 emit.
+    assert_eq!(ask["params"][0]["type"], "get_variable");
+    assert_eq!(
+        ask["params"][0]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("name"))
+    );
 }
 
 /// 라운드트립: compile → deparse → IR 에 ask_and_wait 호출 보존.
@@ -4072,8 +4171,14 @@ fn compile_matches_existing_object_by_name() {
     let beta_obj = objects.iter().find(|o| o["name"] == "beta").unwrap();
     let alpha_thread = first_thread(alpha_obj);
     let beta_thread = first_thread(beta_obj);
-    assert_eq!(alpha_thread[1]["params"][0]["name"], "x");
-    assert_eq!(beta_thread[1]["params"][0]["name"], "y");
+    assert_eq!(
+        alpha_thread[1]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("x"))
+    );
+    assert_eq!(
+        beta_thread[1]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("y"))
+    );
 }
 
 /// 이름 매칭이 대소문자 무시.
@@ -4122,10 +4227,16 @@ fn compile_if_else_block() {
     assert_eq!(stmts.len(), 2, "if_else 는 then/else 2개 thread");
     let then_first = &stmts[0][0];
     assert_eq!(then_first["type"], "set_variable");
-    assert_eq!(then_first["params"][0]["name"], "x");
+    assert_eq!(
+        then_first["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("x"))
+    );
     let else_first = &stmts[1][0];
     assert_eq!(else_first["type"], "set_variable");
-    assert_eq!(else_first["params"][0]["name"], "y");
+    assert_eq!(
+        else_first["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("y"))
+    );
 }
 
 /// else 없으면 if (Entry 의 if 블록 형식).
@@ -4309,7 +4420,10 @@ fn compile_helpers_go_to_project_functions() {
     assert_eq!(first_thread.len(), 2);
     assert_eq!(first_thread[0]["type"], "when_run_button_click");
     assert_eq!(first_thread[1]["type"], "set_variable");
-    assert_eq!(first_thread[1]["params"][0]["name"], "x");
+    assert_eq!(
+        first_thread[1]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("x"))
+    );
     // project.functions 에 helper 항목
     let funcs = v["functions"].as_array().expect("functions");
     let helper = funcs.iter().find(|f| f["name"] == "helper").expect("helper fn");
@@ -4332,7 +4446,10 @@ fn compile_helpers_go_to_project_functions() {
     assert_eq!(head_body.len(), 1);
     // 함수 본문 내 let 은 set_func_variable (EntryJS local variable) 로 emit.
     assert_eq!(head_body[0]["type"], "set_func_variable");
-    assert_eq!(head_body[0]["params"][0]["name"], "y");
+    assert_eq!(
+        head_body[0]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("y"))
+    );
 }
 
 /// 같은 이름 + 다른 arity 함수 정의 → 호출은 args 개수로 매칭되어
@@ -4493,8 +4610,14 @@ fn compile_multiple_triggers_produce_multiple_threads() {
     let t1 = threads[1].as_array().expect("t1");
     assert_eq!(t0[0]["type"], "when_run_button_click");
     assert_eq!(t1[0]["type"], "when_click");
-    assert_eq!(t0[1]["params"][0]["name"], "x");
-    assert_eq!(t1[1]["params"][0]["name"], "y");
+    assert_eq!(
+        t0[1]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("x"))
+    );
+    assert_eq!(
+        t1[1]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("y"))
+    );
 }
 
 /// 트리거가 없는 rs 도 정상 처리.
@@ -5150,8 +5273,11 @@ fn compile_show_list() {
         .expect("show_list block");
     let params = show["params"].as_array().unwrap();
     assert_eq!(params.len(), 2);
-    assert_eq!(params[0]["name"], "my_list");
-    assert_eq!(params[0]["variableType"], "list");
+    assert_eq!(
+        params[0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("my_list"))
+    );
+    // EntryJS 호환: list dropdown 슬롯은 string id 만 emit (object 아님).
     assert!(params[1].is_null());
 
     // 변수 kind 가 List 로 자동 분류되었는지 검증 (list_context_names 효과).
@@ -5212,8 +5338,11 @@ fn compile_hide_list() {
         .expect("hide_list block");
     let params = hide["params"].as_array().unwrap();
     assert_eq!(params.len(), 2);
-    assert_eq!(params[0]["name"], "my_list");
-    assert_eq!(params[0]["variableType"], "list");
+    assert_eq!(
+        params[0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("my_list"))
+    );
+    // EntryJS 호환: list dropdown 슬롯은 string id 만 emit (object 아님).
     assert!(params[1].is_null());
 }
 
@@ -8159,7 +8288,10 @@ fn compile_set_func_variable() {
     assert_eq!(head["type"], "function_create");
     let body = head["statements"][0].as_array().expect("body");
     assert_eq!(body[0]["type"], "set_func_variable");
-    assert_eq!(body[0]["params"][0]["name"], "x");
+    assert_eq!(
+        body[0]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("x"))
+    );
 }
 
 /// 함수 본문 local var `x` 사용 — 현재는 ParamBlock::Variable 로 emit (set/get_func_variable 분리 매핑).
@@ -8200,5 +8332,8 @@ fn compile_trigger_let_uses_set_variable() {
     let thread = first_thread(&objects[0]);
     // thread[0] = when_start, thread[1] = set_variable
     assert_eq!(thread[1]["type"], "set_variable");
-    assert_eq!(thread[1]["params"][0]["name"], "x");
+    assert_eq!(
+        thread[1]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("x"))
+    );
 }

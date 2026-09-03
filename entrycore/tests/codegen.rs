@@ -51,7 +51,10 @@ fn simple_set_var() {
     let block = &arr[0];
     assert_eq!(block.get("type").and_then(|v| v.as_str()), Some("set_variable"));
     let params = block.get("params").and_then(|v| v.as_array()).expect("params");
-    assert_eq!(params[0].get("name").and_then(|v| v.as_str()), Some("x"));
+    assert_eq!(
+        params[0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("x"))
+    );
     assert!(params[1].get("type").is_some(), "value param not null");
 }
 
@@ -123,10 +126,16 @@ fn for_range_expands_to_repeat() {
     let thread = block["statements"][0].as_array().expect("thread array");
     assert_eq!(thread.len(), 3);
     assert_eq!(thread[0]["type"], "set_variable");
-    assert_eq!(thread[0]["params"][0]["name"], "i");
+    assert_eq!(
+        thread[0]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("i"))
+    );
     assert_eq!(thread[1]["type"], "set_variable");
     assert_eq!(thread[2]["type"], "change_variable");
-    assert_eq!(thread[2]["params"][0]["name"], "i");
+    assert_eq!(
+        thread[2]["params"][0].as_str().map(|s| s.to_string()),
+        Some(entrycore::block::id_for("i"))
+    );
 }
 
 /// 라운드트립: parse -> codegen -> deparse -> IR 구조 확인.

@@ -3836,8 +3836,9 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         Block::Dialog { mode, content } => (
             vec![
                 param_to_value(content),
+                // EntryJS `dialog` dropdown options = [speak, think]. value 매칭용.
                 Value::String(match mode {
-                    DialogMode::Say => "say".into(),
+                    DialogMode::Say => "speak".into(),
                     DialogMode::Think => "think".into(),
                 }),
                 Value::Null,
@@ -3852,7 +3853,7 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             vec![
                 param_to_value(content),
                 Value::String(match mode {
-                    DialogMode::Say => "say".into(),
+                    DialogMode::Say => "speak".into(),
                     DialogMode::Think => "think".into(),
                 }),
                 param_to_value(time),
@@ -4461,54 +4462,58 @@ pub fn dim_to_dsl_str(d: &Dimension) -> &'static str {
 }
 
 /// ParamBlock -> JSON Value.
+///
+/// 변수 ref (`ParamBlock::Variable`) 는 **값 슬롯** 자리에 등장할 때
+/// `get_variable` 블록으로 감싸서 emit. EntryJS 의 값 슬롯은 `Block` 객체
+/// 만 받기 때문에 dropdown 슬롯 자리용 raw id string 을 그대로 넣으면
+/// EntryJS 가 표시를 못한다 (이미지: dropdown 슬롯은 string id, 값 슬롯은
+/// `get_variable` 블록).
 fn param_to_value(p: &ParamBlock) -> Value {
     match p {
         ParamBlock::Null => Value::Null,
         ParamBlock::Number(n) => json!({ "type": "number", "params": [n] }),
         ParamBlock::Text(s) => json!({ "type": "text", "params": [s] }),
         ParamBlock::Boolean(b) => json!({ "type": "boolean", "params": [b] }),
-        ParamBlock::Variable(name) => variable_param(name),
+        ParamBlock::Variable(name) => {
+            let id = variable_id_for(name);
+            json!({ "type": "get_variable", "params": [Value::String(id)] })
+        }
         ParamBlock::Sub(b) => to_value(b).unwrap_or(Value::Null),
     }
 }
 
+/// 변수 dropdown 슬롯 자리용 string id 산출. `variable_param` 와 동일한
+/// CURRENT_VAR_MAP lookup 규칙.
+fn variable_id_for(name: &str) -> String {
+    let safe_name = sanitize_ident(name);
+    let lookup = current_var_map().and_then(|m| {
+        let g = m.lock().ok()?;
+        g.get_by_name(&safe_name)
+            .or_else(|| g.iter().find(|v| v.original_name == name))
+            .map(|v| v.id.clone())
+    });
+    lookup.unwrap_or_else(|| id_for(&safe_name))
+}
+
 /// 변수 드롭다운 슬롯.
+///
+/// EntryJS 의 `set_variable`/`change_variable`/... `DropdownDynamic` (menuName:
+/// 'variables') 슬롯 자리는 **variable id 문자열** 이다 (객체 아님). EntryJS
+/// 자체 코드 (`PyToBlockParser.DropdownDynamic`, `AssignmentExpression`) 가
+/// `params: [leftVar.id_]` 처럼 string id 만 push 한다. 객체 `{id,name,variableType}`
+/// 를 넣으면 EntryJS 의 `FieldDropdownDynamic.getOptionCheckedValue` 가
+/// `_.find(options, ([, cValue]) => cValue === value)` 매칭을 못해 dropdown 이
+/// "대상 없음" 으로 표시된다.
 ///
 /// `name` 은 DSL 식별자 (sanitize 후) 일 수도, EntryJS native 변수명 (한글 등)
 /// 일 수도 있다. 양쪽 모두 시도해서 EntryJS variable list 의 항목과 id/name 을
-/// 일치시킨다 (socket 연결 복원, dropdown 에 한글 이름 그대로 표시).
+/// 일치시킨다 (socket 연결 복원).
 fn variable_param(name: &str) -> Value {
-    let safe_name = sanitize_ident(name);
-    // CURRENT_VAR_MAP 의 base 변수와 매칭:
-    // 1) DSL 식별자 (sanitize) 기준
-    // 2) EntryJS native name (original_name) 기준
-    let lookup = current_var_map().and_then(|m| {
-        let g = m.lock().ok()?;
-        g.get_by_name(&safe_name)
-            .or_else(|| g.iter().find(|v| v.original_name == name))
-            .map(|v| (v.id.clone(), v.original_name.clone()))
-    });
-    let (id, display_name) = match lookup {
-        Some((id, orig)) => (id, orig),
-        None => (id_for(&safe_name), safe_name.clone()),
-    };
-    let kind = kind_for(name);
-    json!({ "id": id, "name": display_name, "variableType": kind_to_str(&kind) })
+    Value::String(variable_id_for(name))
 }
 
 fn list_variable_param(name: &str) -> Value {
-    let safe_name = sanitize_ident(name);
-    let lookup = current_var_map().and_then(|m| {
-        let g = m.lock().ok()?;
-        g.get_by_name(&safe_name)
-            .or_else(|| g.iter().find(|v| v.original_name == name))
-            .map(|v| (v.id.clone(), v.original_name.clone()))
-    });
-    let (id, display_name) = match lookup {
-        Some((id, orig)) => (id, orig),
-        None => (id_for(&safe_name), safe_name.clone()),
-    };
-    json!({ "id": id, "name": display_name, "variableType": "list" })
+    Value::String(variable_id_for(name))
 }
 
 /// EntryJS 변수명 → Rust 식별자로 변환.
