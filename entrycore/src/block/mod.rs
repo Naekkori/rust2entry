@@ -937,6 +937,17 @@ fn reserved_start_call_to_block(
         "start_prev_scene" => Block::StartNeighborScene {
             direction: "prev".to_string(),
         },
+        // when_scene_start 는 EntryJS 에서 트리거 블록이다 (함수 호출 아님).
+        // 함수 호출 위치에 쓰이면 EntryJS 가 모르는 type 으로 emit 되어 loadProject
+        // 자체가 깨지므로 unmapped 로 거부해 caller 에 알린다. 트리거로 쓰려면
+        // when_start 처럼 top-level fn 으로 정의해야 한다.
+        "when_scene_start" => {
+            return Err(UnmappedBlock(
+                "when_scene_start() 은 트리거 함수로만 사용 가능합니다. \
+                 top-level fn when_scene_start() { ... } 형태로 정의하세요."
+                    .into(),
+            ))
+        }
         _ => return Ok(None),
     }))
 }
@@ -3364,11 +3375,14 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
 
 /// Block -> serde_json::Value 변환.
 ///
-/// Entry project.json 형식: `{type, params, statements?, x, y}`.
+/// Entry project.json 형식: `{type, params, statements?, x, y, movable,
+/// deletable, emphasized, readOnly, copyable, assemble, extensions}`.
 /// `statements[N]`은 본문 thread 배열 (없으면 키 생략).
 /// `x, y` 는 EntryJS 가 CodeView 에서 블럭 위치를 잡는 데 사용한다. 우리
 /// 빌드는 사용자 drag 를 모르므로 default 0,0 으로 emit — EntryJS 가 자체
-/// fallback 으로 표시한다.
+/// fallback 으로 표시한다. 나머지 필드는 EntryJS native startProject 형식에
+/// 맞춤 — 누락되면 Entry.Block 생성자에서 throw 해서 loadProject 자체가
+/// 실패하고 `u[i].destroy is not a function` 연쇄가 발생한다.
 pub fn to_value(block: &Block) -> crate::Result<Value> {
     // 하드웨어 블럭은 원본 .ent JSON 을 그대로 반환 (손실 없는 왕복).
     if let Block::Raw { raw, .. } = block {
@@ -3384,6 +3398,13 @@ pub fn to_value(block: &Block) -> crate::Result<Value> {
     }
     obj.insert("x".into(), Value::from(0));
     obj.insert("y".into(), Value::from(0));
+    obj.insert("movable".into(), Value::Null);
+    obj.insert("deletable".into(), Value::from(1));
+    obj.insert("emphasized".into(), Value::Bool(false));
+    obj.insert("readOnly".into(), Value::Null);
+    obj.insert("copyable".into(), Value::Bool(true));
+    obj.insert("assemble".into(), Value::Bool(true));
+    obj.insert("extensions".into(), Value::Array(Vec::new()));
     Ok(Value::Object(obj))
 }
 
