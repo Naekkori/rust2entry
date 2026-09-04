@@ -6,7 +6,10 @@ use std::{
     thread::JoinHandle,
 };
 
-use egui::{Button, Color32, Pos2, Rect, RichText, Sense, Shape, TextureHandle, Vec2, emath};
+use egui::{
+    Button, Color32, Id, Image, ImageSource, Modal, Pos2, Rect, RichText, Sense, Shape,
+    TextureHandle, Vec2, emath,
+};
 use rfd::FileDialog;
 
 use crate::entryc::RunOutput;
@@ -158,6 +161,8 @@ enum View {
     Result,
     /// egui 모달 — 에러 알림 + 사용자 결정.
     Error,
+    /// 정보
+    About,
 }
 
 #[derive(Default)]
@@ -205,7 +210,7 @@ impl eframe::App for EntryCApp {
                     ui.label(&self.name);
                     ui.menu_button("도움말", |ui| {
                         if ui.button("정보").clicked() {
-                            ui.close();
+                            self.view = View::About;
                         }
                     });
                 });
@@ -223,6 +228,7 @@ impl eframe::App for EntryCApp {
                 View::Compiling => self.show_compiling(ui),
                 View::Result => self.show_result(ui),
                 View::Error => self.show_error(ui),
+                View::About => self.show_about(ui),
             });
     }
 }
@@ -548,9 +554,10 @@ impl EntryCApp {
     fn show_error(&mut self, ui: &mut egui::Ui) {
         use style::*;
 
-        let msg = self.error_message.clone().unwrap_or_else(|| {
-            "알 수 없는 오류".to_string()
-        });
+        let msg = self
+            .error_message
+            .clone()
+            .unwrap_or_else(|| "알 수 없는 오류".to_string());
 
         draw_header(ui, "오류", None, DANGER, None);
 
@@ -589,6 +596,52 @@ impl EntryCApp {
         });
     }
 
+    fn show_about(&mut self, ui: &mut egui::Ui) {
+        let available = ui.available_rect_before_wrap();
+
+        // 실제 중앙 좌표
+        let center = available.center();
+
+        // 전체 콘텐츠 그룹
+        //
+        // 제목 + From -> To 를 하나의 그룹으로 묶는다.
+        // 이렇게 해야 내부 크기가 바뀌어도 그룹 전체의
+        // 중앙을 기준으로 배치할 수 있다.
+        let group_width = available.width().min(self.group_width);
+        let group_height = self.group_height;
+
+        let group_rect =
+            egui::Rect::from_center_size(center, egui::vec2(group_width, group_height));
+
+        ui.scope_builder(
+            egui::UiBuilder::new()
+                .max_rect(group_rect)
+                .layout(egui::Layout::top_down(egui::Align::Center)),
+            |ui| {
+                boxed(ui, |ui| {
+                    let image = egui::Image::new(ImageSource::Bytes {
+                        uri: "bytes://crab.png".into(),
+                        bytes: include_bytes!("../assets/image/crab.png").into(),
+                    });
+                    ui.add_sized(Vec2::new(80.0, 80.0), image);
+                    ui.label(RichText::new("EntryC GUI").size(48.0).strong());
+                });
+                let about_text = format!(
+                    "Version {0}\n{1}\n{2}",
+                    env!("CARGO_PKG_VERSION"),
+                    env!("CARGO_PKG_AUTHORS"),
+                    env!("CARGO_PKG_DESCRIPTION")
+                );
+                ui.label(RichText::new(about_text).text_style(egui::TextStyle::Body));
+                ui.hyperlink_to("프로젝트 홈페이지", env!("CARGO_PKG_HOMEPAGE"));
+                ui.add_space(20.5);
+                if ui.add_sized([100.0, 32.0], Button::new("확인")).clicked() {
+                    self.view = View::Home;
+                    self.error_message = None;
+                }
+            },
+        );
+    }
     /// 백그라운드 스레드에서 entryc::run_build 를 호출하고 결과로 전환.
     /// 진행 메시지는 progress Arc<Mutex<...>> 에 push 한다.
     /// `template` 이 Some 이면 base project.json 으로 머지, None 이면 빈 프로젝트.

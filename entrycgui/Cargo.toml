@@ -1,7 +1,11 @@
 [package]
 name = "entrycgui"
+description = "Rust ↔ Entry .ent compiler"
 version = "0.1.0"
 edition = "2024"
+authors = ["Naekkori"]
+license = "MIT"
+homepage = "https://github.com/Naekkori/rust2entry"
 
 [dependencies]
 eframe = "0.36.1"
