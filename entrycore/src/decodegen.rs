@@ -161,15 +161,22 @@ fn emit_stmt(
             out.push_str(";\n");
         }
         Stmt::ChangeVariable { variable, value } => {
-            // Entry `change_variable` 의미 보존: Rust DSL에서는 `x = x + delta` 로
-            // 표현. parse 시 다시 ChangeVariable 으로 복구되려면 x 가 lhs 와 rhs 에
-            // 모두 등장해야 한다. 손실 없이 양방향 왕복 보장.
+            // Entry `change_variable` 의미 보존. 표기는 Rust idiomatic 으로
+            // 양수 delta 는 `x = x + n`, 음수 delta 는 `x = x - |n|` 으로 emit.
+            // 단순히 `+ value` 로만 내보내면 `-1` 같은 음수가 `+ -1` 로 보여서
+            // .rs 가 어색해진다. parse 쪽은 rhs 가 `lhs + n`/`lhs - n` 둘 다
+            // ChangeVariable 로 복원한다.
             out.push_str(&indent);
             out.push_str(&variable.name);
             out.push_str(" = ");
             out.push_str(&variable.name);
-            out.push_str(" + ");
-            emit_expr(value, out)?;
+            if let Expr::UnaryOp(UnaryOp::Neg, inner) = value {
+                out.push_str(" - ");
+                emit_expr(inner, out)?;
+            } else {
+                out.push_str(" + ");
+                emit_expr(value, out)?;
+            }
             out.push_str(";\n");
         }
         Stmt::Dialog { value, mode } => {

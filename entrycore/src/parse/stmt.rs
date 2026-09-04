@@ -24,6 +24,62 @@ fn type_to_kind(ty: &syn::Type) -> Result<Option<VarKind>> {
     }))
 }
 
+/// `x = x + n` / `x = x - n` / `x = x + -n` 패턴에서 rhs delta 부분만 추출.
+/// 패턴이면 Some(delta_expr), 아니면 None. lhs 의 var 이름은 sanitize 후 비교.
+fn extract_change_variable_delta(lhs_name: &str, rhs: &syn::Expr) -> Option<syn::Expr> {
+    let bin = match rhs {
+        syn::Expr::Binary(b) => b,
+        _ => return None,
+    };
+    // lhs 가 rhs 의 left 에 등장하는 형태만 인식한다.
+    // `n + x` 처럼 rhs 가 뒤집힌 경우는 일반 set_var 로 둔다 (의미가 모호).
+    let left_ident = match &*bin.left {
+        syn::Expr::Path(p) if p.path.segments.len() == 1 => {
+            p.path.segments[0].ident.to_string()
+        }
+        _ => return None,
+    };
+    if left_ident != lhs_name {
+        return None;
+    }
+    match bin.op {
+        syn::BinOp::Add(_) => Some((*bin.right).clone()),
+        syn::BinOp::Sub(_) => {
+            // x - n을 x + -n 으로 통일 — delta 의 부호만 뒤집는다.
+            Some(negate_expr((*bin.right).clone()))
+        }
+        _ => None,
+    }
+}
+
+/// 표현식의 부호를 뒤집는다. 정수/실수 리터럴은 음수로, 그 외는 UnaryOp(Neg) 로 감싼다.
+fn negate_expr(e: syn::Expr) -> syn::Expr {
+    match e {
+        syn::Expr::Unary(syn::ExprUnary { op: syn::UnOp::Neg(_), expr, .. }) => *expr,
+        syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(i), .. }) => {
+            let n: i64 = i.base10_parse().unwrap_or(0);
+            let neg = syn::LitInt::new(&format!("{}", -n), i.span());
+            syn::Expr::Lit(syn::ExprLit {
+                attrs: Vec::new(),
+                lit: syn::Lit::Int(neg),
+            })
+        }
+        syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Float(f), .. }) => {
+            let v: f64 = f.base10_parse().unwrap_or(0.0);
+            let neg = syn::LitFloat::new(&format!("{}", -v), f.span());
+            syn::Expr::Lit(syn::ExprLit {
+                attrs: Vec::new(),
+                lit: syn::Lit::Float(neg),
+            })
+        }
+        other => syn::Expr::Unary(syn::ExprUnary {
+            attrs: Vec::new(),
+            op: syn::UnOp::Neg(syn::token::Minus::default()),
+            expr: Box::new(other),
+        }),
+    }
+}
+
 pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
     match s {
         SynStmt::Local(local) => {
@@ -61,7 +117,7 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                 // `break;` → `Stmt::Break`
                 syn::Expr::Break(_) => out.push(IrStmt::Break),
                 syn::Expr::Continue(_) => out.push(IrStmt::Continue),
-                // `var = expr;` → `Stmt::SetVar`
+                // `var = expr;` → 패턴에 따라 ChangeVariable 또는 SetVar.
                 syn::Expr::Assign(a) => {
                     let name = match &*a.left {
                         syn::Expr::Path(p) => {
@@ -73,8 +129,21 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                         }
                         _ => return Err(ParseUnsupported("assign left".into())),
                     };
-                    let value = convert_expr(*a.right)?;
-                    out.push(IrStmt::SetVar(VarRef::new(crate::block::sanitize_ident(&name)), value));
+                    let san = crate::block::sanitize_ident(&name);
+                    let rhs = *a.right;
+                    // `x = x + n` 또는 `x = x - n` 패턴이면 Entry 의미
+                    // `change_variable` 으로 복원. 양방향 왕복 시 `change_variable`
+                    // 블록이 정확히 emit 되도록. 그 외 일반 대입은 `set_variable`.
+                    if let Some(delta) = extract_change_variable_delta(&san, &rhs) {
+                        let value = convert_expr(delta)?;
+                        out.push(IrStmt::ChangeVariable {
+                            variable: VarRef::new(san),
+                            value,
+                        });
+                    } else {
+                        let value = convert_expr(rhs)?;
+                        out.push(IrStmt::SetVar(VarRef::new(san), value));
+                    }
                 }
                 syn::Expr::If(e) => {
                     let cond = convert_expr(*e.cond)?;

@@ -3150,6 +3150,101 @@ fn compile_change_thickness_roundtrip() {
     }
 }
 
+/// `x = x + 1` → Entry `change_variable` 블록, params[0]=변수 socket, params[1]=값 슬롯.
+/// parse 가 `x = x + n`/`x = x - n` 패턴을 감지해 IrStmt::ChangeVariable 로 emit 하는지 확인.
+#[test]
+fn compile_change_variable_from_self_plus() {
+    let src = r#"
+        fn when_start() {
+            let x = 0;
+            x = x + 1;
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let change = thread
+        .iter()
+        .find(|b| b["type"] == "change_variable")
+        .expect("change_variable block");
+    // params[0] = variable socket, params[1] = value block, params[2] = null
+    assert!(change["params"][0].is_string() || change["params"][0].is_object());
+    let value = &change["params"][1];
+    assert_eq!(value["type"], "number");
+    assert_eq!(value["params"][0].as_f64(), Some(1.0));
+}
+
+/// `x = x - 1` → Entry `change_variable`, value 슬롯이 `-1`.
+/// parse 가 Sub 도 ChangeVariable 로 인식하고 decodegen 이 `+ -1` 형태로 emit.
+#[test]
+fn compile_change_variable_from_self_minus() {
+    let src = r#"
+        fn when_start() {
+            let x = 10;
+            x = x - 1;
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    let change = thread
+        .iter()
+        .find(|b| b["type"] == "change_variable")
+        .expect("change_variable block");
+    let value = &change["params"][1];
+    assert_eq!(value["type"], "number");
+    assert_eq!(value["params"][0].as_f64(), Some(-1.0));
+}
+
+/// `x = expr` (self-add 가 아닌 일반 대입) → Entry `set_variable` 으로 emit.
+#[test]
+fn compile_set_variable_for_general_assign() {
+    let src = r#"
+        fn when_start() {
+            let x = 0;
+            x = 42;
+        }
+    "#;
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let objects = v["objects"].as_array().unwrap();
+    let thread = first_thread(&objects[0]);
+    assert!(
+        thread.iter().any(|b| b["type"] == "set_variable"),
+        "expected set_variable block, got thread={thread:?}"
+    );
+    assert!(
+        !thread.iter().any(|b| b["type"] == "change_variable"),
+        "general assign must not emit change_variable"
+    );
+}
+
+/// 라운드트립 — `x = x + 1` -> JSON -> 다시 IR 했을 때 ChangeVariable 복원.
+#[test]
+fn compile_change_variable_roundtrip() {
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::codegen::collect_var_map;
+    use entrycore::ir::Stmt;
+    use entrycore::parse::parse;
+
+    let src = r#"fn when_start() { let x = 0; x = x + 1; }"#;
+    let p1 = parse(src).expect("parse1");
+    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let vars = collect_var_map(&p1, &VarMap::new());
+    let objects = v["objects"].as_array().unwrap();
+    let obj_script_str = objects[0]["script"].as_str().expect("script str");
+    let p2 = program_from_script_string_with_vars(obj_script_str, &vars).expect("deparse");
+    // when_start 본문 마지막 stmt 가 ChangeVariable 인지 확인.
+    match &p2.stmts[0] {
+        Stmt::FuncDef { body, .. } => {
+            assert!(
+                body.iter().any(|s| matches!(s, Stmt::ChangeVariable { .. })),
+                "expected ChangeVariable after roundtrip: {body:?}"
+            );
+        }
+        _ => panic!("expected FuncDef"),
+    }
+}
+
 /// `set_thickness(10.0)` → `set_thickness` 블록, params = [value, null].
 #[test]
 fn compile_set_thickness() {
