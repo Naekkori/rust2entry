@@ -165,17 +165,29 @@ fn emit_stmt(
             // 양수 delta 는 `x = x + n`, 음수 delta 는 `x = x - |n|` 으로 emit.
             // 단순히 `+ value` 로만 내보내면 `-1` 같은 음수가 `+ -1` 로 보여서
             // .rs 가 어색해진다. parse 쪽은 rhs 가 `lhs + n`/`lhs - n` 둘 다
-            // ChangeVariable 로 복원한다.
+            // ChangeVariable 로 복원한다 (delta 가 음수면 리터럴 또는 UnaryOp 으로
+            // 들어옴 — 둘 다 여기서 잡아 `- |n|` 형태로 변환).
             out.push_str(&indent);
             out.push_str(&variable.name);
             out.push_str(" = ");
             out.push_str(&variable.name);
-            if let Expr::UnaryOp(UnaryOp::Neg, inner) = value {
-                out.push_str(" - ");
-                emit_expr(inner, out)?;
-            } else {
-                out.push_str(" + ");
-                emit_expr(value, out)?;
+            match value {
+                Expr::UnaryOp(UnaryOp::Neg, inner) => {
+                    out.push_str(" - ");
+                    emit_expr(inner, out)?;
+                }
+                Expr::Int(n) if *n < 0 => {
+                    out.push_str(" - ");
+                    out.push_str(&n.abs().to_string());
+                }
+                Expr::Float(f) if *f < 0.0 => {
+                    out.push_str(" - ");
+                    out.push_str(&f.abs().to_string());
+                }
+                _ => {
+                    out.push_str(" + ");
+                    emit_expr(value, out)?;
+                }
             }
             out.push_str(";\n");
         }

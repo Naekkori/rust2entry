@@ -3245,6 +3245,38 @@ fn compile_change_variable_roundtrip() {
     }
 }
 
+/// `x = x - 1` (Sub 패턴) → parse 가 `ChangeVariable { value: Int(-1) }` 로 emit,
+/// decodegen 이 다시 `x = x - 1` 로 자연 표기 emit. 라운드트립 시 어색한
+/// `x = x + -1` 형태로 떨어지지 않도록.
+#[test]
+fn compile_change_variable_minus_emits_natural_dsl() {
+    use entrycore::parse::parse;
+    let src = r#"fn when_start() { let x = 10; x = x - 1; }"#;
+    let p = parse(src).expect("parse");
+    let dsl = entrycore::decodegen::emit(&p).expect("emit");
+    assert!(
+        dsl.contains("x = x - 1;"),
+        "expected `x = x - 1;` in dsl, got: {dsl}"
+    );
+    assert!(
+        !dsl.contains("+ -1"),
+        "dsl must not contain awkward `+ -1`, got: {dsl}"
+    );
+}
+
+/// `x = x + -1` (parse 시 UnaryOp 으로 들어옴) → decodegen 이 `x = x - 1` 로 emit.
+#[test]
+fn compile_change_variable_unary_neg_emits_natural_dsl() {
+    use entrycore::parse::parse;
+    let src = r#"fn when_start() { let x = 10; x = x + -1; }"#;
+    let p = parse(src).expect("parse");
+    let dsl = entrycore::decodegen::emit(&p).expect("emit");
+    assert!(
+        dsl.contains("x = x - 1;"),
+        "expected `x = x - 1;` in dsl, got: {dsl}"
+    );
+}
+
 /// `set_thickness(10.0)` → `set_thickness` 블록, params = [value, null].
 #[test]
 fn compile_set_thickness() {
