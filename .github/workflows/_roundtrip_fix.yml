@@ -11,248 +11,63 @@ permissions:
 
 jobs:
   fix:
+    if: "!contains(github.event.head_commit.message, '[roundtrip-fix]')"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Apply round-trip fixes
+        shell: bash
         run: |
+          set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
 
-          p = Path('entrycore/src/deparse.rs')
-          s = p.read_text(encoding='utf-8-sig')
+          def replace(path: str, old: str, new: str, count: int = 1):
+              p = Path(path)
+              s = p.read_text(encoding='utf-8-sig')
+              if s.count(old) != count:
+                  raise SystemExit(f'{path}: expected {count} matches, got {s.count(old)}')
+              p.write_text(s.replace(old, new, count), encoding='utf-8')
 
-          old = '''        Block::WhenMessageRecv { .. } => "when_message",
-        _ => return None,
-'''
-          new = '''        Block::WhenMessageRecv { .. } => "when_message",
-        Block::WhenSceneStart => "when_scene_start",
-        _ => return None,
-'''
-          assert old in s
-          s = s.replace(old, new, 1)
+          # Entry trigger round-trip: scene-start is a real trigger, not a normal stmt.
+          replace(
+              'entrycore/src/deparse.rs',
+              '''        Block::WhenMessageRecv { .. } => "when_message",\n        _ => return None,\n''',
+              '''        Block::WhenMessageRecv { .. } => "when_message",\n        Block::WhenSceneStart => "when_scene_start",\n        _ => return None,\n''',
+          )
 
-          old = '''        Block::ChangeVar { variable, value } => {
-            let cur = Expr::Var(variable.clone());
-            let rhs = expr_from_param(value, vars)?;
-            stmts.push(Stmt::SetVar(
-                variable.clone(),
-                Expr::BinOp(BinOp::Add, Box::new(cur), Box::new(rhs)),
-            ));
-            Ok(())
-        }
-'''
-          new = '''        Block::ChangeVar { variable, value } => {
-            let rhs = expr_from_param(value, vars)?;
-            stmts.push(Stmt::Expr(Expr::Call(
-                ir::FuncRef {
-                    name: "change_variable".to_string(),
-                    arity: 2,
-                    raw: None,
-                },
-                vec![Expr::Var(variable.clone()), rhs],
-            )));
-            Ok(())
-        }
-'''
-          assert old in s
-          s = s.replace(old, new, 1)
+          # Keep Entry change_variable semantics when converting IR back to Entry.
+          replace(
+              'entrycore/src/block/mod.rs',
+              '''        Stmt::SetVar(name, expr) => {\n            // Timer/Answer 변수는 Entry 전용 슬롯만 받음.\n            if matches!(kind_for(name), VarKind::Timer | VarKind::Answer) {\n''',
+              '''        Stmt::SetVar(name, expr) => {\n            // Entry의 `change_variable(name, delta)`가 Rust에서 `name = name + delta`\n            // 로 표현되더라도 다시 `change_variable`로 복원한다.\n            if let Expr::BinOp(BinOp::Add, lhs, rhs) = expr {\n                if matches!(lhs.as_ref(), Expr::Var(current) if current == name) {\n                    return Ok(Block::ChangeVar {\n                        variable: name.clone(),\n                        value: from_expr(rhs)?,\n                    });\n                }\n            }\n            if let Expr::BinOp(BinOp::Sub, lhs, rhs) = expr {\n                if matches!(lhs.as_ref(), Expr::Var(current) if current == name) {\n                    return Ok(Block::ChangeVar {\n                        variable: name.clone(),\n                        value: from_expr(&Expr::UnaryOp(UnaryOp::Neg, Box::new(rhs.clone())))?,\n                    });\n                }\n            }\n            // Timer/Answer 변수는 Entry 전용 슬롯만 받음.\n            if matches!(kind_for(name), VarKind::Timer | VarKind::Answer) {\n''',
+          )
 
-          old = '''        Block::Dialog { mode, content } => {
-            let arg = expr_from_param(content, vars)?;
-            let name = match mode {
-                DialogMode::Say => "say",
-                DialogMode::Think => "think",
-            };
-            stmts.push(Stmt::Expr(Expr::Call(
-                ir::FuncRef {
-                    name: name.to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![arg],
-            )));
-            Ok(())
-        }
-'''
-          new = '''        Block::Dialog { mode, content } => {
-            let arg = expr_from_param(content, vars)?;
-            let mode = match mode {
-                DialogMode::Say => "speak",
-                DialogMode::Think => "think",
-            };
-            stmts.push(Stmt::Expr(Expr::Call(
-                ir::FuncRef {
-                    name: "dialog".to_string(),
-                    arity: 2,
-                    raw: None,
-                },
-                vec![arg, Expr::Str(mode.to_string())],
-            )));
-            Ok(())
-        }
-'''
-          assert old in s
-          s = s.replace(old, new, 1)
+          # A Rust `loop {}` is the Entry `repeat_inf`, not `repeat_while_true`.
+          replace(
+              'entrycore/src/block/mod.rs',
+              '''        Stmt::While { cond, body } => {\n            let cond = from_expr(cond)?;\n            let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;\n            Ok(Block::While { cond, body })\n        }\n''',
+              '''        Stmt::While { cond, body } => {\n            let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;\n            if matches!(cond, Expr::Bool(true)) {\n                return Ok(Block::Forever { body });\n            }\n            let cond = from_expr(cond)?;\n            Ok(Block::While { cond, body })\n        }\n''',
+          )
 
-          old = '''        Block::DialogTime {
-            mode,
-            content,
-            time,
-        } => {
-            let content_arg = expr_from_param(content, vars)?;
-            let time_arg = expr_from_param(time, vars)?;
-            let name = match mode {
-                DialogMode::Say => "say",
-                DialogMode::Think => "think",
-            };
-            stmts.push(Stmt::Expr(Expr::Call(
-                ir::FuncRef {
-                    name: name.to_string(),
-                    arity: 2,
-                    raw: None,
-                },
-                vec![content_arg, time_arg],
-            )));
-            Ok(())
-        }
-'''
-          new = '''        Block::DialogTime {
-            mode,
-            content,
-            time,
-        } => {
-            let content_arg = expr_from_param(content, vars)?;
-            let time_arg = expr_from_param(time, vars)?;
-            let mode = match mode {
-                DialogMode::Say => "speak",
-                DialogMode::Think => "think",
-            };
-            stmts.push(Stmt::Expr(Expr::Call(
-                ir::FuncRef {
-                    name: "dialog_time".to_string(),
-                    arity: 3,
-                    raw: None,
-                },
-                vec![content_arg, Expr::Str(mode.to_string()), time_arg],
-            )));
-            Ok(())
-        }
-'''
-          assert old in s
-          s = s.replace(old, new, 1)
+          # stop_object must remain a stop_object block instead of becoming an ordinary break.
+          replace(
+              'entrycore/src/block/mod.rs',
+              '''                    if fref.name == "restart_project" {\n''',
+              '''                    if fref.name == "stop_object" {\n                        if !args.is_empty() {\n                            return Err(SyntaxError("stop_object needs 0 args".into()));\n                        }\n                        return Ok(Block::Break);\n                    }\n                    if fref.name == "restart_project" {\n''',
+          )
 
-          old = '''        Block::Break => {
-            stmts.push(Stmt::Break);
-            Ok(())
-        }
-'''
-          new = '''        Block::Break => {
-            stmts.push(Stmt::Expr(Expr::Call(
-                ir::FuncRef {
-                    name: "stop_object".to_string(),
-                    arity: 0,
-                    raw: None,
-                },
-                Vec::new(),
-            )));
-            Ok(())
-        }
-'''
-          assert old in s
-          s = s.replace(old, new, 1)
-
-          p.write_text(s, encoding='utf-8')
-
-          p = Path('entrycore/src/parse/stmt.rs')
-          s = p.read_text(encoding='utf-8-sig')
-
-          marker = '''                    if fref.name == "wait_second" {
-'''
-          insert = '''                    if fref.name == "change_variable" {
-                        if args.len() != 2 {
-                            return Err(ParseUnsupported("change_variable needs 2 args".into()));
-                        }
-                        let variable = match &args[0] {
-                            Expr::Var(name) => crate::block::sanitize_ident(name),
-                            _ => return Err(ParseUnsupported("change_variable target".into())),
-                        };
-                        return Ok(crate::block::Block::ChangeVar {
-                            variable,
-                            value: crate::deparse::expr_to_param_for_parse(&args[1])?,
-                        });
-                    }
-                    if fref.name == "dialog" {
-                        if args.len() != 2 {
-                            return Err(ParseUnsupported("dialog needs 2 args".into()));
-                        }
-                        let content = crate::deparse::expr_to_param_for_parse(&args[0])?;
-                        let mode = match &args[1] {
-                            Expr::Str(s) if s == "think" => crate::block::DialogMode::Think,
-                            Expr::Str(s) if s == "speak" => crate::block::DialogMode::Say,
-                            _ => return Err(ParseUnsupported("dialog mode".into())),
-                        };
-                        return Ok(crate::block::Block::Dialog { mode, content });
-                    }
-                    if fref.name == "dialog_time" {
-                        if args.len() != 3 {
-                            return Err(ParseUnsupported("dialog_time needs 3 args".into()));
-                        }
-                        let content = crate::deparse::expr_to_param_for_parse(&args[0])?;
-                        let mode = match &args[1] {
-                            Expr::Str(s) if s == "think" => crate::block::DialogMode::Think,
-                            Expr::Str(s) if s == "speak" => crate::block::DialogMode::Say,
-                            _ => return Err(ParseUnsupported("dialog_time mode".into())),
-                        };
-                        let time = crate::deparse::expr_to_param_for_parse(&args[2])?;
-                        return Ok(crate::block::Block::DialogTime { mode, content, time });
-                    }
-                    if fref.name == "stop_object" {
-                        if !args.is_empty() {
-                            return Err(ParseUnsupported("stop_object needs 0 args".into()));
-                        }
-                        return Ok(crate::block::Block::Break);
-                    }
-'''
-          assert marker in s
-          s = s.replace(marker, insert + marker, 1)
-
-          # Keep the existing IR conversion path; these special calls are converted
-          # back to Entry blocks immediately by the parser before generic call handling.
-          # The helper below is added in deparse.rs by a tiny public adapter.
-          p.write_text(s, encoding='utf-8')
-          PY
-
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('entrycore/src/deparse.rs')
-          s = p.read_text(encoding='utf-8-sig')
-          marker = '''fn param_at(params: &Value, idx: usize, vars: &VarMap) -> Result<ParamBlock> {
-'''
-          helper = '''pub(crate) fn expr_to_param_for_parse(expr: &Expr) -> Result<ParamBlock> {
-    match expr {
-        Expr::Int(n) => Ok(ParamBlock::Number(*n as f64)),
-        Expr::Float(f) => Ok(ParamBlock::Number(*f)),
-        Expr::Str(s) => Ok(ParamBlock::Text(s.clone())),
-        Expr::Bool(b) => Ok(ParamBlock::Boolean(*b)),
-        Expr::Var(name) => Ok(ParamBlock::Variable(name.clone())),
-        Expr::BinOp(op, lhs, rhs) => Ok(ParamBlock::Sub(Box::new(Block::CalcBinOp {
-            op: *op,
-            lhs: expr_to_param_for_parse(lhs)?,
-            rhs: expr_to_param_for_parse(rhs)?,
-        }))),
-        Expr::UnaryOp(op, inner) => Ok(ParamBlock::Sub(Box::new(Block::UnaryOp {
-            op: *op,
-            expr: expr_to_param_for_parse(inner)?,
-        }))),
-        _ => Err(SyntaxError("unsupported expression in Entry block parameter".into())),
-    }
-}
-
-'''
-          assert marker in s
-          s = s.replace(marker, helper + marker, 1)
-          p.write_text(s, encoding='utf-8')
+          # Emit the Entry stop-object intrinsic, and don't drop it at trigger scope.
+          replace(
+              'entrycore/src/decodegen.rs',
+              '''        if matches!(s, Stmt::Break | Stmt::Continue) {\n            continue;\n        }\n''',
+              '''        if matches!(s, Stmt::Continue) {\n            continue;\n        }\n''',
+          )
+          replace(
+              'entrycore/src/decodegen.rs',
+              '''        Stmt::Break => {\n            out.push_str(&indent);\n            out.push_str("break;\\n");\n        }\n''',
+              '''        Stmt::Break => {\n            out.push_str(&indent);\n            out.push_str("stop_object();\\n");\n        }\n''',
+          )
           PY
 
           cargo fmt
@@ -260,10 +75,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add entrycore/src/deparse.rs entrycore/src/parse/stmt.rs
-          git commit -m "fix Entry round-trip block semantics"
+          git add entrycore/src/deparse.rs entrycore/src/block/mod.rs entrycore/src/decodegen.rs
+          git commit -m "[roundtrip-fix] preserve Entry block semantics"
           git push
-          rm -f .github/workflows/_roundtrip-fix.yml .github/roundtrip-fix.trigger
+
+          rm -f .github/workflows/_roundtrip_fix.yml .github/roundtrip-fix.trigger
           git add -A
-          git commit -m "remove temporary round-trip fixer"
+          git commit -m "[roundtrip-fix] remove temporary fixer"
           git push
