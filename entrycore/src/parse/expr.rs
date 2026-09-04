@@ -138,7 +138,9 @@ pub(crate) fn convert_expr(e: Expr) -> Result<IrExpr> {
             ))
         }
         Expr::Reference(r) => convert_expr(*r.expr),
-        Expr::Assign(_) => Err(ParseUnsupported("expr at assign; convert_stmt로 처리".into())),
+        Expr::Assign(_) => Err(ParseUnsupported(
+            "expr at assign; convert_stmt로 처리".into(),
+        )),
         _ => Err(ParseUnsupported(format!("expr at line {line}"))),
     }
 }

@@ -104,34 +104,62 @@ fn build_unpacks_to_valid_project_json() {
     assert_eq!(v.get("name").and_then(|x| x.as_str()), Some("rust2entry"));
 
     // object.script 는 JSON 문자열 (실제 .ent 형식) -> 파싱 후 thread 검증
-    let objects = v.get("objects").and_then(|x| x.as_array()).expect("objects array");
+    let objects = v
+        .get("objects")
+        .and_then(|x| x.as_array())
+        .expect("objects array");
     assert_eq!(objects.len(), 1);
     let script_str = objects[0]["script"].as_str().expect("object script str");
-    let script: serde_json::Value =
-        serde_json::from_str(script_str).expect("script JSON parse");
+    let script: serde_json::Value = serde_json::from_str(script_str).expect("script JSON parse");
     let threads = script.as_array().expect("object script threads");
     assert_eq!(threads.len(), 1, "thread 1개");
     let thread = threads[0].as_array().expect("first thread");
-    assert_eq!(thread.len(), 4, "expected 4 blocks (when_run + 3), got {}", thread.len());
+    assert_eq!(
+        thread.len(),
+        4,
+        "expected 4 blocks (when_run + 3), got {}",
+        thread.len()
+    );
 
     // 0번: when_run 트리거
-    assert_eq!(thread[0].get("type").and_then(|x| x.as_str()), Some("when_run"));
+    assert_eq!(
+        thread[0].get("type").and_then(|x| x.as_str()),
+        Some("when_run")
+    );
     // 1번: set_variable x
-    assert_eq!(thread[1].get("type").and_then(|x| x.as_str()), Some("set_variable"));
+    assert_eq!(
+        thread[1].get("type").and_then(|x| x.as_str()),
+        Some("set_variable")
+    );
     // 2번: set_variable y (값은 calc_basic)
-    assert_eq!(thread[2].get("type").and_then(|x| x.as_str()), Some("set_variable"));
+    assert_eq!(
+        thread[2].get("type").and_then(|x| x.as_str()),
+        Some("set_variable")
+    );
     let y_val = &thread[2]["params"][1];
-    assert_eq!(y_val.get("type").and_then(|x| x.as_str()), Some("calc_basic"));
+    assert_eq!(
+        y_val.get("type").and_then(|x| x.as_str()),
+        Some("calc_basic")
+    );
     // 3번: if (조건 boolean_basic, statements 안에 set z)
     assert_eq!(thread[3].get("type").and_then(|x| x.as_str()), Some("if"));
     let cond = &thread[3]["params"][0];
-    assert_eq!(cond.get("type").and_then(|x| x.as_str()), Some("boolean_basic"));
+    assert_eq!(
+        cond.get("type").and_then(|x| x.as_str()),
+        Some("boolean_basic")
+    );
     let stmts = thread[3]["statements"][0].as_array().expect("if body");
     assert_eq!(stmts.len(), 1);
-    assert_eq!(stmts[0].get("type").and_then(|x| x.as_str()), Some("set_variable"));
+    assert_eq!(
+        stmts[0].get("type").and_then(|x| x.as_str()),
+        Some("set_variable")
+    );
 
     // variables 3개: x, y, z
-    let vars = v.get("variables").and_then(|x| x.as_array()).expect("variables array");
+    let vars = v
+        .get("variables")
+        .and_then(|x| x.as_array())
+        .expect("variables array");
     assert_eq!(vars.len(), 3, "expected 3 variables, got {}", vars.len());
     let names: Vec<&str> = vars
         .iter()
@@ -211,15 +239,24 @@ fn build_with_template_preserves_project_metadata() {
     let v: serde_json::Value = serde_json::from_str(&raw).unwrap();
 
     // 템플릿 메타 보존
-    assert_eq!(v.get("name").and_then(|x| x.as_str()), Some("template_proj"));
+    assert_eq!(
+        v.get("name").and_then(|x| x.as_str()),
+        Some("template_proj")
+    );
     let scenes = v.get("scenes").and_then(|x| x.as_array()).expect("scenes");
     assert_eq!(scenes.len(), 2, "template scenes lost");
 
     // 새 object.script 와 variables 패치됨 (variables 는 base 와 머지)
     // base 의 tmpl_main + 새 main -> objects 2개
-    let objects = v.get("objects").and_then(|x| x.as_array()).expect("objects");
+    let objects = v
+        .get("objects")
+        .and_then(|x| x.as_array())
+        .expect("objects");
     assert_eq!(objects.len(), 2);
-    let main_obj = objects.iter().find(|o| o["name"] == "main").expect("main object");
+    let main_obj = objects
+        .iter()
+        .find(|o| o["name"] == "main")
+        .expect("main object");
     let main_script_str = main_obj["script"].as_str().expect("main script str");
     let main_script: serde_json::Value =
         serde_json::from_str(main_script_str).expect("main script JSON parse");
@@ -227,9 +264,18 @@ fn build_with_template_preserves_project_metadata() {
     let thread = threads[0].as_array().expect("main first thread");
     // thread 0 = [when_run, set_variable b]
     assert_eq!(thread.len(), 2);
-    assert_eq!(thread[0].get("type").and_then(|x| x.as_str()), Some("when_run"));
-    assert_eq!(thread[1].get("type").and_then(|x| x.as_str()), Some("set_variable"));
-    let vars = v.get("variables").and_then(|x| x.as_array()).expect("variables");
+    assert_eq!(
+        thread[0].get("type").and_then(|x| x.as_str()),
+        Some("when_run")
+    );
+    assert_eq!(
+        thread[1].get("type").and_then(|x| x.as_str()),
+        Some("set_variable")
+    );
+    let vars = v
+        .get("variables")
+        .and_then(|x| x.as_array())
+        .expect("variables");
     let names: Vec<&str> = vars
         .iter()
         .filter_map(|x| x.get("name").and_then(|n| n.as_str()))
@@ -265,11 +311,7 @@ fn build_extract_roundtrip_creates_object_file() {
 
     // 빌드 입력: 오브젝트 이름이 파일 stem 이 됨
     let rs = dir.join("my_sprite.rs");
-    std::fs::write(
-        &rs,
-        "fn when_start() { let x = 42; let y = 1 + 2; }\n",
-    )
-    .unwrap();
+    std::fs::write(&rs, "fn when_start() { let x = 42; let y = 1 + 2; }\n").unwrap();
     let ent = dir.join("out.ent");
     let status = Command::new(entryc_bin())
         .args(["build", "--rs"])
@@ -287,9 +329,15 @@ fn build_extract_roundtrip_creates_object_file() {
     let pj_path = unpack.join("project.json");
     let raw = std::fs::read_to_string(&pj_path).unwrap();
     let v: serde_json::Value = serde_json::from_str(&raw).expect("project.json parse");
-    let objects = v.get("objects").and_then(|x| x.as_array()).expect("objects");
+    let objects = v
+        .get("objects")
+        .and_then(|x| x.as_array())
+        .expect("objects");
     assert_eq!(objects.len(), 1, "가짜 오브젝트 1개");
-    assert_eq!(objects[0].get("name").and_then(|x| x.as_str()), Some("my_sprite"));
+    assert_eq!(
+        objects[0].get("name").and_then(|x| x.as_str()),
+        Some("my_sprite")
+    );
 
     // extract: out_dir 에 my_sprite.rs 생성되는지
     let out_dir = dir.join("extracted");
@@ -304,7 +352,10 @@ fn build_extract_roundtrip_creates_object_file() {
     assert!(status.success(), "extract failed");
 
     let rs_out = out_dir.join("my_sprite.rs");
-    assert!(rs_out.is_file(), "my_sprite.rs 가 생성돼야 함 (objects 1개)");
+    assert!(
+        rs_out.is_file(),
+        "my_sprite.rs 가 생성돼야 함 (objects 1개)"
+    );
 }
 
 /// extract 가 만든 .rs 에 생성기 헤더 (`// Generated by entryc ...`) 가 포함.

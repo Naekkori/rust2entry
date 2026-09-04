@@ -39,7 +39,7 @@ impl AssetMap {
         let Some(objects) = project.get("objects").and_then(Value::as_array) else {
             return map;
         };
-for object in objects {
+        for object in objects {
             let Some(name) = object.get("name").and_then(Value::as_str) else {
                 continue;
             };

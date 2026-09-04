@@ -6,10 +6,13 @@
 //! 경로(`validate_hw_sourcemap`)로 검증한다. 이 테스트는 그 파이프라인이
 //! 실제로 유효한 소스맵에서 작동함을 고정(freeze)한다.
 
-use entrycore::block::registry::{BlockRegistry, HwSourcemap, CHECK_DEF_TYPE_MATCH};
+use entrycore::block::registry::{BlockRegistry, CHECK_DEF_TYPE_MATCH, HwSourcemap};
 
 fn load_fixture() -> String {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/hw_sourcemap.json");
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/hw_sourcemap.json"
+    );
     std::fs::read_to_string(path).expect("hw_sourcemap.json fixture exists")
 }
 
@@ -47,8 +50,16 @@ fn schema_validation_covers_all_hardware_blocks() {
     // param 타입 누락, func 부재). ATS 가 이를 감지해야 한다.
     // 현재 fixture 스냅샷 기준 위반 구성:
     //   skeleton_present 73, def_type_match 3, params_typed 11, func_expected 6
-    assert_eq!(report.violations.len(), 93, "하드웨어 블럭 스키마 위반 수 (스냅샷)");
-    assert_eq!(report.count_by_check("params_consistent"), 0, "모든 블럭 params 길이 == paramCount");
+    assert_eq!(
+        report.violations.len(),
+        93,
+        "하드웨어 블럭 스키마 위반 수 (스냅샷)"
+    );
+    assert_eq!(
+        report.count_by_check("params_consistent"),
+        0,
+        "모든 블럭 params 길이 == paramCount"
+    );
 }
 
 #[test]

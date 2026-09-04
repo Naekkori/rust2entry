@@ -2,9 +2,9 @@
 //!
 //! parse + codegen 을 거치며 최종 project.json 구조 확인.
 
-use entrycore::compile;
-use entrycore::ir::{BinOp, Expr, Stmt, UnaryOp};
 use entrycore::VarMap;
+use entrycore::compile;
+use entrycore::ir::BinOp;
 use serde_json::{Value, json};
 
 fn empty_project() -> Value {
@@ -45,7 +45,9 @@ fn first_thread(obj: &Value) -> Vec<Value> {
 #[test]
 fn compile_single_source() {
     let src = "fn when_start() { let x = 42; }";
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().expect("objects array");
     assert_eq!(objects.len(), 1);
     // object.script 는 JSON 문자열 (실제 .ent 형식)
@@ -68,7 +70,9 @@ fn compile_single_source() {
 fn compile_multi_source_merges_scripts() {
     let a = "fn when_start() { let x = 1; }";
     let b = "fn when_start() { let y = 2; }";
-    let v = compile(&[("a", a), ("b", b)], &empty_project()).expect("compile").0;
+    let v = compile(&[("a", a), ("b", b)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().expect("objects array");
     assert_eq!(objects.len(), 2);
     let a_obj = objects.iter().find(|o| o["name"] == "a").expect("a");
@@ -97,7 +101,9 @@ fn compile_preserves_base_metadata() {
         { "id": "scene2", "name": "장면2" },
     ]);
     base["speed"] = json!(30);
-    let v = compile(&[("obj", "fn when_start() { let x = 1; }")], &base).expect("compile").0;
+    let v = compile(&[("obj", "fn when_start() { let x = 1; }")], &base)
+        .expect("compile")
+        .0;
     assert_eq!(v["name"], "my_proj");
     assert_eq!(v["scenes"].as_array().unwrap().len(), 2);
     assert_eq!(v["speed"], 30);
@@ -111,7 +117,9 @@ fn compile_preserves_base_metadata() {
 fn compile_aggregates_variables_across_sources() {
     let a = "fn when_start() { let x = 1; }";
     let b = "fn when_start() { let y = 2; let z = 3; }";
-    let v = compile(&[("a", a), ("b", b)], &empty_project()).expect("compile").0;
+    let v = compile(&[("a", a), ("b", b)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = v["variables"].as_array().expect("variables array");
     let names: Vec<&str> = vars.iter().filter_map(|x| x["name"].as_str()).collect();
     assert!(names.contains(&"x"));
@@ -125,7 +133,9 @@ fn compile_aggregates_variables_across_sources() {
 fn compile_deduplicates_variables() {
     let a = "fn when_start() { let x = 1; }";
     let b = "fn when_start() { let x = 2; }";
-    let v = compile(&[("a", a), ("b", b)], &empty_project()).expect("compile").0;
+    let v = compile(&[("a", a), ("b", b)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = v["variables"].as_array().expect("variables array");
     let xs: Vec<&Value> = vars.iter().filter(|x| x["name"] == "x").collect();
     assert_eq!(xs.len(), 1, "중복 변수 발생");
@@ -153,7 +163,9 @@ fn compile_empty_sources_returns_base() {
 #[test]
 fn compile_if_block_structure() {
     let src = "fn when_start() { if 1 < 2 { let x = 1; } }";
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2, "when_run + if");
@@ -166,7 +178,9 @@ fn compile_if_block_structure() {
 #[test]
 fn compile_for_range_expands_to_repeat() {
     let src = "fn when_start() { for i in 0..5 { let x = 1; } }";
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2, "when_run + repeat");
@@ -183,7 +197,9 @@ fn compile_roundtrip_via_deparse() {
 
     let src = "fn when_start() { if 1 < 2 { let x = 1; } }";
     let p1 = entrycore::parse::parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -201,7 +217,9 @@ fn compile_roundtrip_via_deparse() {
 #[test]
 fn compile_adds_fake_object_when_empty() {
     let src = "fn when_start() { let x = 42; }";
-    let v = compile(&[("my_obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("my_obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().expect("objects array");
     assert_eq!(objects.len(), 1, "가짜 오브젝트 1개 추가");
     assert_eq!(objects[0]["name"], "my_obj");
@@ -210,9 +228,17 @@ fn compile_adds_fake_object_when_empty() {
     assert_eq!(objects[0]["entity"]["x"], 0.0);
     assert_eq!(objects[0]["entity"]["visible"], true);
     assert_eq!(objects[0]["sprite"]["name"], "my_obj");
-    assert!(objects[0]["sprite"]["pictures"].as_array().unwrap().is_empty());
+    assert!(
+        objects[0]["sprite"]["pictures"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
     let fake_id = objects[0]["id"].as_str().expect("fake id str");
-    assert!(fake_id.starts_with("obj_"), "가짜 id 는 obj_ prefix: {fake_id}");
+    assert!(
+        fake_id.starts_with("obj_"),
+        "가짜 id 는 obj_ prefix: {fake_id}"
+    );
     let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2, "when_run + body");
 }
@@ -221,7 +247,9 @@ fn compile_adds_fake_object_when_empty() {
 #[test]
 fn compile_wait_second_int() {
     let src = r#"fn when_start() { wait_second(2); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "wait_second");
@@ -233,7 +261,9 @@ fn compile_wait_second_int() {
 #[test]
 fn compile_wait_second_float() {
     let src = r#"fn when_start() { wait_second(2.5); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "wait_second");
@@ -249,15 +279,22 @@ fn compile_wait_second_var() {
             wait_second(x);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     // set x, wait_second(x)
-    let wait = thread.iter().find(|b| b["type"] == "wait_second").expect("wait_second");
+    let wait = thread
+        .iter()
+        .find(|b| b["type"] == "wait_second")
+        .expect("wait_second");
     // 값 슬롯 자리의 변수 ref 는 `get_variable` 블록으로 emit (EntryJS 호환).
     assert_eq!(wait["params"][0]["type"], "get_variable");
     assert_eq!(
-        wait["params"][0]["params"][0].as_str().map(|s| s.to_string()),
+        wait["params"][0]["params"][0]
+            .as_str()
+            .map(|s| s.to_string()),
         Some(entrycore::block::id_for("x"))
     );
 }
@@ -265,14 +302,16 @@ fn compile_wait_second_var() {
 /// wait_second 라운드트립: compile → deparse → IR 에 wait_second 호출 보존.
 #[test]
 fn compile_wait_second_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { wait_second(1.5); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -304,10 +343,15 @@ fn compile_wait_until_true_compare() {
             wait_until_true(x > 5);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
-    let wait = thread.iter().find(|b| b["type"] == "wait_until_true").expect("wait_until_true");
+    let wait = thread
+        .iter()
+        .find(|b| b["type"] == "wait_until_true")
+        .expect("wait_until_true");
     assert_eq!(wait["params"][0]["type"], "boolean_basic_operator");
 }
 
@@ -319,10 +363,15 @@ fn compile_wait_until_true_var() {
             wait_until_true(flag);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
-    let wait = thread.iter().find(|b| b["type"] == "wait_until_true").expect("wait_until_true");
+    let wait = thread
+        .iter()
+        .find(|b| b["type"] == "wait_until_true")
+        .expect("wait_until_true");
     // flag 는 미정의 변수 — codegen 은 `get_variable` 값 슬롯 블록으로 emit.
     // EntryJS 가 값 슬롯은 Block 객체만 받기 때문 (dropdown 슬롯과 다름).
     assert_eq!(wait["params"][0]["type"], "get_variable");
@@ -332,24 +381,31 @@ fn compile_wait_until_true_var() {
 #[test]
 fn compile_wait_until_true_arith_cond() {
     let src = r#"fn when_start() { wait_until_true(1 + 2 < 5); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
-    let wait = thread.iter().find(|b| b["type"] == "wait_until_true").expect("wait_until_true");
+    let wait = thread
+        .iter()
+        .find(|b| b["type"] == "wait_until_true")
+        .expect("wait_until_true");
     assert_eq!(wait["params"][0]["type"], "boolean_basic_operator");
 }
 
 /// 라운드트립.
 #[test]
 fn compile_wait_until_true_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { wait_until_true(x > 5); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -374,8 +430,8 @@ fn compile_wait_until_true_roundtrip() {
 /// `block.type missing` 에러 없이 ParamBlock::Variable 로 라운드트립되는지.
 #[test]
 fn compile_if_roundtrip_with_var_cond() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::Stmt;
     use entrycore::parse::parse;
 
@@ -386,7 +442,9 @@ fn compile_if_roundtrip_with_var_cond() {
         }
     "#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -395,7 +453,11 @@ fn compile_if_roundtrip_with_var_cond() {
         Stmt::FuncDef { name, body, .. } => {
             assert_eq!(name, "when_start");
             // body[0] = let x = 1; body[1] = if x < 5 ...
-            assert!(matches!(body[1], Stmt::If { .. }), "body[1] If expected, got {:?}", body[1]);
+            assert!(
+                matches!(body[1], Stmt::If { .. }),
+                "body[1] If expected, got {:?}",
+                body[1]
+            );
         }
         other => panic!("expected FuncDef(when_start), got {other:?}"),
     }
@@ -407,26 +469,48 @@ fn compile_if_roundtrip_with_var_cond() {
 #[test]
 fn compile_calc_rand_int() {
     let src = r#"fn when_start() { let x = calc_rand(1, 10); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
-    let set = thread.iter().find(|b| b["type"] == "set_variable").expect("set_variable");
+    let set = thread
+        .iter()
+        .find(|b| b["type"] == "set_variable")
+        .expect("set_variable");
     // set 의 params[1] 이 calc_rand.
     assert_eq!(set["params"][1]["type"], "calc_rand");
-    assert_eq!(set["params"][1]["params"][1]["params"][0].as_f64(), Some(1.0));
-    assert_eq!(set["params"][1]["params"][3]["params"][0].as_f64(), Some(10.0));
+    assert_eq!(
+        set["params"][1]["params"][1]["params"][0].as_f64(),
+        Some(1.0)
+    );
+    assert_eq!(
+        set["params"][1]["params"][3]["params"][0].as_f64(),
+        Some(10.0)
+    );
 }
 
 /// `calc_rand(1.5, 9.5)` → 실수 보존.
 #[test]
 fn compile_calc_rand_float() {
     let src = r#"fn when_start() { let x = calc_rand(1.5, 9.5); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
-    let set = thread.iter().find(|b| b["type"] == "set_variable").expect("set_variable");
-    assert_eq!(set["params"][1]["params"][1]["params"][0].as_f64(), Some(1.5));
-    assert_eq!(set["params"][1]["params"][3]["params"][0].as_f64(), Some(9.5));
+    let set = thread
+        .iter()
+        .find(|b| b["type"] == "set_variable")
+        .expect("set_variable");
+    assert_eq!(
+        set["params"][1]["params"][1]["params"][0].as_f64(),
+        Some(1.5)
+    );
+    assert_eq!(
+        set["params"][1]["params"][3]["params"][0].as_f64(),
+        Some(9.5)
+    );
 }
 
 /// `calc_rand` 의 args 가 변수일 때 dropdown 슬롯.
@@ -439,10 +523,16 @@ fn compile_calc_rand_var_args() {
             let x = calc_rand(lo, hi);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
-    let set = thread.iter().rev().find(|b| b["type"] == "set_variable").expect("last set");
+    let set = thread
+        .iter()
+        .rev()
+        .find(|b| b["type"] == "set_variable")
+        .expect("last set");
     assert_eq!(set["params"][1]["type"], "calc_rand");
     // 값 슬롯 자리의 변수 ref 는 `get_variable` 블록으로 emit (EntryJS 호환).
     assert_eq!(set["params"][1]["params"][1]["type"], "get_variable");
@@ -464,14 +554,16 @@ fn compile_calc_rand_var_args() {
 /// 라운드트립: compile → deparse → IR 에 calc_rand 호출 보존.
 #[test]
 fn compile_calc_rand_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { let x = calc_rand(1, 10); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -498,10 +590,15 @@ fn compile_calc_rand_roundtrip() {
 #[test]
 fn compile_get_project_timer_value() {
     let src = r#"fn when_start() { let x = get_project_timer_value(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
-    let set = thread.iter().find(|b| b["type"] == "set_variable").expect("set_variable");
+    let set = thread
+        .iter()
+        .find(|b| b["type"] == "set_variable")
+        .expect("set_variable");
     assert_eq!(set["params"][1]["type"], "get_project_timer_value");
 }
 
@@ -509,26 +606,36 @@ fn compile_get_project_timer_value() {
 #[test]
 fn compile_get_project_timer_value_in_expr() {
     let src = r#"fn when_start() { let x = get_project_timer_value() + 1; }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
-    let set = thread.iter().find(|b| b["type"] == "set_variable").expect("set_variable");
+    let set = thread
+        .iter()
+        .find(|b| b["type"] == "set_variable")
+        .expect("set_variable");
     // params[1] = calc_basic, 그 lhs 가 timer 값 블록.
     assert_eq!(set["params"][1]["type"], "calc_basic");
-    assert_eq!(set["params"][1]["params"][0]["type"], "get_project_timer_value");
+    assert_eq!(
+        set["params"][1]["params"][0]["type"],
+        "get_project_timer_value"
+    );
 }
 
 /// 라운드트립: get_project_timer_value 가 IR 에서 Call 로 보존.
 #[test]
 fn compile_get_project_timer_value_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { let x = get_project_timer_value(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -555,7 +662,9 @@ fn compile_get_project_timer_value_roundtrip() {
 #[test]
 fn compile_show_timer() {
     let src = r#"fn when_start() { show_timer(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_visible_project_timer");
@@ -566,7 +675,9 @@ fn compile_show_timer() {
 #[test]
 fn compile_hide_timer() {
     let src = r#"fn when_start() { hide_timer(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_visible_project_timer");
@@ -576,14 +687,16 @@ fn compile_hide_timer() {
 /// 라운드트립: show_timer → set_visible_project_timer → deparse → show_timer 재호출.
 #[test]
 fn compile_show_timer_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { show_timer(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -610,7 +723,9 @@ fn compile_show_timer_roundtrip() {
 #[test]
 fn compile_show_answer() {
     let src = r#"fn when_start() { show_answer(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_visible_answer");
@@ -621,7 +736,9 @@ fn compile_show_answer() {
 #[test]
 fn compile_hide_answer() {
     let src = r#"fn when_start() { hide_answer(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_visible_answer");
@@ -631,14 +748,16 @@ fn compile_hide_answer() {
 /// 라운드트립.
 #[test]
 fn compile_show_answer_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { show_answer(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -665,7 +784,9 @@ fn compile_show_answer_roundtrip() {
 #[test]
 fn compile_say_text() {
     let src = r#"fn when_start() { say("hello"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "dialog");
@@ -684,14 +805,21 @@ fn compile_say_var() {
             say(x);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
-    let dlg = thread.iter().find(|b| b["type"] == "dialog").expect("dialog");
+    let dlg = thread
+        .iter()
+        .find(|b| b["type"] == "dialog")
+        .expect("dialog");
     // 값 슬롯 자리의 변수 ref 는 `get_variable` 블록으로 emit (EntryJS 호환).
     assert_eq!(dlg["params"][0]["type"], "get_variable");
     assert_eq!(
-        dlg["params"][0]["params"][0].as_str().map(|s| s.to_string()),
+        dlg["params"][0]["params"][0]
+            .as_str()
+            .map(|s| s.to_string()),
         Some(entrycore::block::id_for("x"))
     );
 }
@@ -699,14 +827,16 @@ fn compile_say_var() {
 /// 라운드트립.
 #[test]
 fn compile_say_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { say("hi"); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -731,7 +861,9 @@ fn compile_say_roundtrip() {
 #[test]
 fn compile_think_text() {
     let src = r#"fn when_start() { think("hmm"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "dialog");
@@ -742,14 +874,16 @@ fn compile_think_text() {
 /// 라운드트립: think → dialog(think) → think 재호출.
 #[test]
 fn compile_think_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { think("hmm"); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -774,7 +908,9 @@ fn compile_think_roundtrip() {
 #[test]
 fn compile_say_with_time() {
     let src = r#"fn when_start() { say("hello", 2.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "dialog_time");
@@ -788,7 +924,9 @@ fn compile_say_with_time() {
 #[test]
 fn compile_think_with_time() {
     let src = r#"fn when_start() { think("hmm", 1.5); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "dialog_time");
@@ -799,14 +937,16 @@ fn compile_think_with_time() {
 /// `say("hi", 2.0);` 라운드트립.
 #[test]
 fn compile_say_with_time_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { say("hi", 2.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -830,14 +970,16 @@ fn compile_say_with_time_roundtrip() {
 /// `think("hmm", 1.5);` 라운드트립.
 #[test]
 fn compile_think_with_time_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { think("hmm", 1.5); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -862,7 +1004,9 @@ fn compile_think_with_time_roundtrip() {
 #[test]
 fn compile_change_to_some_shape() {
     let src = r#"fn when_start() { change_to_some_shape("walk"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "change_to_some_shape");
@@ -874,7 +1018,9 @@ fn compile_change_to_some_shape() {
 #[test]
 fn compile_change_to_next_shape() {
     let src = r#"fn when_start() { change_to_next_shape(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "change_to_next_shape");
@@ -884,14 +1030,16 @@ fn compile_change_to_next_shape() {
 /// 라운드트립.
 #[test]
 fn compile_change_to_some_shape_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { change_to_some_shape("walk"); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -916,14 +1064,16 @@ fn compile_change_to_some_shape_roundtrip() {
 /// 라운드트립.
 #[test]
 fn compile_change_to_next_shape_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { change_to_next_shape(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -948,7 +1098,9 @@ fn compile_change_to_next_shape_roundtrip() {
 #[test]
 fn compile_remove_dialog() {
     let src = r#"fn when_start() { remove_dialog(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "remove_dialog");
@@ -958,14 +1110,16 @@ fn compile_remove_dialog() {
 /// 라운드트립.
 #[test]
 fn compile_remove_dialog_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { remove_dialog(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -990,7 +1144,9 @@ fn compile_remove_dialog_roundtrip() {
 #[test]
 fn compile_add_effect_amount() {
     let src = r#"fn when_start() { add_effect_amount("color", 50.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "add_effect_amount");
@@ -1002,7 +1158,9 @@ fn compile_add_effect_amount() {
 #[test]
 fn compile_add_effect_amount_ghost() {
     let src = r#"fn when_start() { add_effect_amount("ghost", 25.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "add_effect_amount");
@@ -1012,14 +1170,16 @@ fn compile_add_effect_amount_ghost() {
 /// 라운드트립.
 #[test]
 fn compile_add_effect_amount_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { add_effect_amount("color", 50.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -1045,7 +1205,9 @@ fn compile_add_effect_amount_roundtrip() {
 #[test]
 fn compile_change_effect_amount() {
     let src = r#"fn when_start() { change_effect_amount("color", 50.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "change_effect_amount");
@@ -1057,7 +1219,9 @@ fn compile_change_effect_amount() {
 #[test]
 fn compile_change_effect_amount_brightness() {
     let src = r#"fn when_start() { change_effect_amount("brightness", 100.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "change_effect_amount");
@@ -1067,14 +1231,16 @@ fn compile_change_effect_amount_brightness() {
 /// 라운드트립.
 #[test]
 fn compile_change_effect_amount_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { change_effect_amount("color", 50.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -1100,7 +1266,9 @@ fn compile_change_effect_amount_roundtrip() {
 #[test]
 fn compile_erase_all_effects() {
     let src = r#"fn when_start() { erase_all_effects(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "erase_all_effects");
@@ -1110,14 +1278,16 @@ fn compile_erase_all_effects() {
 /// 라운드트립.
 #[test]
 fn compile_erase_all_effects_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { erase_all_effects(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -1142,7 +1312,9 @@ fn compile_erase_all_effects_roundtrip() {
 #[test]
 fn compile_change_scale_size() {
     let src = r#"fn when_start() { change_scale_size(10.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "change_scale_size");
@@ -1158,14 +1330,21 @@ fn compile_change_scale_size_var() {
             change_scale_size(n);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
-    let css = thread.iter().find(|b| b["type"] == "change_scale_size").expect("change_scale_size");
+    let css = thread
+        .iter()
+        .find(|b| b["type"] == "change_scale_size")
+        .expect("change_scale_size");
     // 값 슬롯 자리의 변수 ref 는 `get_variable` 블록으로 emit (EntryJS 호환).
     assert_eq!(css["params"][0]["type"], "get_variable");
     assert_eq!(
-        css["params"][0]["params"][0].as_str().map(|s| s.to_string()),
+        css["params"][0]["params"][0]
+            .as_str()
+            .map(|s| s.to_string()),
         Some(entrycore::block::id_for("n"))
     );
 }
@@ -1232,18 +1411,16 @@ fn compile_value_of_index_from_list_roundtrip() {
     let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
         panic!("expected when_start function");
     };
-    let Some(Stmt::SetVar(vref, Expr::Call(fref, args))) = body.iter().find(|stmt| {
-        matches!(stmt, Stmt::SetVar(vref, Expr::Call(_, _)) if vref.name == "x")
-    }) else {
+    let Some(Stmt::SetVar(vref, Expr::Call(fref, args))) = body
+        .iter()
+        .find(|stmt| matches!(stmt, Stmt::SetVar(vref, Expr::Call(_, _)) if vref.name == "x"))
+    else {
         panic!("expected set x to list lookup call");
     };
     assert_eq!(vref.name, "x");
     assert_eq!(fref.name, "value_of_index_from_list");
     assert_eq!(args.len(), 2);
-    assert!(
-        matches!(&args[0], Expr::Int(1))
-            || matches!(&args[0], Expr::Float(n) if *n == 1.0)
-    );
+    assert!(matches!(&args[0], Expr::Int(1)) || matches!(&args[0], Expr::Float(n) if *n == 1.0));
     assert!(matches!(&args[1], Expr::Var(name) if name == "list"));
 }
 
@@ -1288,7 +1465,9 @@ fn compile_add_value_to_named_list_without_declaration() {
             add_value_to_list("apple", fruit);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let fruit = v["variables"]
         .as_array()
         .unwrap()
@@ -1338,9 +1517,9 @@ fn compile_add_value_to_list_roundtrip() {
     let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
         panic!("expected when_start function");
     };
-    let Some(Stmt::Expr(Expr::Call(fref, args))) = body.iter().find(|stmt| {
-        matches!(stmt, Stmt::Expr(Expr::Call(fref, _)) if fref.name == "add_value_to_list")
-    }) else {
+    let Some(Stmt::Expr(Expr::Call(fref, args))) = body.iter().find(
+        |stmt| matches!(stmt, Stmt::Expr(Expr::Call(fref, _)) if fref.name == "add_value_to_list"),
+    ) else {
         panic!("expected add_value_to_list call");
     };
     assert_eq!(fref.name, "add_value_to_list");
@@ -1416,10 +1595,7 @@ fn compile_remove_value_from_list_roundtrip() {
     };
     assert_eq!(fref.name, "remove_value_from_list");
     assert_eq!(args.len(), 2);
-    assert!(
-        matches!(&args[0], Expr::Int(1))
-            || matches!(&args[0], Expr::Float(n) if *n == 1.0)
-    );
+    assert!(matches!(&args[0], Expr::Int(1)) || matches!(&args[0], Expr::Float(n) if *n == 1.0));
     assert!(matches!(&args[1], Expr::Var(name) if name == "list"));
 }
 
@@ -1431,7 +1607,9 @@ fn compile_insert_value_to_list() {
             insert_value_to_list("apple", 2, list);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let insert = thread
@@ -1468,12 +1646,16 @@ fn compile_insert_value_to_list_roundtrip() {
         }
     "#;
     let p1 = parse(src).expect("parse");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let script = objects[0]["script"].as_str().expect("script string");
     let p2 = program_from_script_string_with_vars(script, &vars).expect("deparse");
-    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else { panic!("expected when_start function") };
+    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
+        panic!("expected when_start function")
+    };
     let Some(Stmt::Expr(Expr::Call(_, args))) = body.iter().find(|stmt| {
         matches!(stmt, Stmt::Expr(Expr::Call(fref, _)) if fref.name == "insert_value_to_list")
     }) else { panic!("expected insert_value_to_list call") };
@@ -1491,7 +1673,9 @@ fn compile_change_value_list_index() {
             change_value_list_index(2, "apple", list);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let change = thread
@@ -1528,7 +1712,9 @@ fn compile_change_value_list_index_roundtrip() {
         }
     "#;
     let p1 = parse(src).expect("parse");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let script = objects[0]["script"].as_str().expect("script string");
@@ -1557,14 +1743,16 @@ fn compile_length_of_list() {
             length_of_list(list);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let len_block = thread
         .iter()
         .find(|b| b["type"] == "length_of_list")
         .expect("length_of_list");
-let params = len_block["params"].as_array().unwrap();
+    let params = len_block["params"].as_array().unwrap();
     assert_eq!(params.len(), 3);
     assert!(params[0].is_null());
     assert!(params[2].is_null());
@@ -1593,7 +1781,9 @@ fn compile_length_of_list_roundtrip() {
         }
     "#;
     let p1 = parse(src).expect("parse");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let script = objects[0]["script"].as_str().expect("script string");
@@ -1618,7 +1808,9 @@ fn compile_is_included_in_list() {
             is_included_in_list(list, "x");
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let check_block = thread
@@ -1657,7 +1849,9 @@ fn compile_is_included_in_list_roundtrip() {
         }
     "#;
     let p1 = parse(src).expect("parse");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let script = objects[0]["script"].as_str().expect("script string");
@@ -1676,14 +1870,16 @@ fn compile_is_included_in_list_roundtrip() {
 /// 라운드트립.
 #[test]
 fn compile_change_scale_size_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { change_scale_size(10.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -1708,7 +1904,9 @@ fn compile_change_scale_size_roundtrip() {
 #[test]
 fn compile_set_scale_size() {
     let src = r#"fn when_start() { set_scale_size(100.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_scale_size");
@@ -1724,14 +1922,21 @@ fn compile_set_scale_size_var() {
             set_scale_size(n);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
-    let sss = thread.iter().find(|b| b["type"] == "set_scale_size").expect("set_scale_size");
+    let sss = thread
+        .iter()
+        .find(|b| b["type"] == "set_scale_size")
+        .expect("set_scale_size");
     // 값 슬롯 자리의 변수 ref 는 `get_variable` 블록으로 emit (EntryJS 호환).
     assert_eq!(sss["params"][0]["type"], "get_variable");
     assert_eq!(
-        sss["params"][0]["params"][0].as_str().map(|s| s.to_string()),
+        sss["params"][0]["params"][0]
+            .as_str()
+            .map(|s| s.to_string()),
         Some(entrycore::block::id_for("n"))
     );
 }
@@ -1739,14 +1944,16 @@ fn compile_set_scale_size_var() {
 /// 라운드트립.
 #[test]
 fn compile_set_scale_size_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { set_scale_size(100.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -1771,7 +1978,9 @@ fn compile_set_scale_size_roundtrip() {
 #[test]
 fn compile_reset_scale_size() {
     let src = r#"fn when_start() { reset_scale_size(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "reset_scale_size");
@@ -1781,14 +1990,16 @@ fn compile_reset_scale_size() {
 /// 라운드트립.
 #[test]
 fn compile_reset_scale_size_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { reset_scale_size(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -1813,7 +2024,9 @@ fn compile_reset_scale_size_roundtrip() {
 #[test]
 fn compile_stretch_scale_size() {
     let src = r#"fn when_start() { stretch_scale_size("height", 10); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "stretch_scale_size");
@@ -1833,7 +2046,9 @@ fn compile_stretch_scale_size_roundtrip() {
 
     let src = r#"fn when_start() { stretch_scale_size("width", 10); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -1862,7 +2077,9 @@ fn compile_stretch_scale_size_roundtrip() {
 #[test]
 fn compile_flip_x() {
     let src = r#"fn when_start() { flip_x(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "flip_x");
@@ -1872,14 +2089,16 @@ fn compile_flip_x() {
 /// 라운드트립.
 #[test]
 fn compile_flip_x_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { flip_x(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -1904,7 +2123,9 @@ fn compile_flip_x_roundtrip() {
 #[test]
 fn compile_flip_y() {
     let src = r#"fn when_start() { flip_y(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "flip_y");
@@ -1914,14 +2135,16 @@ fn compile_flip_y() {
 /// 라운드트립.
 #[test]
 fn compile_flip_y_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { flip_y(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -1946,7 +2169,9 @@ fn compile_flip_y_roundtrip() {
 #[test]
 fn compile_is_clicked() {
     let src = r#"fn when_start() { is_clicked(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "is_clicked");
@@ -1956,14 +2181,16 @@ fn compile_is_clicked() {
 /// 라운드트립.
 #[test]
 fn compile_is_clicked_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { is_clicked(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -1988,7 +2215,9 @@ fn compile_is_clicked_roundtrip() {
 #[test]
 fn compile_is_object_clicked() {
     let src = r#"fn when_start() { is_object_clicked(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "is_object_clicked");
@@ -1998,14 +2227,16 @@ fn compile_is_object_clicked() {
 /// 라운드트립.
 #[test]
 fn compile_is_object_clicked_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { is_object_clicked(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2030,9 +2261,14 @@ fn compile_is_object_clicked_roundtrip() {
 #[test]
 fn compile_coordinate_mouse_value() {
     let src = r#"fn when_start() { let x = coordinate_mouse("x"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let thread = first_thread(&v["objects"][0]);
-    let set = thread.iter().find(|b| b["type"] == "set_variable").expect("set_variable");
+    let set = thread
+        .iter()
+        .find(|b| b["type"] == "set_variable")
+        .expect("set_variable");
     let block = &set["params"][1];
     assert_eq!(block["type"], "coordinate_mouse");
     assert_eq!(block["params"][1], "x");
@@ -2042,9 +2278,14 @@ fn compile_coordinate_mouse_value() {
 #[test]
 fn compile_coordinate_object_value() {
     let src = r#"fn when_start() { let x = coordinate_object("enemy", "direction"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let thread = first_thread(&v["objects"][0]);
-    let set = thread.iter().find(|b| b["type"] == "set_variable").expect("set_variable");
+    let set = thread
+        .iter()
+        .find(|b| b["type"] == "set_variable")
+        .expect("set_variable");
     let block = &set["params"][1];
     assert_eq!(block["type"], "coordinate_object");
     assert_eq!(block["params"][1], "enemy");
@@ -2057,7 +2298,9 @@ fn compile_coordinate_object_value() {
 #[test]
 fn compile_change_object_index_front() {
     let src = r#"fn when_start() { change_object_index("front"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "change_object_index");
@@ -2068,7 +2311,9 @@ fn compile_change_object_index_front() {
 #[test]
 fn compile_change_object_index_back() {
     let src = r#"fn when_start() { change_object_index("back"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "change_object_index");
@@ -2078,14 +2323,16 @@ fn compile_change_object_index_back() {
 /// 라운드트립.
 #[test]
 fn compile_change_object_index_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { change_object_index("front"); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2111,7 +2358,9 @@ fn compile_change_object_index_roundtrip() {
 #[test]
 fn compile_delete_clone() {
     let src = r#"fn when_start() { delete_clone(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "delete_clone");
@@ -2121,14 +2370,16 @@ fn compile_delete_clone() {
 /// 라운드트립.
 #[test]
 fn compile_delete_clone_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { delete_clone(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2153,7 +2404,9 @@ fn compile_delete_clone_roundtrip() {
 #[test]
 fn compile_remove_all_clones() {
     let src = r#"fn when_start() { remove_all_clones(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "remove_all_clones");
@@ -2163,14 +2416,16 @@ fn compile_remove_all_clones() {
 /// 라운드트립.
 #[test]
 fn compile_remove_all_clones_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { remove_all_clones(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2195,7 +2450,9 @@ fn compile_remove_all_clones_roundtrip() {
 #[test]
 fn compile_bounce_wall() {
     let src = r#"fn when_start() { bounce_wall(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "bounce_wall");
@@ -2205,14 +2462,16 @@ fn compile_bounce_wall() {
 /// 라운드트립.
 #[test]
 fn compile_bounce_wall_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { bounce_wall(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2237,7 +2496,9 @@ fn compile_bounce_wall_roundtrip() {
 #[test]
 fn compile_is_press_some_key() {
     let src = r#"fn when_start() { is_press_some_key("space"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "is_press_some_key");
@@ -2254,7 +2515,9 @@ fn compile_is_press_some_key_in_cond() {
             }
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     // when_run + if
@@ -2268,14 +2531,16 @@ fn compile_is_press_some_key_in_cond() {
 /// 라운드트립.
 #[test]
 fn compile_is_press_some_key_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { is_press_some_key("space"); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2301,7 +2566,9 @@ fn compile_is_press_some_key_roundtrip() {
 #[test]
 fn compile_reach_something_target() {
     let src = r#"fn when_start() { reach_something("enemy"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "reach_something");
@@ -2312,7 +2579,9 @@ fn compile_reach_something_target() {
 #[test]
 fn compile_reach_something_self() {
     let src = r#"fn when_start() { reach_something(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "reach_something");
@@ -2322,14 +2591,16 @@ fn compile_reach_something_self() {
 /// 라운드트립.
 #[test]
 fn compile_reach_something_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { reach_something("enemy"); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2355,7 +2626,9 @@ fn compile_reach_something_roundtrip() {
 #[test]
 fn compile_move_direction() {
     let src = r#"fn when_start() { move_direction("forward", 10.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "move_direction");
@@ -2372,10 +2645,15 @@ fn compile_move_direction_var() {
             move_direction("backward", n);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
-    let md = thread.iter().find(|b| b["type"] == "move_direction").expect("move_direction");
+    let md = thread
+        .iter()
+        .find(|b| b["type"] == "move_direction")
+        .expect("move_direction");
     assert_eq!(md["params"][0].as_str(), Some("backward"));
     // 값 슬롯 자리의 변수 ref 는 `get_variable` 블록으로 emit (EntryJS 호환).
     assert_eq!(md["params"][1]["type"], "get_variable");
@@ -2388,14 +2666,16 @@ fn compile_move_direction_var() {
 /// 라운드트립.
 #[test]
 fn compile_move_direction_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { move_direction("forward", 10.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2421,7 +2701,9 @@ fn compile_move_direction_roundtrip() {
 #[test]
 fn compile_move_x() {
     let src = r#"fn when_start() { move_x(10.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "move_x");
@@ -2435,7 +2717,9 @@ fn compile_move_x() {
 #[test]
 fn compile_move_y() {
     let src = r#"fn when_start() { move_y(5.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "move_y");
@@ -2446,14 +2730,16 @@ fn compile_move_y() {
 /// 라운드트립.
 #[test]
 fn compile_move_x_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { move_x(10.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2477,14 +2763,16 @@ fn compile_move_x_roundtrip() {
 
 #[test]
 fn compile_move_y_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { move_y(5.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2510,7 +2798,9 @@ fn compile_move_y_roundtrip() {
 #[test]
 fn compile_rotate_relative() {
     let src = r#"fn when_start() { rotate_relative(45.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "rotate_relative");
@@ -2522,7 +2812,9 @@ fn compile_rotate_relative() {
 #[test]
 fn compile_direction_relative() {
     let src = r#"fn when_start() { direction_relative(90.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "direction_relative");
@@ -2533,14 +2825,16 @@ fn compile_direction_relative() {
 /// 라운드트립.
 #[test]
 fn compile_rotate_relative_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { rotate_relative(45.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2564,14 +2858,16 @@ fn compile_rotate_relative_roundtrip() {
 
 #[test]
 fn compile_direction_relative_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { direction_relative(90.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2597,7 +2893,9 @@ fn compile_direction_relative_roundtrip() {
 #[test]
 fn compile_rotate_absolute() {
     let src = r#"fn when_start() { rotate_absolute(90.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "rotate_absolute");
@@ -2607,14 +2905,16 @@ fn compile_rotate_absolute() {
 
 #[test]
 fn compile_rotate_absolute_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { rotate_absolute(90.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2640,7 +2940,9 @@ fn compile_rotate_absolute_roundtrip() {
 #[test]
 fn compile_direction_absolute() {
     let src = r#"fn when_start() { direction_absolute(45.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "direction_absolute");
@@ -2650,14 +2952,16 @@ fn compile_direction_absolute() {
 
 #[test]
 fn compile_direction_absolute_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { direction_absolute(45.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2683,7 +2987,9 @@ fn compile_direction_absolute_roundtrip() {
 #[test]
 fn compile_see_angle_object() {
     let src = r#"fn when_start() { see_angle_object("mouse"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "see_angle_object");
@@ -2693,14 +2999,16 @@ fn compile_see_angle_object() {
 
 #[test]
 fn compile_see_angle_object_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { see_angle_object("mouse"); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2726,7 +3034,9 @@ fn compile_see_angle_object_roundtrip() {
 #[test]
 fn compile_move_to_angle() {
     let src = r#"fn when_start() { move_to_angle(45.0, 10.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "move_to_angle");
@@ -2736,14 +3046,16 @@ fn compile_move_to_angle() {
 
 #[test]
 fn compile_move_to_angle_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { move_to_angle(45.0, 10.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2770,7 +3082,9 @@ fn compile_move_to_angle_roundtrip() {
 #[test]
 fn compile_brush_stamp() {
     let src = r#"fn when_start() { brush_stamp(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "brush_stamp");
@@ -2780,14 +3094,16 @@ fn compile_brush_stamp() {
 
 #[test]
 fn compile_brush_stamp_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { brush_stamp(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2812,7 +3128,9 @@ fn compile_brush_stamp_roundtrip() {
 #[test]
 fn compile_start_drawing() {
     let src = r#"fn when_start() { start_drawing(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "start_drawing");
@@ -2822,14 +3140,16 @@ fn compile_start_drawing() {
 
 #[test]
 fn compile_start_drawing_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { start_drawing(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2854,7 +3174,9 @@ fn compile_start_drawing_roundtrip() {
 #[test]
 fn compile_stop_drawing() {
     let src = r#"fn when_start() { stop_drawing(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "stop_drawing");
@@ -2864,14 +3186,16 @@ fn compile_stop_drawing() {
 
 #[test]
 fn compile_stop_drawing_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { stop_drawing(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2896,7 +3220,9 @@ fn compile_stop_drawing_roundtrip() {
 #[test]
 fn compile_start_fill() {
     let src = r#"fn when_start() { start_fill(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "start_fill");
@@ -2906,14 +3232,16 @@ fn compile_start_fill() {
 
 #[test]
 fn compile_start_fill_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { start_fill(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2938,7 +3266,9 @@ fn compile_start_fill_roundtrip() {
 #[test]
 fn compile_stop_fill() {
     let src = r#"fn when_start() { stop_fill(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "stop_fill");
@@ -2948,14 +3278,16 @@ fn compile_stop_fill() {
 
 #[test]
 fn compile_stop_fill_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { stop_fill(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -2980,7 +3312,9 @@ fn compile_stop_fill_roundtrip() {
 #[test]
 fn compile_set_color() {
     let src = r#"fn when_start() { set_color(50.0, 100.0, 0.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_color");
@@ -2990,14 +3324,16 @@ fn compile_set_color() {
 
 #[test]
 fn compile_set_color_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { set_color(50.0, 100.0, 0.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3025,7 +3361,9 @@ fn compile_set_color_roundtrip() {
 #[test]
 fn compile_set_random_color() {
     let src = r#"fn when_start() { set_random_color(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_random_color");
@@ -3035,14 +3373,16 @@ fn compile_set_random_color() {
 
 #[test]
 fn compile_set_random_color_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { set_random_color(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3067,7 +3407,9 @@ fn compile_set_random_color_roundtrip() {
 #[test]
 fn compile_set_fill_color() {
     let src = r##"fn when_start() { set_fill_color("#FF0000"); }"##;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_fill_color");
@@ -3078,14 +3420,16 @@ fn compile_set_fill_color() {
 
 #[test]
 fn compile_set_fill_color_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r##"fn when_start() { set_fill_color("#FF0000"); }"##;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3111,7 +3455,9 @@ fn compile_set_fill_color_roundtrip() {
 #[test]
 fn compile_change_thickness() {
     let src = r#"fn when_start() { change_thickness(5.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "change_thickness");
@@ -3121,14 +3467,16 @@ fn compile_change_thickness() {
 
 #[test]
 fn compile_change_thickness_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { change_thickness(5.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3160,7 +3508,9 @@ fn compile_change_variable_from_self_plus() {
             x = x + 1;
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let change = thread
@@ -3184,7 +3534,9 @@ fn compile_change_variable_from_self_minus() {
             x = x - 1;
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let change = thread
@@ -3205,7 +3557,9 @@ fn compile_set_variable_for_general_assign() {
             x = 42;
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert!(
@@ -3221,14 +3575,16 @@ fn compile_set_variable_for_general_assign() {
 /// 라운드트립 — `x = x + 1` -> JSON -> 다시 IR 했을 때 ChangeVariable 복원.
 #[test]
 fn compile_change_variable_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::Stmt;
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { let x = 0; x = x + 1; }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3237,7 +3593,8 @@ fn compile_change_variable_roundtrip() {
     match &p2.stmts[0] {
         Stmt::FuncDef { body, .. } => {
             assert!(
-                body.iter().any(|s| matches!(s, Stmt::ChangeVariable { .. })),
+                body.iter()
+                    .any(|s| matches!(s, Stmt::ChangeVariable { .. })),
                 "expected ChangeVariable after roundtrip: {body:?}"
             );
         }
@@ -3248,7 +3605,6 @@ fn compile_change_variable_roundtrip() {
 /// `x = x - 1` (Sub 패턴) → parse 가 `ChangeVariable { value: Int(-1) }` 로 emit,
 /// decodegen 이 다시 `x = x - 1` 로 자연 표기 emit. 라운드트립 시 어색한
 /// `x = x + -1` 형태로 떨어지지 않도록.
-#[test]
 /// 트리거 함수(`when_*`) 본문의 break/continue 는 Entry 의미상 무의미 —
 /// EntryJS 의 when_* 는 루프가 아니라 시작점이라 Rust break/continue 가
 /// 컴파일을 깨뜨린다. decodegen 이 트리거 본문의 break/continue 를 skip.
@@ -3320,7 +3676,9 @@ fn compile_change_variable_unary_neg_emits_natural_dsl() {
 #[test]
 fn compile_set_thickness() {
     let src = r#"fn when_start() { set_thickness(10.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_thickness");
@@ -3330,14 +3688,16 @@ fn compile_set_thickness() {
 
 #[test]
 fn compile_set_thickness_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { set_thickness(10.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3363,7 +3723,9 @@ fn compile_set_thickness_roundtrip() {
 #[test]
 fn compile_change_brush_transparency() {
     let src = r#"fn when_start() { change_brush_transparency(10.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "change_brush_transparency");
@@ -3373,14 +3735,16 @@ fn compile_change_brush_transparency() {
 
 #[test]
 fn compile_change_brush_transparency_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { change_brush_transparency(10.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3406,7 +3770,9 @@ fn compile_change_brush_transparency_roundtrip() {
 #[test]
 fn compile_set_brush_tranparency() {
     let src = r#"fn when_start() { set_brush_tranparency(50.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "set_brush_tranparency");
@@ -3416,14 +3782,16 @@ fn compile_set_brush_tranparency() {
 
 #[test]
 fn compile_set_brush_tranparency_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { set_brush_tranparency(50.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3449,7 +3817,9 @@ fn compile_set_brush_tranparency_roundtrip() {
 #[test]
 fn compile_brush_erase_all() {
     let src = r#"fn when_start() { brush_erase_all(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "brush_erase_all");
@@ -3459,14 +3829,16 @@ fn compile_brush_erase_all() {
 
 #[test]
 fn compile_brush_erase_all_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { brush_erase_all(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3491,7 +3863,9 @@ fn compile_brush_erase_all_roundtrip() {
 #[test]
 fn compile_text_read() {
     let src = r#"fn when_start() { let x = text_read("self"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     // SetVar 블록 type
@@ -3506,14 +3880,16 @@ fn compile_text_read() {
 
 #[test]
 fn compile_text_read_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { let x = text_read("self"); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3547,7 +3923,9 @@ fn compile_text_read_roundtrip() {
 #[test]
 fn compile_move_xy_time() {
     let src = r#"fn when_start() { move_xy_time(1.0, 10.0, 5.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "move_xy_time");
@@ -3558,14 +3936,16 @@ fn compile_move_xy_time() {
 /// 라운드트립.
 #[test]
 fn compile_move_xy_time_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { move_xy_time(1.0, 10.0, 5.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3593,7 +3973,9 @@ fn compile_move_xy_time_roundtrip() {
 #[test]
 fn compile_locate_x() {
     let src = r#"fn when_start() { locate_x(100.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "locate_x");
@@ -3603,14 +3985,16 @@ fn compile_locate_x() {
 
 #[test]
 fn compile_locate_x_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { locate_x(100.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3636,7 +4020,9 @@ fn compile_locate_x_roundtrip() {
 #[test]
 fn compile_locate_y() {
     let src = r#"fn when_start() { locate_y(-50.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "locate_y");
@@ -3646,14 +4032,16 @@ fn compile_locate_y() {
 
 #[test]
 fn compile_locate_y_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
-    use entrycore::ir::{Expr, Stmt, UnaryOp};
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { locate_y(-50.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3666,7 +4054,9 @@ fn compile_locate_y_roundtrip() {
                 Stmt::Expr(Expr::Call(fref, args)) => {
                     assert_eq!(fref.name, "locate_y");
                     assert_eq!(args.len(), 1);
-                    assert!(matches!(&args[0], Expr::BinOp(BinOp::Sub, lhs, rhs) if matches!(**lhs, Expr::Float(n) if n.abs() < f64::EPSILON) && matches!(**rhs, Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON)));
+                    assert!(
+                        matches!(&args[0], Expr::BinOp(BinOp::Sub, lhs, rhs) if matches!(**lhs, Expr::Float(n) if n.abs() < f64::EPSILON) && matches!(**rhs, Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON))
+                    );
                 }
                 other => panic!("expected Call(locate_y), got {other:?}"),
             }
@@ -3679,7 +4069,9 @@ fn compile_locate_y_roundtrip() {
 #[test]
 fn compile_locate_xy() {
     let src = r#"fn when_start() { locate_xy(100.0, -50.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "locate_xy");
@@ -3689,14 +4081,16 @@ fn compile_locate_xy() {
 
 #[test]
 fn compile_locate_xy_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
-    use entrycore::ir::{Expr, Stmt, UnaryOp};
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { locate_xy(100.0, -50.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3710,7 +4104,9 @@ fn compile_locate_xy_roundtrip() {
                     assert_eq!(fref.name, "locate_xy");
                     assert_eq!(args.len(), 2);
                     assert!(matches!(&args[0], Expr::Float(n) if (n - 100.0).abs() < f64::EPSILON));
-                    assert!(matches!(&args[1], Expr::BinOp(BinOp::Sub, lhs, rhs) if matches!(**lhs, Expr::Float(n) if n.abs() < f64::EPSILON) && matches!(**rhs, Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON)));
+                    assert!(
+                        matches!(&args[1], Expr::BinOp(BinOp::Sub, lhs, rhs) if matches!(**lhs, Expr::Float(n) if n.abs() < f64::EPSILON) && matches!(**rhs, Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON))
+                    );
                 }
                 other => panic!("expected Call(locate_xy), got {other:?}"),
             }
@@ -3723,7 +4119,9 @@ fn compile_locate_xy_roundtrip() {
 #[test]
 fn compile_locate_xy_time() {
     let src = r#"fn when_start() { locate_xy_time(1.0, 100.0, -50.0); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "locate_xy_time");
@@ -3733,14 +4131,16 @@ fn compile_locate_xy_time() {
 
 #[test]
 fn compile_locate_xy_time_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
-    use entrycore::ir::{Expr, Stmt, UnaryOp};
+    use entrycore::deparse::program_from_script_string_with_vars;
+    use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { locate_xy_time(1.0, 100.0, -50.0); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3755,7 +4155,9 @@ fn compile_locate_xy_time_roundtrip() {
                     assert_eq!(args.len(), 3);
                     assert!(matches!(&args[0], Expr::Float(n) if (n - 1.0).abs() < f64::EPSILON));
                     assert!(matches!(&args[1], Expr::Float(n) if (n - 100.0).abs() < f64::EPSILON));
-                    assert!(matches!(&args[2], Expr::BinOp(BinOp::Sub, lhs, rhs) if matches!(**lhs, Expr::Float(n) if n.abs() < f64::EPSILON) && matches!(**rhs, Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON)));
+                    assert!(
+                        matches!(&args[2], Expr::BinOp(BinOp::Sub, lhs, rhs) if matches!(**lhs, Expr::Float(n) if n.abs() < f64::EPSILON) && matches!(**rhs, Expr::Float(n) if (n - 50.0).abs() < f64::EPSILON))
+                    );
                 }
                 other => panic!("expected Call(locate_xy_time), got {other:?}"),
             }
@@ -3768,7 +4170,9 @@ fn compile_locate_xy_time_roundtrip() {
 #[test]
 fn compile_locate_object_time() {
     let src = r#"fn when_start() { locate_object_time(1.0, "mouse"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "locate_object_time");
@@ -3778,14 +4182,16 @@ fn compile_locate_object_time() {
 
 #[test]
 fn compile_locate_object_time_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { locate_object_time(1.0, "mouse"); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3812,7 +4218,9 @@ fn compile_locate_object_time_roundtrip() {
 #[test]
 fn compile_locate() {
     let src = r#"fn when_start() { locate("mouse"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "locate");
@@ -3822,14 +4230,16 @@ fn compile_locate() {
 
 #[test]
 fn compile_locate_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { locate("mouse"); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3855,7 +4265,9 @@ fn compile_locate_roundtrip() {
 #[test]
 fn compile_ask_and_wait() {
     let src = r#"fn when_start() { ask_and_wait("이름을 입력"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let obj = &v["objects"][0];
     let thread = &obj_threads(obj)[0];
     let ask = thread
@@ -3876,7 +4288,9 @@ fn compile_ask_and_wait_var_arg() {
             ask_and_wait(name);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let obj = &v["objects"][0];
     let thread = &obj_threads(obj)[0];
     let ask = thread
@@ -3888,7 +4302,9 @@ fn compile_ask_and_wait_var_arg() {
     // EntryJS 호환: 값 슬롯 자리의 변수 ref 는 `get_variable` 블록으로 emit.
     assert_eq!(ask["params"][0]["type"], "get_variable");
     assert_eq!(
-        ask["params"][0]["params"][0].as_str().map(|s| s.to_string()),
+        ask["params"][0]["params"][0]
+            .as_str()
+            .map(|s| s.to_string()),
         Some(entrycore::block::id_for("name"))
     );
 }
@@ -3901,7 +4317,9 @@ fn compile_ask_and_wait_roundtrip() {
 
     let src = r#"fn when_start() { ask_and_wait("이름"); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = entrycore::codegen::collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3934,7 +4352,9 @@ fn compile_get_canvas_input_value_roundtrip() {
 
     let src = r#"fn when_start() { let x = get_canvas_input_value(); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = entrycore::codegen::collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -3961,7 +4381,9 @@ fn compile_get_canvas_input_value_roundtrip() {
 #[test]
 fn compile_start_timer() {
     let src = r#"fn when_start() { start_timer(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let obj = &v["objects"][0];
     let thread = &obj_threads(obj)[0];
     let action = thread
@@ -3977,7 +4399,9 @@ fn compile_start_timer() {
 #[test]
 fn compile_stop_reset_timer() {
     let src = r#"fn when_start() { stop_timer(); reset_timer(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let obj = &v["objects"][0];
     let thread = &obj_threads(obj)[0];
     let blocks: Vec<&Value> = thread
@@ -3999,7 +4423,9 @@ fn compile_start_timer_roundtrip() {
 
     let src = r#"fn when_start() { start_timer(); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = entrycore::codegen::collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -4028,7 +4454,9 @@ fn compile_reset_timer_roundtrip() {
 
     let src = r#"fn when_start() { reset_timer(); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = entrycore::codegen::collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -4055,7 +4483,9 @@ fn compile_reset_timer_roundtrip() {
 #[test]
 fn compile_quotient_and_mod_quotient() {
     let src = r#"fn when_start() { let x = quotient_and_mod(10, 3, "quotient"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let obj = &v["objects"][0];
     let thread = &obj_threads(obj)[0];
     let set_var = thread
@@ -4073,7 +4503,9 @@ fn compile_quotient_and_mod_quotient() {
 #[test]
 fn compile_quotient_and_mod_modulo() {
     let src = r#"fn when_start() { let x = quotient_and_mod(10, 3, "modulo"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let obj = &v["objects"][0];
     let thread = &obj_threads(obj)[0];
     let set_var = thread
@@ -4095,7 +4527,9 @@ fn compile_quotient_and_mod_roundtrip() {
 
     let src = r#"fn when_start() { let x = quotient_and_mod(10, 3, "modulo"); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = entrycore::codegen::collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -4126,7 +4560,9 @@ fn compile_quotient_and_mod_roundtrip() {
 #[test]
 fn compile_abs() {
     let src = r#"fn when_start() { let y = abs(x); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let obj = &v["objects"][0];
     let thread = &obj_threads(obj)[0];
     let set_var = thread
@@ -4148,7 +4584,9 @@ fn compile_sqrt_roundtrip() {
 
     let src = r#"fn when_start() { let y = sqrt(x); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = entrycore::codegen::collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -4173,7 +4611,9 @@ fn compile_sqrt_roundtrip() {
 #[test]
 fn compile_sin() {
     let src = r#"fn when_start() { let y = sin(x); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let obj = &v["objects"][0];
     let thread = &obj_threads(obj)[0];
     let set_var = thread
@@ -4193,7 +4633,9 @@ fn compile_sin() {
 #[test]
 fn compile_show() {
     let src = r#"fn when_start() { show(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let obj = &v["objects"][0];
     let thread = &obj_threads(obj)[0];
     let show = thread
@@ -4209,7 +4651,9 @@ fn compile_show() {
 #[test]
 fn compile_hide() {
     let src = r#"fn when_start() { hide(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let obj = &v["objects"][0];
     let thread = &obj_threads(obj)[0];
     let hide = thread
@@ -4229,7 +4673,9 @@ fn compile_show_roundtrip() {
 
     let src = r#"fn when_start() { show(); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = entrycore::codegen::collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -4258,7 +4704,9 @@ fn compile_hide_roundtrip() {
 
     let src = r#"fn when_start() { hide(); }"#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = entrycore::codegen::collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -4295,7 +4743,9 @@ fn compile_does_not_overwrite_existing_objects() {
             "entity": { "x": 0, "y": 0, "visible": true }
         }
     ]);
-    let v = compile(&[("existing_obj", "fn when_start() { let x = 1; }")], &base).expect("compile").0;
+    let v = compile(&[("existing_obj", "fn when_start() { let x = 1; }")], &base)
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().expect("objects");
     assert_eq!(objects.len(), 1, "기존 objects 보존, 추가 안 함");
     assert_eq!(objects[0]["name"], "existing_obj");
@@ -4330,7 +4780,9 @@ fn compile_matches_existing_object_by_name() {
     ]);
     let a = "fn when_start() { let x = 1; }";
     let b = "fn when_start() { let y = 2; }";
-    let v = compile(&[("alpha", a), ("beta", b)], &base).expect("compile").0;
+    let v = compile(&[("alpha", a), ("beta", b)], &base)
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     assert_eq!(objects.len(), 2, "기존 objects 2개 보존");
     let alpha_obj = objects.iter().find(|o| o["name"] == "alpha").unwrap();
@@ -4362,7 +4814,9 @@ fn compile_matches_object_name_case_insensitive() {
             "entity": { "x": 0, "y": 0, "visible": true }
         }
     ]);
-    let v = compile(&[("alpha", "fn when_start() { let x = 1; }")], &base).expect("compile").0;
+    let v = compile(&[("alpha", "fn when_start() { let x = 1; }")], &base)
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     assert_eq!(objects.len(), 1);
     let thread = first_thread(&objects[0]);
@@ -4381,7 +4835,9 @@ fn compile_if_else_block() {
             }
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread.len(), 2);
@@ -4409,7 +4865,9 @@ fn compile_if_else_block() {
 #[test]
 fn compile_if_without_else_stays_if() {
     let src = "fn when_start() { if 1 < 2 { let x = 1; } }";
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = &thread[1];
@@ -4428,7 +4886,9 @@ fn compile_if_else_roundtrip() {
 
     let src = "fn when_start() { if 1 < 2 { let x = 1; } else { let y = 2; } }";
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -4437,7 +4897,11 @@ fn compile_if_else_roundtrip() {
         Stmt::FuncDef { name, body, .. } => {
             assert_eq!(name, "when_start");
             match &body[0] {
-                Stmt::If { then_body, else_body, .. } => {
+                Stmt::If {
+                    then_body,
+                    else_body,
+                    ..
+                } => {
                     assert_eq!(then_body.len(), 1);
                     assert_eq!(else_body.len(), 1);
                     let then_var = match &then_body[0] {
@@ -4487,10 +4951,15 @@ fn compile_preserves_existing_sprite_metadata_on_fake_object() {
             "selectedPictureId": "pic1"
         }
     ]);
-    let v = compile(&[("new_sprite", "fn when_start() { let x = 1; }")], &base).expect("compile").0;
+    let v = compile(&[("new_sprite", "fn when_start() { let x = 1; }")], &base)
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     assert_eq!(objects.len(), 2);
-    let fake = objects.iter().find(|o| o["name"] == "new_sprite").expect("fake object");
+    let fake = objects
+        .iter()
+        .find(|o| o["name"] == "new_sprite")
+        .expect("fake object");
     assert_eq!(fake["entity"]["x"], 123.0);
     assert_eq!(fake["entity"]["y"], 456.0);
     assert_eq!(fake["entity"]["regX"], 5.0);
@@ -4504,7 +4973,10 @@ fn compile_preserves_existing_sprite_metadata_on_fake_object() {
     let fake_id = fake["id"].as_str().expect("fake id str");
     assert_ne!(fake_id, "src1");
     assert!(fake_id.starts_with("obj_"));
-    let src = objects.iter().find(|o| o["name"] == "source_sprite").expect("base obj");
+    let src = objects
+        .iter()
+        .find(|o| o["name"] == "source_sprite")
+        .expect("base obj");
     assert_eq!(src["id"], "src1");
 }
 
@@ -4513,7 +4985,9 @@ fn compile_preserves_existing_sprite_metadata_on_fake_object() {
 fn compile_does_not_clobber_project_scripts_field() {
     let mut base = empty_project();
     base["scripts"] = json!([{"type": "old_block"}]);
-    let v = compile(&[("obj", "fn when_start() { let x = 1; }")], &base).expect("compile").0;
+    let v = compile(&[("obj", "fn when_start() { let x = 1; }")], &base)
+        .expect("compile")
+        .0;
     let scripts = v["scripts"].as_array().expect("project.scripts");
     assert_eq!(scripts.len(), 1);
     assert_eq!(scripts[0]["type"], "old_block");
@@ -4525,7 +4999,9 @@ fn compile_fake_objects_have_unique_ids() {
     let a = "fn when_start() { let x = 1; }";
     let b = "fn when_start() { let y = 2; }";
     let c = "fn when_start() { let z = 3; }";
-    let v = compile(&[("a", a), ("b", b), ("c", c)], &empty_project()).expect("compile").0;
+    let v = compile(&[("a", a), ("b", b), ("c", c)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     assert_eq!(objects.len(), 3);
     let mut ids: Vec<String> = objects
@@ -4555,11 +5031,19 @@ fn compile_fake_id_skips_existing_ids_in_base() {
             "entity": { "x": 0, "y": 0, "visible": true }
         }
     ]);
-    let v = compile(&[("new_one", "fn when_start() { let x = 1; }")], &base).expect("compile").0;
+    let v = compile(&[("new_one", "fn when_start() { let x = 1; }")], &base)
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
-    let fake = objects.iter().find(|o| o["name"] == "new_one").expect("new_one");
+    let fake = objects
+        .iter()
+        .find(|o| o["name"] == "new_one")
+        .expect("new_one");
     let fake_id = fake["id"].as_str().expect("id");
-    assert_eq!(fake_id, format!("obj_{}", entrycore::block::id_for("new_one")));
+    assert_eq!(
+        fake_id,
+        format!("obj_{}", entrycore::block::id_for("new_one"))
+    );
     assert_ne!(fake_id, "obj_doesnotmatter");
 }
 
@@ -4567,8 +5051,12 @@ fn compile_fake_id_skips_existing_ids_in_base() {
 #[test]
 fn compile_stable_id_is_deterministic() {
     let src = "fn when_start() { let x = 1; }";
-    let v1 = compile(&[("foo", src)], &empty_project()).expect("compile").0;
-    let v2 = compile(&[("foo", src)], &empty_project()).expect("compile").0;
+    let v1 = compile(&[("foo", src)], &empty_project())
+        .expect("compile")
+        .0;
+    let v2 = compile(&[("foo", src)], &empty_project())
+        .expect("compile")
+        .0;
     let id1 = v1["objects"][0]["id"].as_str().unwrap();
     let id2 = v2["objects"][0]["id"].as_str().unwrap();
     assert_eq!(id1, id2, "stable id: {id1} == {id2}");
@@ -4581,7 +5069,9 @@ fn compile_helpers_go_to_project_functions() {
         fn when_start() { let x = 1; }
         fn helper() { let y = 2; }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let first_thread = first_thread(&objects[0]);
     // when_run + let x 만 있고 helper 본문(set y)은 없어야
@@ -4594,7 +5084,10 @@ fn compile_helpers_go_to_project_functions() {
     );
     // project.functions 에 helper 항목
     let funcs = v["functions"].as_array().expect("functions");
-    let helper = funcs.iter().find(|f| f["name"] == "helper").expect("helper fn");
+    let helper = funcs
+        .iter()
+        .find(|f| f["name"] == "helper")
+        .expect("helper fn");
     assert!(helper["id"].as_str().unwrap().starts_with("fn_"));
     // EntryJS Entry.Code 포맷: content = [[thread1_block, ...], ...].
     // helper 의 thread[0] 은 function_create 헤드 블록이며, 그 헤드의
@@ -4607,7 +5100,9 @@ fn compile_helpers_go_to_project_functions() {
     let label = head["params"][0].as_object().expect("label block");
     assert_eq!(label["type"], "function_field_label");
     // EntryJS function_field_label.params[0] = TextInput 필드 객체.
-    let label_field = label["params"][0].as_object().expect("label textinput field");
+    let label_field = label["params"][0]
+        .as_object()
+        .expect("label textinput field");
     assert_eq!(label_field["type"], "TextInput");
     assert_eq!(label_field["value"].as_str(), Some("helper"));
     let head_body = head["statements"][0].as_array().expect("head body");
@@ -4638,7 +5133,9 @@ fn compile_function_same_name_diff_arity_routes_by_arity() {
             let s = x;
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     // 호출 블록 두 개가 서로 다른 func_<id> 로 재작성돼야.
     let objects = v["objects"].as_array().unwrap();
     let mut found_ids: Vec<String> = Vec::new();
@@ -4713,7 +5210,10 @@ fn compile_fake_object_preserves_non_sprite_object_type() {
         .expect("compile")
         .0;
     let objects = v["objects"].as_array().unwrap();
-    let fake = objects.iter().find(|o| o["name"] == "new_obj").expect("new_obj");
+    let fake = objects
+        .iter()
+        .find(|o| o["name"] == "new_obj")
+        .expect("new_obj");
     assert_eq!(fake["objectType"], "text", "base 가 text 면 가짜도 text");
 }
 
@@ -4721,7 +5221,9 @@ fn compile_fake_object_preserves_non_sprite_object_type() {
 #[test]
 fn compile_when_click_trigger() {
     let src = "fn when_click() { let x = 1; }";
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[0]["type"], "when_click");
@@ -4732,7 +5234,9 @@ fn compile_when_click_trigger() {
 #[test]
 fn compile_when_clone_start_trigger() {
     let src = "fn when_clone_start() { let x = 1; }";
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[0]["type"], "when_clone_start");
@@ -4742,7 +5246,9 @@ fn compile_when_clone_start_trigger() {
 #[test]
 fn compile_when_message_trigger_uses_param_as_msg() {
     let src = "fn when_message(m: &str) { let x = 1; }";
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[0]["type"], "when_message_cast");
@@ -4754,7 +5260,9 @@ fn compile_when_message_trigger_uses_param_as_msg() {
 #[test]
 fn compile_when_message_registers_message_in_project() {
     let src = "fn when_message(my_msg: &str) { let x = 1; }";
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let messages = v["messages"].as_array().expect("messages array");
     let msg = messages
         .iter()
@@ -4770,7 +5278,9 @@ fn compile_multiple_triggers_produce_multiple_threads() {
         fn when_start() { let x = 1; }
         fn when_click() { let y = 2; }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let threads = obj_threads(&objects[0]);
     assert_eq!(threads.len(), 2, "when_start + when_click");
@@ -4792,7 +5302,9 @@ fn compile_multiple_triggers_produce_multiple_threads() {
 #[test]
 fn compile_no_trigger_source_yields_threads() {
     let src = "fn helper() { let x = 1; }";
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     // helper 본문은 project.functions 로 가고 object.script 는 비어있음.
     let threads = obj_threads(&objects[0]);
@@ -4816,7 +5328,10 @@ fn compile_collects_unmapped_blocks() {
     assert_eq!(first_thread[0]["type"], "when_run_button_click");
     assert!(!unmapped.is_empty(), "unmapped 가 비어있으면 안 됨");
     let joined = unmapped.join(" ");
-    assert!(joined.contains("timer"), "unmapped 에 timer 사유 포함: {unmapped:?}");
+    assert!(
+        joined.contains("timer"),
+        "unmapped 에 timer 사유 포함: {unmapped:?}"
+    );
 }
 
 /// 미매핑이 없어도 unmapped Vec 은 비어있는 채로 반환.
@@ -4824,7 +5339,10 @@ fn compile_collects_unmapped_blocks() {
 fn compile_empty_unmapped_when_all_supported() {
     let src = "fn when_start() { let x = 1; }";
     let (_v, unmapped) = compile(&[("obj", src)], &empty_project()).expect("compile");
-    assert!(unmapped.is_empty(), "정상 rs 는 unmapped 비어야: {unmapped:?}");
+    assert!(
+        unmapped.is_empty(),
+        "정상 rs 는 unmapped 비어야: {unmapped:?}"
+    );
 }
 
 /// 같은 미매핑 사유가 여러 위치에서 나도 unmapped 에는 한 번만 들어감 (dedup).
@@ -4838,10 +5356,7 @@ fn compile_unmapped_is_deduplicated() {
         }
     "#;
     let (_v, unmapped) = compile(&[("obj", src)], &empty_project()).expect("compile");
-    let timer_msgs: Vec<&String> = unmapped
-        .iter()
-        .filter(|m| m.contains("timer"))
-        .collect();
+    let timer_msgs: Vec<&String> = unmapped.iter().filter(|m| m.contains("timer")).collect();
     assert_eq!(
         timer_msgs.len(),
         1,
@@ -4854,7 +5369,9 @@ fn compile_unmapped_is_deduplicated() {
 #[test]
 fn compile_variables_have_entry_format_fields() {
     let src = "fn when_start() { let x = 1; }";
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = v["variables"].as_array().expect("variables");
     let x = vars.iter().find(|v| v["name"] == "x").expect("x var");
     assert_eq!(x["visible"], true);
@@ -4871,7 +5388,9 @@ fn compile_variables_have_entry_format_fields() {
 #[test]
 fn compile_fake_object_has_rotate_method_and_lock() {
     let src = "fn when_start() { let x = 1; }";
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     assert_eq!(objects[0]["rotateMethod"], "free");
     assert_eq!(objects[0]["lock"], false);
@@ -4882,7 +5401,9 @@ fn compile_fake_object_has_rotate_method_and_lock() {
 #[test]
 fn compile_fake_object_has_text_field() {
     let src = "fn when_start() { let x = 1; }";
-    let v = compile(&[("my_obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("my_obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     // sprite 면 text = name (fallback).
     assert_eq!(objects[0]["text"], "my_obj");
@@ -4903,9 +5424,13 @@ fn compile_fake_object_inherits_text_from_base_textbox() {
         "entity": { "x": 0, "y": 0, "visible": true }
     }]);
     let v = compile(&[("new_box", "fn when_start() { let x = 1; }")], &base)
-        .expect("compile").0;
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
-    let fake = objects.iter().find(|o| o["name"] == "new_box").expect("new_box");
+    let fake = objects
+        .iter()
+        .find(|o| o["name"] == "new_box")
+        .expect("new_box");
     assert_eq!(fake["text"], "Hello world", "textBox base 의 text 복사");
 }
 
@@ -4918,10 +5443,15 @@ fn compile_function_call_rewritten_to_func_id_block() {
         fn when_start() { greet(); }
         fn greet() { let y = 1; }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     // project.functions 에 greet 항목, id 는 fn_<djb2("greet")>
     let funcs = v["functions"].as_array().expect("functions");
-    let greet = funcs.iter().find(|f| f["name"] == "greet").expect("greet fn");
+    let greet = funcs
+        .iter()
+        .find(|f| f["name"] == "greet")
+        .expect("greet fn");
     let fn_id = greet["id"].as_str().expect("fn id");
     assert!(fn_id.starts_with("fn_"), "fn_id format: {fn_id}");
     // object.script 안 호출 블록도 func_<id> 로 치환.
@@ -4950,7 +5480,9 @@ fn compile_function_call_params_match_arity() {
         fn when_start() { greet("hi", 42); }
         fn greet(a: &str, b: i32) { let y = 1; }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let call = thread
@@ -4968,7 +5500,9 @@ fn compile_function_call_short_args_padded_with_null() {
         fn when_start() { greet("only_one"); }
         fn greet(a: &str, b: i32) { let y = 1; }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let call = thread
@@ -4990,7 +5524,9 @@ fn compile_function_call_extra_args_dropped() {
         fn when_start() { greet("a", 1, 99); }
         fn greet(a: &str, b: i32) { let y = 1; }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let call = thread
@@ -5008,7 +5544,9 @@ fn compile_function_param_chain_emits_kind() {
         fn when_start() { greet(true); }
         fn greet(a: BoolParam) { let y = 1; }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let funcs = v["functions"].as_array().unwrap();
     let greet = funcs.iter().find(|f| f["name"] == "greet").expect("greet");
     // content[0] = function_create 헤드, params[0] = function_field_label chain
@@ -5028,7 +5566,9 @@ fn compile_function_param_default_string_emits_string_field() {
         fn when_start() { greet("hi"); }
         fn greet(a: &str) { let y = 1; }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let funcs = v["functions"].as_array().unwrap();
     let greet = funcs.iter().find(|f| f["name"] == "greet").expect("greet");
     let head = greet["content"][0].as_object().expect("head");
@@ -5044,12 +5584,17 @@ fn compile_function_no_params_label_next_null() {
         fn when_start() { greet(); }
         fn greet() { let y = 1; }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let funcs = v["functions"].as_array().unwrap();
     let greet = funcs.iter().find(|f| f["name"] == "greet").expect("greet");
     let head = greet["content"][0].as_object().expect("head");
     let label = head["params"][0].as_object().expect("label");
-    assert!(label["params"][1].is_null(), "param 0개 시 label.next = null");
+    assert!(
+        label["params"][1].is_null(),
+        "param 0개 시 label.next = null"
+    );
 }
 
 /// BoolParam 호출 시 args 가 boolean 으로 wrap.
@@ -5059,7 +5604,9 @@ fn compile_function_call_bool_param_arg_wrap() {
         fn when_start() { greet(true); }
         fn greet(a: BoolParam) { let y = 1; }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let call = thread
@@ -5075,7 +5622,9 @@ fn compile_function_call_to_undefined_keeps_block() {
     let src = r#"
         fn when_start() { mystery(); }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let call = thread
@@ -5090,7 +5639,9 @@ fn compile_function_call_to_undefined_keeps_block() {
 #[test]
 fn compile_helper_only_source_emits_no_trigger_thread() {
     let src = "fn helper_only() { let x = 1; }";
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let threads = obj_threads(&objects[0]);
     // helper 는 project.functions 로 가고 object.script 는 트리거가 없으면
@@ -5117,9 +5668,7 @@ fn compile_function_name_dedup_against_base() {
     let v = compile(&[("obj", src)], &base).expect("compile").0;
     let funcs = v["functions"].as_array().expect("functions");
     // base "greet" + 새 "greet_2"
-    let names: Vec<&str> = funcs.iter()
-        .filter_map(|f| f["name"].as_str())
-        .collect();
+    let names: Vec<&str> = funcs.iter().filter_map(|f| f["name"].as_str()).collect();
     assert!(names.contains(&"greet"), "base greet 유지");
     assert!(names.contains(&"greet_2"), "중복 이름은 suffix: {names:?}");
 }
@@ -5127,8 +5676,12 @@ fn compile_function_name_dedup_against_base() {
 /// helper 가 없어도 project.functions 는 빈 배열로 emit.
 #[test]
 fn compile_always_emits_empty_functions_array() {
-    let v = compile(&[("obj", "fn when_start() { let x = 1; }")], &empty_project())
-        .expect("compile").0;
+    let v = compile(
+        &[("obj", "fn when_start() { let x = 1; }")],
+        &empty_project(),
+    )
+    .expect("compile")
+    .0;
     assert!(v["functions"].is_array(), "functions 는 항상 배열");
     assert_eq!(v["functions"].as_array().unwrap().len(), 0);
 }
@@ -5136,8 +5689,12 @@ fn compile_always_emits_empty_functions_array() {
 /// when_message 트리거가 없으면 messages 도 빈 배열로 emit.
 #[test]
 fn compile_emits_empty_messages_when_no_when_message() {
-    let v = compile(&[("obj", "fn when_start() { let x = 1; }")], &empty_project())
-        .expect("compile").0;
+    let v = compile(
+        &[("obj", "fn when_start() { let x = 1; }")],
+        &empty_project(),
+    )
+    .expect("compile")
+    .0;
     assert!(v["messages"].is_array(), "messages 는 항상 배열");
     assert_eq!(v["messages"].as_array().unwrap().len(), 0);
 }
@@ -5179,7 +5736,8 @@ fn compile_variables_replace_drops_base() {
     };
     let src = "fn when_start() { let new_var = 1; }";
     let v = entrycore::compile_with_options(&[("obj", src)], &base, &options)
-        .expect("compile").0;
+        .expect("compile")
+        .0;
     let vars = v["variables"].as_array().unwrap();
     let names: Vec<&str> = vars.iter().filter_map(|v| v["name"].as_str()).collect();
     assert!(!names.contains(&"base_var"), "replace 면 base 변수 제거");
@@ -5204,9 +5762,12 @@ fn compile_variables_filter_malformed_base() {
     let good_count = vars.iter().filter(|v| v["name"] == "good").count();
     assert_eq!(good_count, 1);
     // 나머지 malformed 가 새 빌드의 x 와 섞여서 들어가지 않았는지.
-    let malformed_count = vars.iter().filter(|v| {
-        v.get("name").is_none() || v.get("variableType").is_none() || v.get("id").is_none()
-    }).count();
+    let malformed_count = vars
+        .iter()
+        .filter(|v| {
+            v.get("name").is_none() || v.get("variableType").is_none() || v.get("id").is_none()
+        })
+        .count();
     assert_eq!(malformed_count, 0, "malformed base 변수는 필터링");
 }
 
@@ -5218,9 +5779,14 @@ fn compile_typed_cloud_var_emits_cloud_metadata() {
             let cloud_v: CloudVar = "";
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = v["variables"].as_array().unwrap();
-    let cloud = vars.iter().find(|v| v["name"] == "cloud_v").expect("cloud_v");
+    let cloud = vars
+        .iter()
+        .find(|v| v["name"] == "cloud_v")
+        .expect("cloud_v");
     assert_eq!(cloud["variableType"], "cloud");
     assert_eq!(cloud["isCloud"], true);
 }
@@ -5233,7 +5799,9 @@ fn compile_typed_realtime_var_emits_realtime_metadata() {
             let rt_v: RealtimeVar = "";
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = v["variables"].as_array().unwrap();
     let rt = vars.iter().find(|v| v["name"] == "rt_v").expect("rt_v");
     assert_eq!(rt["variableType"], "realtime");
@@ -5247,9 +5815,14 @@ fn compile_static_var_is_global() {
         static GLOBAL_VAR: i32 = 0;
         fn when_start() { let x = 1; }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = v["variables"].as_array().unwrap();
-    let g = vars.iter().find(|v| v["name"] == "GLOBAL_VAR").expect("GLOBAL_VAR");
+    let g = vars
+        .iter()
+        .find(|v| v["name"] == "GLOBAL_VAR")
+        .expect("GLOBAL_VAR");
     assert!(g["object"].is_null(), "static 변수는 object: null");
     // 함수 내 let x 는 object = "obj" (로컬).
     let x = vars.iter().find(|v| v["name"] == "x").expect("x");
@@ -5263,7 +5836,9 @@ fn compile_static_var_is_global() {
 #[test]
 fn compile_when_key_pressed_trigger() {
     let src = r#"fn when_key_pressed(key: &str) { let x = 1; }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[0]["type"], "when_some_key_pressed");
@@ -5277,7 +5852,9 @@ fn compile_when_key_pressed_no_param_defaults_to_81() {
     // syn 상 fn f() 만 가능 — param 0개는 정상. 단 우리 DSL 신택스상
     // key: &str 필요이지만 fallback 동작 확인용으로 빈 케이스 테스트:
     let src = r#"fn when_key_pressed() { let x = 1; }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[0]["type"], "when_some_key_pressed");
@@ -5288,7 +5865,9 @@ fn compile_when_key_pressed_no_param_defaults_to_81() {
 #[test]
 fn compile_when_mouse_clicked_trigger() {
     let src = r#"fn when_mouse_clicked() { let x = 1; }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[0]["type"], "mouse_clicked");
@@ -5298,7 +5877,9 @@ fn compile_when_mouse_clicked_trigger() {
 #[test]
 fn compile_when_mouse_released_trigger() {
     let src = r#"fn when_mouse_released() { let x = 1; }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[0]["type"], "mouse_click_cancled");
@@ -5308,7 +5889,9 @@ fn compile_when_mouse_released_trigger() {
 #[test]
 fn compile_when_object_released_trigger() {
     let src = r#"fn when_object_released() { let x = 1; }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[0]["type"], "when_object_click_canceled");
@@ -5318,7 +5901,9 @@ fn compile_when_object_released_trigger() {
 #[test]
 fn compile_when_scene_start_trigger() {
     let src = r#"fn when_scene_start() { let x = 1; }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[0]["type"], "when_scene_start");
@@ -5330,7 +5915,9 @@ fn compile_when_scene_start_trigger() {
 #[test]
 fn compile_send_message_emits_message_cast() {
     let src = r#"fn when_start() { send_message("foo"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     // thread[0] = when_run, thread[1] = message_cast
@@ -5344,7 +5931,9 @@ fn compile_send_message_emits_message_cast() {
 #[test]
 fn compile_wait_message_emits_message_cast_wait() {
     let src = r#"fn when_start() { wait_message("foo"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "message_cast_wait");
@@ -5355,7 +5944,9 @@ fn compile_wait_message_emits_message_cast_wait() {
 #[test]
 fn compile_start_scene_emits_start_scene() {
     let src = r#"fn when_start() { start_scene("scene2"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "start_scene");
@@ -5366,7 +5957,9 @@ fn compile_start_scene_emits_start_scene() {
 #[test]
 fn compile_start_next_scene_emits_start_neighbor_scene_next() {
     let src = r#"fn when_start() { start_next_scene(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "start_neighbor_scene");
@@ -5377,7 +5970,9 @@ fn compile_start_next_scene_emits_start_neighbor_scene_next() {
 #[test]
 fn compile_start_prev_scene_emits_start_neighbor_scene_prev() {
     let src = r#"fn when_start() { start_prev_scene(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "start_neighbor_scene");
@@ -5392,7 +5987,9 @@ fn compile_when_message_registers_message() {
         fn when_start() { send_message("foo"); wait_message("foo"); }
         fn when_message(my_msg: &str) { let x = 1; }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let messages = v["messages"].as_array().expect("messages");
     let names: Vec<&str> = messages.iter().filter_map(|m| m["name"].as_str()).collect();
     // send_message 자체는 메시지 등록 안 함 (호출만). EntryJS 가 호출 시 dynamic 처리.
@@ -5406,8 +6003,8 @@ fn compile_when_message_registers_message() {
 /// 시작 트리거/액션 블록의 deparse → parse 라운드트립 보존.
 #[test]
 fn compile_start_blocks_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
 
     let src = r#"
         fn when_key_pressed(k: &str) { send_message("foo"); }
@@ -5415,7 +6012,9 @@ fn compile_start_blocks_roundtrip() {
         fn when_scene_start() { start_scene("s2"); }
     "#;
     let p1 = entrycore::parse::parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let script_str = objects[0]["script"].as_str().expect("script str");
@@ -5430,7 +6029,9 @@ fn compile_show_list() {
             show_list(my_list);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
 
@@ -5472,7 +6073,9 @@ fn compile_show_list_roundtrip() {
         }
     "#;
     let p1 = parse(src).expect("parse");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let script_str = objects[0]["script"].as_str().expect("script string");
@@ -5496,7 +6099,9 @@ fn compile_hide_list() {
             hide_list(my_list);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
 
@@ -5528,7 +6133,9 @@ fn compile_hide_list_roundtrip() {
         }
     "#;
     let p1 = parse(src).expect("parse");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let script_str = objects[0]["script"].as_str().expect("script string");
@@ -5548,7 +6155,9 @@ fn compile_hide_list_roundtrip() {
 #[test]
 fn compile_stop_run_all() {
     let src = r#"fn when_start() { stop_run_all(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
@@ -5565,12 +6174,14 @@ fn compile_stop_run_all() {
 fn compile_stop_run_all_roundtrip() {
     use entrycore::codegen::collect_var_map;
     use entrycore::deparse::program_from_script_string_with_vars;
-    use entrycore::ir::{Expr, Stmt};
+    use entrycore::ir::Stmt;
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { stop_run_all(); }"#;
     let p1 = parse(src).expect("parse");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let script_str = objects[0]["script"].as_str().expect("script string");
@@ -5579,9 +6190,13 @@ fn compile_stop_run_all_roundtrip() {
     let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
         panic!("expected when_start function");
     };
-    let found_stop = body
-        .iter()
-        .find_map(|stmt| if matches!(stmt, Stmt::StopAll) { Some(stmt) } else { None });
+    let found_stop = body.iter().find_map(|stmt| {
+        if matches!(stmt, Stmt::StopAll) {
+            Some(stmt)
+        } else {
+            None
+        }
+    });
     assert!(found_stop.is_some(), "expected StopAll stmt");
 }
 
@@ -5589,7 +6204,9 @@ fn compile_stop_run_all_roundtrip() {
 #[test]
 fn compile_restart_project() {
     let src = r#"fn when_start() { restart_project(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
@@ -5611,7 +6228,9 @@ fn compile_restart_project_roundtrip() {
 
     let src = r#"fn when_start() { restart_project(); }"#;
     let p1 = parse(src).expect("parse");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let script_str = objects[0]["script"].as_str().expect("script string");
@@ -5635,14 +6254,19 @@ fn compile_create_clone() {
             create_clone();
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
         .iter()
         .find(|b| b["type"] == "create_clone")
         .expect("create_clone block");
-    eprintln!("DEBUG create_clone block = {}", serde_json::to_string(block).unwrap());
+    eprintln!(
+        "DEBUG create_clone block = {}",
+        serde_json::to_string(block).unwrap()
+    );
     let params = block["params"].as_array().unwrap();
     assert_eq!(params.len(), 2);
     assert!(params[1].is_null());
@@ -5662,7 +6286,9 @@ fn compile_create_clone_roundtrip() {
         }
     "#;
     let p1 = parse(src).expect("parse");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let script_str = objects[0]["script"].as_str().expect("script string");
@@ -5686,14 +6312,19 @@ fn compile_create_clone_with_target() {
             create_clone("another_sprite");
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
         .iter()
         .find(|b| b["type"] == "create_clone")
         .expect("create_clone block");
-    eprintln!("DEBUG create_clone with target block = {}", serde_json::to_string(block).unwrap());
+    eprintln!(
+        "DEBUG create_clone with target block = {}",
+        serde_json::to_string(block).unwrap()
+    );
     let params = block["params"].as_array().unwrap();
     assert_eq!(params.len(), 2);
     assert!(params[1].is_null());
@@ -5707,14 +6338,19 @@ fn compile_create_clone_self_reference() {
             create_clone(&self);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
         .iter()
         .find(|b| b["type"] == "create_clone")
         .expect("create_clone block");
-    eprintln!("DEBUG create_clone &self block = {}", serde_json::to_string(block).unwrap());
+    eprintln!(
+        "DEBUG create_clone &self block = {}",
+        serde_json::to_string(block).unwrap()
+    );
     let params = block["params"].as_array().unwrap();
     assert_eq!(params.len(), 2);
     assert_eq!(params[0].as_str().unwrap(), "self");
@@ -5725,7 +6361,9 @@ fn compile_create_clone_self_reference() {
 #[test]
 fn compile_text_write() {
     let src = r#"fn when_start() { text_write("hello"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
@@ -5742,14 +6380,16 @@ fn compile_text_write() {
 /// text_write 라운드트립 — codegen → deparse → IR 의 `Stmt::Expr(Call(text_write, [str("hi")]))` 가 복원되는지.
 #[test]
 fn compile_text_write_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { text_write("hi"); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -5778,7 +6418,9 @@ fn compile_text_write_roundtrip() {
 #[test]
 fn compile_text_write_sub_expr() {
     let src = r#"fn when_start() { text_write(text_read("self")); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
@@ -5807,7 +6449,9 @@ fn compile_text_write_arity_check() {
 #[test]
 fn compile_text_append() {
     let src = r#"fn when_start() { text_append("hello"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
@@ -5824,14 +6468,16 @@ fn compile_text_append() {
 /// text_append 라운드트립 — codegen → deparse → IR 의 `Stmt::Expr(Call(text_append, [str("hi")]))` 가 복원되는지.
 #[test]
 fn compile_text_append_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { text_append("hi"); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -5860,7 +6506,9 @@ fn compile_text_append_roundtrip() {
 #[test]
 fn compile_text_append_sub_expr() {
     let src = r#"fn when_start() { text_append(text_read("self")); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
@@ -5887,7 +6535,9 @@ fn compile_text_append_arity_check() {
 #[test]
 fn compile_text_prepend() {
     let src = r#"fn when_start() { text_prepend("hello"); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
@@ -5904,14 +6554,16 @@ fn compile_text_prepend() {
 /// text_prepend 라운드트립 — codegen → deparse → IR 의 `Stmt::Expr(Call(text_prepend, [str("hi")]))` 가 복원되는지.
 #[test]
 fn compile_text_prepend_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { text_prepend("hi"); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -5940,7 +6592,9 @@ fn compile_text_prepend_roundtrip() {
 #[test]
 fn compile_text_prepend_sub_expr() {
     let src = r#"fn when_start() { text_prepend(text_read("self")); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
@@ -5969,7 +6623,9 @@ fn compile_text_prepend_arity_check() {
 #[test]
 fn compile_text_change_effect() {
     let src = r#"fn when_start() { text_change_effect("strike", true); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
@@ -5987,7 +6643,9 @@ fn compile_text_change_effect() {
 #[test]
 fn compile_text_change_effect_enum_syntax() {
     let src = r#"fn when_start() { text_change_effect(TextEffect::Strike, true); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
@@ -6003,7 +6661,9 @@ fn compile_text_change_effect_enum_syntax() {
 #[test]
 fn compile_text_change_effect_mixed_syntax() {
     let src = r#"fn when_start() { text_change_effect("strike", true); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
@@ -6026,7 +6686,9 @@ fn compile_enum_syntax_for_all_enum_dropdowns() {
             let x = quotient_and_mod(10, 3, QamMethod::Mod);
         }
     "#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
 
@@ -6059,14 +6721,16 @@ fn compile_enum_syntax_for_all_enum_dropdowns() {
 /// text_change_effect 라운드트립 — codegen → deparse → IR 의 `Stmt::Expr(Call(text_change_effect, [Str("strike"), Bool(true)]))` 가 복원되는지.
 #[test]
 fn compile_text_change_effect_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { text_change_effect("strike", true); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -6128,7 +6792,9 @@ fn compile_text_change_effect_type_check() {
 #[test]
 fn compile_text_flush() {
     let src = r#"fn when_start() { text_flush(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let block = thread
@@ -6142,14 +6808,16 @@ fn compile_text_flush() {
 /// text_flush 라운드트립 — codegen → deparse → IR 의 `Stmt::Expr(Call(text_flush, []))` 가 복원되는지.
 #[test]
 fn compile_text_flush_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { text_flush(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -6190,16 +6858,27 @@ fn compile_text_style_blocks() {
         text_change_font_color("#112233");
         text_change_bg_color("#445566");
     }"##;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
 
-    let font = thread.iter().find(|b| b["type"] == "text_change_font").expect("font block");
+    let font = thread
+        .iter()
+        .find(|b| b["type"] == "text_change_font")
+        .expect("font block");
     assert_eq!(font["params"][0], "Nanum Gothic");
     assert!(font["params"][1].is_null());
 
-    for (type_id, color) in [("text_change_font_color", "#112233"), ("text_change_bg_color", "#445566")] {
-        let block = thread.iter().find(|b| b["type"] == type_id).expect("color block");
+    for (type_id, color) in [
+        ("text_change_font_color", "#112233"),
+        ("text_change_bg_color", "#445566"),
+    ] {
+        let block = thread
+            .iter()
+            .find(|b| b["type"] == type_id)
+            .expect("color block");
         assert_eq!(block["params"][0]["type"], "text");
         assert_eq!(block["params"][0]["params"][0], color);
         assert!(block["params"][1].is_null());
@@ -6220,17 +6899,24 @@ fn compile_text_style_blocks_roundtrip() {
         text_change_bg_color("#445566");
     }"##;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let script = v["objects"][0]["script"].as_str().expect("script string");
-    let p2 = program_from_script_string_with_vars(script, &collect_var_map(&p1, &VarMap::new())).expect("deparse");
-    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else { panic!("expected when_start"); };
+    let p2 = program_from_script_string_with_vars(script, &collect_var_map(&p1, &VarMap::new()))
+        .expect("deparse");
+    let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
+        panic!("expected when_start");
+    };
 
     for (stmt, (expected_name, expected_arg)) in body.iter().zip([
         ("text_change_font", "Nanum Gothic"),
         ("text_change_font_color", "#112233"),
         ("text_change_bg_color", "#445566"),
     ]) {
-        let Stmt::Expr(Expr::Call(fref, args)) = stmt else { panic!("expected call"); };
+        let Stmt::Expr(Expr::Call(fref, args)) = stmt else {
+            panic!("expected call");
+        };
         assert_eq!(fref.name, expected_name);
         assert_eq!(args.len(), 1);
         match &args[0] {
@@ -6271,12 +6957,24 @@ fn asset_map_is_scoped_per_object_and_bidirectional() {
     });
     let assets = entrycore::AssetMap::from_project_value(&project);
 
-    assert_eq!(assets.picture_id_by_name("hero", "walk"), Some("picture-walk"));
-    assert_eq!(assets.picture_name_by_id("hero", "picture-walk"), Some("walk"));
+    assert_eq!(
+        assets.picture_id_by_name("hero", "walk"),
+        Some("picture-walk")
+    );
+    assert_eq!(
+        assets.picture_name_by_id("hero", "picture-walk"),
+        Some("walk")
+    );
     assert_eq!(assets.sound_id_by_name("hero", "jump"), Some("sound-jump"));
     assert_eq!(assets.sound_name_by_id("hero", "sound-jump"), Some("jump"));
-    assert_eq!(assets.picture_id_by_name("enemy", "walk"), Some("picture-enemy-walk"));
-    assert_eq!(assets.sound_id_by_name("enemy", "jump"), Some("sound-enemy-jump"));
+    assert_eq!(
+        assets.picture_id_by_name("enemy", "walk"),
+        Some("picture-enemy-walk")
+    );
+    assert_eq!(
+        assets.sound_id_by_name("enemy", "jump"),
+        Some("sound-enemy-jump")
+    );
 }
 
 /// 이미지 이름은 build에서 자산 ID로 저장되고 extract에서 다시 이름으로 복원된다.
@@ -6302,7 +7000,9 @@ fn compile_shape_change_uses_picture_id_roundtrip() {
     let assets = entrycore::AssetMap::from_project_value(&base);
     let src = r#"fn when_start() { change_to_some_shape("walk"); }"#;
     let compiled = compile(&[("hero", src)], &base).expect("compile").0;
-    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let script = compiled["objects"][0]["script"]
+        .as_str()
+        .expect("script string");
     let value: Value = serde_json::from_str(script).expect("script JSON");
     assert_eq!(value[0][1]["params"][0]["type"], "get_pictures");
     assert_eq!(value[0][1]["params"][0]["params"][0], "picture-walk");
@@ -6350,7 +7050,9 @@ fn compile_sound_blocks_use_sound_id_roundtrip() {
         sound_something_second_with_block("jump", 1.5);
     }"#;
     let compiled = compile(&[("hero", src)], &base).expect("compile").0;
-    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let script = compiled["objects"][0]["script"]
+        .as_str()
+        .expect("script string");
     let value: Value = serde_json::from_str(script).expect("script JSON");
     for block in [&value[0][1], &value[0][2]] {
         assert_eq!(block["params"][0]["type"], "get_sounds");
@@ -6408,7 +7110,9 @@ fn compile_sound_from_to_uses_sound_id_roundtrip() {
     let assets = entrycore::AssetMap::from_project_value(&base);
     let src = r#"fn when_start() { sound_from_to("jump", 0.5, 2.0); }"#;
     let compiled = compile(&[("hero", src)], &base).expect("compile").0;
-    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let script = compiled["objects"][0]["script"]
+        .as_str()
+        .expect("script string");
     let value: Value = serde_json::from_str(script).expect("script JSON");
     let block = &value[0][1];
     assert_eq!(block["type"], "sound_from_to");
@@ -6463,7 +7167,9 @@ fn compile_sound_wait_blocks_roundtrip() {
         sound_from_to_and_wait("jump", 0.5, 2.0);
     }"#;
     let compiled = compile(&[("hero", src)], &base).expect("compile").0;
-    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let script = compiled["objects"][0]["script"]
+        .as_str()
+        .expect("script string");
     let value: Value = serde_json::from_str(script).expect("script JSON");
     for block in [&value[0][1], &value[0][2], &value[0][3]] {
         assert_eq!(block["params"][0]["type"], "get_sounds");
@@ -6521,7 +7227,9 @@ fn compile_sound_stop_and_bgm_blocks_roundtrip() {
         stop_bgm();
     }"#;
     let compiled = compile(&[("hero", src)], &base).expect("compile").0;
-    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let script = compiled["objects"][0]["script"]
+        .as_str()
+        .expect("script string");
     let value: Value = serde_json::from_str(script).expect("script JSON");
     assert_eq!(value[0][1]["params"][0], "all");
     assert_eq!(value[0][2]["params"][0]["type"], "get_sounds");
@@ -6538,7 +7246,10 @@ fn compile_sound_stop_and_bgm_blocks_roundtrip() {
     let Stmt::FuncDef { body, .. } = &program.stmts[0] else {
         panic!("expected when_start");
     };
-    for (stmt, expected_name) in body.iter().zip(["sound_silent_all", "play_bgm", "stop_bgm"]) {
+    for (stmt, expected_name) in body
+        .iter()
+        .zip(["sound_silent_all", "play_bgm", "stop_bgm"])
+    {
         let Stmt::Expr(Expr::Call(fref, args)) = stmt else {
             panic!("expected sound stop or bgm call");
         };
@@ -6577,7 +7288,9 @@ fn compile_sound_value_blocks_roundtrip() {
         let duration = get_sound_duration("jump");
     }"#;
     let compiled = compile(&[("hero", src)], &base).expect("compile").0;
-    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let script = compiled["objects"][0]["script"]
+        .as_str()
+        .expect("script string");
     let value: Value = serde_json::from_str(script).expect("script JSON");
     assert_eq!(value[0][1]["type"], "set_variable");
     assert_eq!(value[0][1]["params"][1]["type"], "get_sound_volume");
@@ -6597,11 +7310,15 @@ fn compile_sound_value_blocks_roundtrip() {
     let Stmt::SetVar(_, volume) = &body[0] else {
         panic!("expected volume let");
     };
-    assert!(matches!(volume, Expr::Call(fref, args) if fref.name == "get_sound_volume" && args.is_empty()));
+    assert!(
+        matches!(volume, Expr::Call(fref, args) if fref.name == "get_sound_volume" && args.is_empty())
+    );
     let Stmt::SetVar(_, duration) = &body[1] else {
         panic!("expected duration let");
     };
-    assert!(matches!(duration, Expr::Call(fref, args) if fref.name == "get_sound_duration" && matches!(&args[0], Expr::Str(name) if name == "jump")));
+    assert!(
+        matches!(duration, Expr::Call(fref, args) if fref.name == "get_sound_duration" && matches!(&args[0], Expr::Str(name) if name == "jump"))
+    );
 }
 
 #[test]
@@ -6613,8 +7330,12 @@ fn compile_sound_volume_blocks_roundtrip() {
         sound_volume_change(10.0);
         sound_volume_set(75.0);
     }"#;
-    let compiled = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let compiled = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
+    let script = compiled["objects"][0]["script"]
+        .as_str()
+        .expect("script string");
     let value: Value = serde_json::from_str(script).expect("script JSON");
     assert_eq!(value[0][1]["type"], "sound_volume_change");
     assert_eq!(value[0][1]["params"][0]["type"], "number");
@@ -6623,15 +7344,15 @@ fn compile_sound_volume_blocks_roundtrip() {
     assert_eq!(value[0][2]["params"][0]["type"], "number");
     assert_eq!(value[0][2]["params"][0]["params"][0], 75.0);
 
-    let program = program_from_script_string_with_vars(script, &entrycore::VarMap::new())
-        .expect("deparse");
+    let program =
+        program_from_script_string_with_vars(script, &entrycore::VarMap::new()).expect("deparse");
     let Stmt::FuncDef { body, .. } = &program.stmts[0] else {
         panic!("expected when_start");
     };
-    for (stmt, (expected_name, expected_value)) in body.iter().zip([
-        ("sound_volume_change", 10.0),
-        ("sound_volume_set", 75.0),
-    ]) {
+    for (stmt, (expected_name, expected_value)) in body
+        .iter()
+        .zip([("sound_volume_change", 10.0), ("sound_volume_set", 75.0)])
+    {
         let Stmt::Expr(Expr::Call(fref, args)) = stmt else {
             panic!("expected sound volume call");
         };
@@ -6650,8 +7371,12 @@ fn compile_sound_speed_blocks_roundtrip() {
         sound_speed_change(0.1);
         sound_speed_set(1.5);
     }"#;
-    let compiled = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let compiled = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
+    let script = compiled["objects"][0]["script"]
+        .as_str()
+        .expect("script string");
     let value: Value = serde_json::from_str(script).expect("script JSON");
     assert_eq!(value[0][1]["type"], "sound_speed_change");
     assert_eq!(value[0][1]["params"][0]["type"], "number");
@@ -6660,15 +7385,15 @@ fn compile_sound_speed_blocks_roundtrip() {
     assert_eq!(value[0][2]["params"][0]["type"], "number");
     assert_eq!(value[0][2]["params"][0]["params"][0], 1.5);
 
-    let program = program_from_script_string_with_vars(script, &entrycore::VarMap::new())
-        .expect("deparse");
+    let program =
+        program_from_script_string_with_vars(script, &entrycore::VarMap::new()).expect("deparse");
     let Stmt::FuncDef { body, .. } = &program.stmts[0] else {
         panic!("expected when_start");
     };
-    for (stmt, (expected_name, expected_value)) in body.iter().zip([
-        ("sound_speed_change", 0.1),
-        ("sound_speed_set", 1.5),
-    ]) {
+    for (stmt, (expected_name, expected_value)) in body
+        .iter()
+        .zip([("sound_speed_change", 0.1), ("sound_speed_set", 1.5)])
+    {
         let Stmt::Expr(Expr::Call(fref, args)) = stmt else {
             panic!("expected sound speed call");
         };
@@ -6685,17 +7410,25 @@ fn compile_is_type_roundtrip() {
         if is_type(123, "number") {
         }
     }"#;
-    let compiled = compile(&[("obj", src)], &empty_project()).expect("compile").0;
-    let script = compiled["objects"][0]["script"].as_str().expect("script string");
+    let compiled = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
+    let script = compiled["objects"][0]["script"]
+        .as_str()
+        .expect("script string");
     let value: Value = serde_json::from_str(script).expect("script JSON");
     assert_eq!(value[0][1]["type"], "_if");
     assert_eq!(value[0][1]["params"][0]["type"], "is_type");
     assert_eq!(value[0][1]["params"][0]["params"][2], "number");
 
-    let program = program_from_script_string_with_vars(script, &entrycore::VarMap::new())
-        .expect("deparse");
-    let Stmt::FuncDef { body, .. } = &program.stmts[0] else { panic!("expected when_start"); };
-    let Stmt::If { cond, .. } = &body[0] else { panic!("expected if"); };
+    let program =
+        program_from_script_string_with_vars(script, &entrycore::VarMap::new()).expect("deparse");
+    let Stmt::FuncDef { body, .. } = &program.stmts[0] else {
+        panic!("expected when_start");
+    };
+    let Stmt::If { cond, .. } = &body[0] else {
+        panic!("expected if");
+    };
     assert!(matches!(cond, Expr::Call(fref, args) if fref.name == "is_type" && args.len() == 2));
 }
 
@@ -6705,7 +7438,9 @@ fn compile_is_type_roundtrip() {
 #[test]
 fn compile_is_boost_mode() {
     let src = r#"fn when_start() { is_boost_mode(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "is_boost_mode");
@@ -6715,14 +7450,16 @@ fn compile_is_boost_mode() {
 /// 라운드트립.
 #[test]
 fn compile_is_boost_mode_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { is_boost_mode(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -6757,7 +7494,9 @@ fn compile_is_boost_mode_arity_check() {
 #[test]
 fn compile_is_touch_supported() {
     let src = r#"fn when_start() { is_touch_supported(); }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     assert_eq!(thread[1]["type"], "is_touch_supported");
@@ -6767,14 +7506,16 @@ fn compile_is_touch_supported() {
 /// 라운드트립.
 #[test]
 fn compile_is_touch_supported_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
     let src = r#"fn when_start() { is_touch_supported(); }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -6811,7 +7552,9 @@ fn compile_get_date() {
     let src = r#"fn when_start() {
         let y = get_date("year");
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     // thread[0] = when_run, thread[1] = let y = ...
@@ -6824,8 +7567,8 @@ fn compile_get_date() {
 /// 라운드트립.
 #[test]
 fn compile_get_date_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -6833,7 +7576,9 @@ fn compile_get_date_roundtrip() {
         let y = get_date("year");
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -6888,7 +7633,9 @@ fn compile_distance_something() {
     let src = r#"fn when_start() {
         let d = distance_something("mouse");
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     // thread[0] = when_run, thread[1] = let d = ...
@@ -6905,8 +7652,8 @@ fn compile_distance_something() {
 /// 라운드트립 — `distance_something("Sprite1")` → `Stmt::SetVar(_, Call(distance_something, [Str("Sprite1")]))` 복원.
 #[test]
 fn compile_distance_something_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -6914,7 +7661,9 @@ fn compile_distance_something_roundtrip() {
         let d = distance_something("Sprite1");
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -7118,21 +7867,28 @@ fn compile_get_user_name() {
     let src = r#"fn when_start() {
         let u = get_user_name();
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     // thread[0] = when_run, thread[1] = let u = ...
     let set_var = &thread[1];
     assert_eq!(set_var["type"], "set_variable");
     assert_eq!(set_var["params"][1]["type"], "get_user_name");
-    assert!(set_var["params"][1]["params"].as_array().unwrap().is_empty());
+    assert!(
+        set_var["params"][1]["params"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
 }
 
 /// `get_user_name` 라운드트립 — codegen → deparse → IR 의 `Stmt::SetVar(_, Call(get_user_name, []))` 가 복원되는지.
 #[test]
 fn compile_get_user_name_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -7140,7 +7896,9 @@ fn compile_get_user_name_roundtrip() {
         let u = get_user_name();
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -7187,20 +7945,27 @@ fn compile_get_nickname() {
     let src = r#"fn when_start() {
         let n = get_nickname();
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set_var = &thread[1];
     assert_eq!(set_var["type"], "set_variable");
     assert_eq!(set_var["params"][1]["type"], "get_nickname");
-    assert!(set_var["params"][1]["params"].as_array().unwrap().is_empty());
+    assert!(
+        set_var["params"][1]["params"]
+            .as_array()
+            .unwrap()
+            .is_empty()
+    );
 }
 
 /// `get_nickname` 라운드트립.
 #[test]
 fn compile_get_nickname_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -7208,7 +7973,9 @@ fn compile_get_nickname_roundtrip() {
         let n = get_nickname();
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -7257,7 +8024,9 @@ fn compile_length_of_string() {
     let src = r#"fn when_start() {
         let n = length_of_string("hello");
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set_var = &thread[1];
@@ -7273,8 +8042,8 @@ fn compile_length_of_string() {
 /// `length_of_string` 라운드트립 — codegen → deparse → IR 의 `Call(length_of_string, [Str("hello")])` 복원.
 #[test]
 fn compile_length_of_string_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -7282,7 +8051,9 @@ fn compile_length_of_string_roundtrip() {
         let n = length_of_string("hello");
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -7330,7 +8101,9 @@ fn compile_reverse_of_string() {
     let src = r#"fn when_start() {
         let r = reverse_of_string("hello");
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set_var = &thread[1];
@@ -7346,8 +8119,8 @@ fn compile_reverse_of_string() {
 /// `reverse_of_string` 라운드트립.
 #[test]
 fn compile_reverse_of_string_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -7355,7 +8128,9 @@ fn compile_reverse_of_string_roundtrip() {
         let r = reverse_of_string("hello");
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -7405,7 +8180,9 @@ fn compile_combine_something() {
     let src = r#"fn when_start() {
         let s = combine_something("hello", "world");
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set_var = &thread[1];
@@ -7425,8 +8202,8 @@ fn compile_combine_something() {
 /// `combine_something` 라운드트립.
 #[test]
 fn compile_combine_something_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -7434,7 +8211,9 @@ fn compile_combine_something_roundtrip() {
         let s = combine_something("hello", "world");
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -7485,7 +8264,9 @@ fn compile_char_at() {
     let src = r#"fn when_start() {
         let c = char_at("hello", 2);
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set_var = &thread[1];
@@ -7508,8 +8289,8 @@ fn compile_char_at() {
 /// `char_at` 라운드트립 — codegen → deparse → IR 의 `Call(char_at, [Str("hello"), Int(2)])` 복원.
 #[test]
 fn compile_char_at_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -7517,7 +8298,9 @@ fn compile_char_at_roundtrip() {
         let c = char_at("hello", 2);
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -7573,7 +8356,9 @@ fn compile_substring() {
     let src = r#"fn when_start() {
         let c = substring("hello", 1, 3);
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set_var = &thread[1];
@@ -7602,8 +8387,8 @@ fn compile_substring() {
 /// `substring` 라운드트립 — codegen → deparse → IR 의 `Call(substring, [Str("hello"), Int(1), Int(3)])` 복원.
 #[test]
 fn compile_substring_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -7611,7 +8396,9 @@ fn compile_substring_roundtrip() {
         let c = substring("hello", 1, 3);
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -7675,7 +8462,9 @@ fn compile_count_match_string() {
     let src = r#"fn when_start() {
         let n = count_match_string("hello", "l");
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set_var = &thread[1];
@@ -7695,8 +8484,8 @@ fn compile_count_match_string() {
 /// `count_match_string` 라운드트립 — codegen → deparse → IR 의 `Call(count_match_string, [Str("hello"), Str("l")])` 복원.
 #[test]
 fn compile_count_match_string_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -7704,7 +8493,9 @@ fn compile_count_match_string_roundtrip() {
         let n = count_match_string("hello", "l");
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -7755,7 +8546,9 @@ fn compile_index_of_string() {
     let src = r#"fn when_start() {
         let n = index_of_string("hello", "l");
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set_var = &thread[1];
@@ -7775,8 +8568,8 @@ fn compile_index_of_string() {
 /// `index_of_string` 라운드트립 — codegen → deparse → IR 의 `Call(index_of_string, [Str("hello"), Str("l")])` 복원.
 #[test]
 fn compile_index_of_string_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -7784,7 +8577,9 @@ fn compile_index_of_string_roundtrip() {
         let n = index_of_string("hello", "l");
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -7835,7 +8630,9 @@ fn compile_replace_string() {
     let src = r#"fn when_start() {
         let s = replace_string("hello", "l", "r");
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set_var = &thread[1];
@@ -7858,8 +8655,8 @@ fn compile_replace_string() {
 /// `replace_string` 라운드트립 — codegen → deparse → IR 의 `Call(replace_string, [Str("hello"), Str("l"), Str("r")])` 복원.
 #[test]
 fn compile_replace_string_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -7867,7 +8664,9 @@ fn compile_replace_string_roundtrip() {
         let s = replace_string("hello", "l", "r");
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -7921,7 +8720,9 @@ fn compile_change_string_case() {
     let src = r#"fn when_start() {
         let u = change_string_case("hello", "toUpperCase");
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set_var = &thread[1];
@@ -7940,8 +8741,8 @@ fn compile_change_string_case() {
 /// `change_string_case` 라운드트립.
 #[test]
 fn compile_change_string_case_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -7949,7 +8750,9 @@ fn compile_change_string_case_roundtrip() {
         let u = change_string_case("hello", "toUpperCase");
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -8010,7 +8813,9 @@ fn compile_get_block_count() {
     let src = r#"fn when_start() {
         let n = get_block_count("self");
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set_var = &thread[1];
@@ -8025,8 +8830,8 @@ fn compile_get_block_count() {
 /// `get_block_count` 라운드트립.
 #[test]
 fn compile_get_block_count_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -8034,7 +8839,9 @@ fn compile_get_block_count_roundtrip() {
         let n = get_block_count("self");
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -8081,7 +8888,9 @@ fn compile_change_rgb_to_hex() {
     let src = r#"fn when_start() {
         let hex = change_rgb_to_hex(255, 0, 0);
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set_var = &thread[1];
@@ -8090,10 +8899,7 @@ fn compile_change_rgb_to_hex() {
     let sub_params = set_var["params"][1]["params"].as_array().unwrap();
     assert_eq!(sub_params.len(), 3);
     assert_eq!(sub_params[0]["type"], "number");
-    assert_eq!(
-        sub_params[0]["params"][0].as_f64().expect("number"),
-        255.0
-    );
+    assert_eq!(sub_params[0]["params"][0].as_f64().expect("number"), 255.0);
     assert_eq!(sub_params[1]["type"], "number");
     assert_eq!(sub_params[1]["params"][0].as_f64().expect("number"), 0.0);
     assert_eq!(sub_params[2]["type"], "number");
@@ -8103,8 +8909,8 @@ fn compile_change_rgb_to_hex() {
 /// `change_rgb_to_hex` 라운드트립.
 #[test]
 fn compile_change_rgb_to_hex_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -8112,7 +8918,9 @@ fn compile_change_rgb_to_hex_roundtrip() {
         let hex = change_rgb_to_hex(255, 0, 0);
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -8161,7 +8969,9 @@ fn compile_change_hex_to_rgb() {
     let src = r##"fn when_start() {
         let rgb = change_hex_to_rgb("#FF0000", "r");
     }"##;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set_var = &thread[1];
@@ -8177,8 +8987,8 @@ fn compile_change_hex_to_rgb() {
 /// `change_hex_to_rgb` 라운드트립.
 #[test]
 fn compile_change_hex_to_rgb_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -8186,7 +8996,9 @@ fn compile_change_hex_to_rgb_roundtrip() {
         let rgb = change_hex_to_rgb("#FF0000", "r");
     }"##;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -8244,7 +9056,9 @@ fn compile_get_boolean_value() {
     let src = r#"fn when_start() {
         let s = get_boolean_value(true);
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     let set_var = &thread[1];
@@ -8258,8 +9072,8 @@ fn compile_get_boolean_value() {
 /// `get_boolean_value` 라운드트립.
 #[test]
 fn compile_get_boolean_value_roundtrip() {
-    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::codegen::collect_var_map;
+    use entrycore::deparse::program_from_script_string_with_vars;
     use entrycore::ir::{Expr, Stmt};
     use entrycore::parse::parse;
 
@@ -8267,7 +9081,9 @@ fn compile_get_boolean_value_roundtrip() {
         let s = get_boolean_value(true);
     }"#;
     let p1 = parse(src).expect("parse1");
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let vars = collect_var_map(&p1, &VarMap::new());
     let objects = v["objects"].as_array().unwrap();
     let obj_script_str = objects[0]["script"].as_str().expect("script str");
@@ -8307,7 +9123,9 @@ fn compile_function_create_value() {
     fn when_start() {
         let v = double(3);
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     // project.functions 에 double 함수가 function_create_value 로 emit.
     let functions = v["functions"].as_array().expect("functions array");
     let double = functions
@@ -8322,7 +9140,10 @@ fn compile_function_create_value() {
     let sub_params = head["params"].as_array().expect("sub_params");
     assert_eq!(sub_params.len(), 4);
     // params[3] = VALUE 슬롯 (= `return x * 2` 의 expr 블록)
-    assert!(!sub_params[3].is_null(), "VALUE slot must contain the return expr");
+    assert!(
+        !sub_params[3].is_null(),
+        "VALUE slot must contain the return expr"
+    );
     let value_slot = &sub_params[3];
     // BinaryOp 블록 (calc_basic) 이어야 함
     assert_eq!(
@@ -8386,7 +9207,9 @@ fn compile_function_create_no_return_type() {
     }
     fn when_start() {
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let functions = v["functions"].as_array().expect("functions array");
     let greet = functions
         .iter()
@@ -8406,7 +9229,9 @@ fn compile_function_create_value_call_roundtrip() {
     fn when_start() {
         let v = double(3);
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     // thread[0] = when_start, thread[1] = let v = double(3) → set_variable(params[1] = func_<id>)
@@ -8447,9 +9272,14 @@ fn compile_set_func_variable() {
     }
     fn when_start() {
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let funcs = v["functions"].as_array().expect("functions");
-    let helper = funcs.iter().find(|f| f["name"] == "helper").expect("helper");
+    let helper = funcs
+        .iter()
+        .find(|f| f["name"] == "helper")
+        .expect("helper");
     let content = helper["content"].as_array().expect("content");
     let head = content[0].as_object().expect("head");
     assert_eq!(head["type"], "function_create");
@@ -8471,9 +9301,14 @@ fn compile_get_func_variable() {
     }
     fn when_start() {
     }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let funcs = v["functions"].as_array().expect("functions");
-    let helper = funcs.iter().find(|f| f["name"] == "helper").expect("helper");
+    let helper = funcs
+        .iter()
+        .find(|f| f["name"] == "helper")
+        .expect("helper");
     let content = helper["content"].as_array().expect("content");
     let head = content[0].as_object().expect("head");
     let body = head["statements"][0].as_array().expect("body");
@@ -8494,7 +9329,9 @@ fn compile_get_func_variable() {
 #[test]
 fn compile_trigger_let_uses_set_variable() {
     let src = r#"fn when_start() { let x = 1; }"#;
-    let v = compile(&[("obj", src)], &empty_project()).expect("compile").0;
+    let v = compile(&[("obj", src)], &empty_project())
+        .expect("compile")
+        .0;
     let objects = v["objects"].as_array().unwrap();
     let thread = first_thread(&objects[0]);
     // thread[0] = when_start, thread[1] = set_variable

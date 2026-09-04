@@ -46,10 +46,7 @@ fn when_start_arith() {
     let Stmt::VarDecl(_, expr, _, _) = &program.stmts[0] else {
         panic!("expected VarDecl");
     };
-    assert!(matches!(
-        expr,
-        Expr::BinOp(entrycore::ir::BinOp::Add, _, _)
-    ));
+    assert!(matches!(expr, Expr::BinOp(entrycore::ir::BinOp::Add, _, _)));
 }
 
 #[test]
@@ -173,7 +170,11 @@ fn when_start_if_else_full() {
     let program = parse(src).expect("parse");
     assert_eq!(program.stmts.len(), 1);
     match &program.stmts[0] {
-        Stmt::If { then_body, else_body, .. } => {
+        Stmt::If {
+            then_body,
+            else_body,
+            ..
+        } => {
             assert_eq!(then_body.len(), 1);
             assert_eq!(else_body.len(), 1);
             // then: VarDecl a = 1
@@ -204,7 +205,11 @@ fn when_start_elif_chain() {
         Stmt::If { else_body, .. } => {
             assert_eq!(else_body.len(), 1);
             match &else_body[0] {
-                Stmt::If { then_body, else_body: inner_else, .. } => {
+                Stmt::If {
+                    then_body,
+                    else_body: inner_else,
+                    ..
+                } => {
                     assert_eq!(then_body.len(), 1);
                     assert_eq!(inner_else.len(), 1);
                 }

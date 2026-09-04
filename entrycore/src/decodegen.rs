@@ -8,10 +8,10 @@
 //!   while cond { ... }
 //!   for _ in 0..n { ... }
 
-use crate::ir::{BinOp, Expr, FuncRef, Program, Stmt, UnaryOp};
-use crate::block::DialogMode;
-use crate::var::{VarInfo, VarInit, VarMap};
 use crate::Result;
+use crate::block::DialogMode;
+use crate::ir::{BinOp, Expr, FuncRef, Program, Stmt, UnaryOp};
+use crate::var::{VarInfo, VarInit, VarMap};
 use std::sync::{Mutex, OnceLock};
 
 /// emit 중 만난 하드웨어 블럭 raw JSON 누적 (post-order 전역 순서).
@@ -38,11 +38,17 @@ pub fn emit_with_var_map(program: &Program, vars: &VarMap) -> Result<String> {
     // 다시 선언하면 안 된다 — base variables 와 중복되어 Entry 파서가 거부한다.
     for v in vars.iter().filter(|v| {
         matches!(v.scope, crate::var::VarScope::Global)
-            && !matches!(v.kind, crate::var::VarKind::Timer | crate::var::VarKind::Answer)
+            && !matches!(
+                v.kind,
+                crate::var::VarKind::Timer | crate::var::VarKind::Answer
+            )
     }) {
         emit_global_var_decl(&mut out, v);
     }
-    if vars.iter().any(|v| matches!(v.scope, crate::var::VarScope::Global)) {
+    if vars
+        .iter()
+        .any(|v| matches!(v.scope, crate::var::VarScope::Global))
+    {
         out.push('\n');
     }
     let mut trigger_body: Vec<&Stmt> = Vec::new();
@@ -97,10 +103,12 @@ fn emit_trigger_block(stmts: &[&Stmt], out: &mut String, vars: &VarMap) -> Resul
 /// 이름이 같은 전역/로컬 항목이 공존할 때도 전역을 우선한다.
 fn should_emit_local_decl(v: &VarInfo, vars: &VarMap) -> bool {
     matches!(v.scope, crate::var::VarScope::Local)
-        && !matches!(v.kind, crate::var::VarKind::Timer | crate::var::VarKind::Answer)
+        && !matches!(
+            v.kind,
+            crate::var::VarKind::Timer | crate::var::VarKind::Answer
+        )
         && !vars.iter().any(|g| {
-            matches!(g.scope, crate::var::VarScope::Global)
-                && g.name.trim() == v.name.trim()
+            matches!(g.scope, crate::var::VarScope::Global) && g.name.trim() == v.name.trim()
         })
 }
 
@@ -108,12 +116,7 @@ fn indent_of(level: usize) -> String {
     "    ".repeat(level)
 }
 
-fn emit_stmt(
-    stmt: &Stmt,
-    out: &mut String,
-    level: usize,
-    vars: &VarMap,
-) -> Result<()> {
+fn emit_stmt(stmt: &Stmt, out: &mut String, level: usize, vars: &VarMap) -> Result<()> {
     let indent = indent_of(level);
     match stmt {
         Stmt::VarDecl(name, expr, kind, scope) => {
@@ -130,9 +133,9 @@ fn emit_stmt(
                 crate::block::kind_for(name),
                 crate::var::VarKind::Timer | crate::var::VarKind::Answer
             );
-            let is_global = vars.iter().any(|v| {
-                v.name == *name && matches!(v.scope, crate::ir::VarScope::Global)
-            });
+            let is_global = vars
+                .iter()
+                .any(|v| v.name == *name && matches!(v.scope, crate::ir::VarScope::Global));
             if is_system || is_global || matches!(scope, crate::ir::VarScope::Global) {
                 return Ok(());
             }

@@ -32,7 +32,7 @@ pub enum Expr {
     Func(FuncRef),
 
     //For 용 범위
-    Range(Box<Expr>, Box<Expr>)
+    Range(Box<Expr>, Box<Expr>),
 }
 
 /// 함수 참조 (이름 + 인자 타입).
@@ -64,7 +64,7 @@ pub enum BinOp {
     Ge,
     And,
     Or,
-    Range
+    Range,
 }
 
 /// 단항 연산 종류.

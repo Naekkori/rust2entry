@@ -8,7 +8,10 @@
 use entrycore::block::registry::{BlockRegistry, CHECK_DEF_TYPE_MATCH};
 
 fn load_dump() -> String {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/blocks-schema.json");
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/blocks-schema.json"
+    );
     std::fs::read_to_string(path).expect("blocks-schema.json fixture exists")
 }
 
@@ -18,7 +21,10 @@ fn validates_every_block_in_one_pass() {
     let report = registry.validate_json(&load_dump()).expect("dump parses");
 
     // 하드웨어 포함 전체 블럭이 한 패스로 검증된다.
-    assert_eq!(report.total_blocks, 4281, "모든 블럭(기본+AI+확장+하드웨어)을 순회");
+    assert_eq!(
+        report.total_blocks, 4281,
+        "모든 블럭(기본+AI+확장+하드웨어)을 순회"
+    );
 }
 
 #[test]
@@ -63,5 +69,8 @@ fn executable_skeletons_must_have_func() {
 
     // 실행형 skeleton 은 func 를 가져야 한다. 순수 UI(basic_text/basic_button) 제외.
     let no_func = report.count_by_check("func_expected");
-    assert!(no_func > 0, "func 부재 케이스가 존재해야 함 (entryjs 실제 데이터)");
+    assert!(
+        no_func > 0,
+        "func 부재 케이스가 존재해야 함 (entryjs 실제 데이터)"
+    );
 }

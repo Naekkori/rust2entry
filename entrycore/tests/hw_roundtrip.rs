@@ -9,11 +9,14 @@ use entrycore::block::registry::{BlockRegistry, set_hw_index};
 use entrycore::block::{self, Block};
 
 fn set_index() {
-    let json = std::fs::read_to_string(
-        concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/hw_sourcemap.json"),
-    )
+    let json = std::fs::read_to_string(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/hw_sourcemap.json"
+    ))
     .expect("fixture");
-    let map = BlockRegistry::new().parse_hw_sourcemap(&json).expect("parse");
+    let map = BlockRegistry::new()
+        .parse_hw_sourcemap(&json)
+        .expect("parse");
     set_hw_index(&map);
 }
 
@@ -31,7 +34,10 @@ fn forward_emits_hardware_block() {
         Some("pyocoding_serial_set"),
         "하드웨어 블럭 type 보존 (정방향)"
     );
-    assert!(!matches!(blk, Block::FuncCall { .. }), "FuncCall 이 아니라 Raw 여야");
+    assert!(
+        !matches!(blk, Block::FuncCall { .. }),
+        "FuncCall 이 아니라 Raw 여야"
+    );
 }
 
 /// 역방향: .ent 하드웨어 블럭이 Rust 호출 + @hwraw 주석으로 추출된다.
@@ -45,7 +51,10 @@ fn reverse_deparses_hardware_block() {
     ]]);
     let prog = entrycore::deparse::program_from_script_value(&script).expect("deparse");
     let out = entrycore::decodegen::emit(&prog).expect("emit");
-    assert!(out.contains("pyocoding_serial_set(\"COM1\")"), "출력: {out}");
+    assert!(
+        out.contains("pyocoding_serial_set(\"COM1\")"),
+        "출력: {out}"
+    );
     assert!(out.contains("pyocoding_get_analog_value"), "출력: {out}");
     assert!(out.contains("@hwraw"), "raw 보존 주석 필요: {out}");
 }

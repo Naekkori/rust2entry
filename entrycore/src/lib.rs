@@ -11,10 +11,10 @@ pub mod ir;
 pub mod parse;
 pub mod var;
 
-pub use error::{Error, Result};
 pub use asset::AssetMap;
-pub use var::{VarInfo, VarInit, VarKind, VarMap};
+pub use error::{Error, Result};
 use serde_json::{Value, json};
+pub use var::{VarInfo, VarInit, VarKind, VarMap};
 
 use crate::ir::{Program, Stmt};
 
@@ -66,8 +66,7 @@ pub fn compile_with_options(
     // 1. 각 rs 를 두 가지로 파싱한다:
     //    - `parse::parse` (트리거 body 평탄화 포함) -> variables 집계용 Program
     //    - `parse::parse_with_triggers` (트리거 분리) -> object.script thread 구성용
-    let mut per_source: Vec<(String, ThreadsAndHelpers)> =
-        Vec::with_capacity(rs_sources.len());
+    let mut per_source: Vec<(String, ThreadsAndHelpers)> = Vec::with_capacity(rs_sources.len());
     let mut merged_stmts: Vec<crate::ir::Stmt> = Vec::new();
     let mut all_helpers: Vec<FunctionDef> = Vec::new();
     let mut all_messages: Vec<String> = Vec::new();
@@ -82,7 +81,6 @@ pub fn compile_with_options(
         non_trigger_program: Program,
         triggers: Vec<crate::parse::TriggerDef>,
         stem: String,
-        flat_program: Program,
     }
     let mut parsed: Vec<Parsed> = Vec::with_capacity(rs_sources.len());
     for (name, src) in rs_sources {
@@ -94,10 +92,11 @@ pub fn compile_with_options(
             non_trigger_program,
             triggers,
             stem: name.to_string(),
-            flat_program,
         });
     }
-    let merged_program = Program { stmts: merged_stmts };
+    let merged_program = Program {
+        stmts: merged_stmts,
+    };
     let empty_var_map = VarMap::new();
     let mut vars_map = codegen::collect_var_map(
         &merged_program,
@@ -120,7 +119,13 @@ pub fn compile_with_options(
     // 2단계: build_threads (이 시점에 variable_socket emit 이 CURRENT_VAR_MAP
     // 에서 base id 를 lookup 할 수 있다).
     for p in parsed {
-        let mut tah = build_threads(&p.triggers, &p.non_trigger_program, &mut unmapped, &assets, &p.stem)?;
+        let mut tah = build_threads(
+            &p.triggers,
+            &p.non_trigger_program,
+            &mut unmapped,
+            &assets,
+            &p.stem,
+        )?;
         all_helpers.append(&mut tah.helpers);
         all_messages.append(&mut tah.messages);
         per_source.push((p.stem, tah));
@@ -140,7 +145,9 @@ pub fn compile_with_options(
     for (name, src) in rs_sources {
         let flat = parse::parse(src)?;
         for var_name in collect_var_names(&flat) {
-            var_object.entry(var_name).or_insert_with(|| name.to_string());
+            var_object
+                .entry(var_name)
+                .or_insert_with(|| name.to_string());
         }
     }
     let vars_arr: Vec<Value> = vars_map
@@ -231,20 +238,21 @@ pub fn compile_with_options(
         for v in &vars_arr {
             let new_id = v.get("id").and_then(|x| x.as_str());
             if let Some(new_id) = new_id
-                && let Some(existing) = merged.iter_mut().find(|e| {
-                    e.get("id").and_then(|x| x.as_str()) == Some(new_id)
-                }) {
-                    *existing = v.clone();
-                    continue;
-                }
+                && let Some(existing) = merged
+                    .iter_mut()
+                    .find(|e| e.get("id").and_then(|x| x.as_str()) == Some(new_id))
+            {
+                *existing = v.clone();
+                continue;
+            }
             // Entry 는 같은 이름의 변수를 허용하지 않는다. base 에 같은 name 이
             // 이미 있으면 새 변수를 무시하고 base 항목을 그대로 사용한다 (.rs 의
             // 정적 선언은 base 의 동일한 변수에 매핑되는 것으로 본다).
             let new_name = v.get("name").and_then(|x| x.as_str());
             if let Some(new_name) = new_name
-                && merged.iter().any(|e| {
-                    e.get("name").and_then(|x| x.as_str()) == Some(new_name)
-                })
+                && merged
+                    .iter()
+                    .any(|e| e.get("name").and_then(|x| x.as_str()) == Some(new_name))
             {
                 continue;
             }
@@ -264,10 +272,7 @@ pub fn compile_with_options(
     // 4. object 매핑: stem == object.name (대소문자 무시)
     //    매칭된 object 는 패치, 매칭 안 된 rs 는 unmatched 에 남긴다.
     let mut unmatched: Vec<(String, Vec<Vec<Value>>)> = Vec::new();
-    if let Some(objects) = project
-        .get_mut("objects")
-        .and_then(|v| v.as_array_mut())
-    {
+    if let Some(objects) = project.get_mut("objects").and_then(|v| v.as_array_mut()) {
         for (stem, tah) in &per_source {
             let found = objects.iter_mut().any(|o| {
                 let eq = o
@@ -318,7 +323,9 @@ pub fn compile_with_options(
                         .and_then(|v| v.as_array())
                         .map(|arr| {
                             arr.iter()
-                                .filter_map(|o| o.get("id").and_then(|x| x.as_str()).map(String::from))
+                                .filter_map(|o| {
+                                    o.get("id").and_then(|x| x.as_str()).map(String::from)
+                                })
                                 .collect()
                         })
                         .unwrap_or_default();
@@ -360,10 +367,8 @@ pub fn compile_with_options(
         // helper 함수 이름 -> [(id, param_names)]. 같은 이름 + 다른 arity 가
         // 공존할 수 있으므로 arity 별로 보관. 호출 사이트에서 args.len() 으로
         // 매칭해 정확한 id 로 재작성한다.
-        let mut fn_name_to_defs: std::collections::HashMap<
-            String,
-            Vec<(String, Vec<String>)>,
-        > = std::collections::HashMap::new();
+        let mut fn_name_to_defs: std::collections::HashMap<String, Vec<(String, Vec<String>)>> =
+            std::collections::HashMap::new();
         // 같은 이름의 base function 이 이미 있으면 두 번째 항목부터
         // 이름에 suffix 를 붙여 EntryJS 가 어느 것을 호출할지 모호한 상태를 방지.
         let mut existing_names: std::collections::HashSet<String> = merged_funcs
@@ -390,11 +395,8 @@ pub fn compile_with_options(
             existing_names.insert(emit_name.clone());
             // id 충돌 회피
             let id = fresh_function_id(&merged_funcs, &emit_name);
-            let param_metas: Vec<Value> = h
-                .params
-                .iter()
-                .map(|(n, _)| json!({ "name": n }))
-                .collect();
+            let param_metas: Vec<Value> =
+                h.params.iter().map(|(n, _)| json!({ "name": n })).collect();
             // function_create 헤드: thread 첫 블록.
             //   {type:"function_create", params:[function_field_label_chain], statements:[[...body]]}
             // EntryJS 실제 스키마:
@@ -594,7 +596,11 @@ fn make_fake_object(
 
     // objectType: base 첫 object 의 objectType, 없으면 "sprite"
     let object_type = base_object
-        .and_then(|o| o.get("objectType").and_then(|x| x.as_str()).map(String::from))
+        .and_then(|o| {
+            o.get("objectType")
+                .and_then(|x| x.as_str())
+                .map(String::from)
+        })
         .unwrap_or_else(|| "sprite".to_string());
 
     // scene: options.default_scene 우선, 없으면 base 첫 sprite 의 scene, 없으면 "scene1"
@@ -602,8 +608,7 @@ fn make_fake_object(
         .default_scene
         .clone()
         .or_else(|| {
-            base_object
-                .and_then(|o| o.get("scene").and_then(|x| x.as_str()).map(String::from))
+            base_object.and_then(|o| o.get("scene").and_then(|x| x.as_str()).map(String::from))
         })
         .unwrap_or_else(|| "scene1".to_string());
 
@@ -682,10 +687,7 @@ fn threads_to_value(threads: &[Vec<Value>]) -> Value {
 /// - function_field_string.params[1] = Output → 다음 function_field_*
 /// - function_field_boolean.params[0] = Block (Boolean, placeholder)
 /// - function_field_boolean.params[1] = Output → 다음 function_field_*  (없으면 null)
-fn build_function_param_chain(
-    name: &str,
-    params: &[(String, crate::ir::ParamKind)],
-) -> Value {
+fn build_function_param_chain(name: &str, params: &[(String, crate::ir::ParamKind)]) -> Value {
     use crate::ir::ParamKind;
     // 각 param 마다 function_field_* 블록 생성 (Output 다음 연결용).
     // 마지막 블록은 next = null, 그 외는 다음 블록의 Output 으로 연결.
@@ -728,9 +730,10 @@ fn build_function_param_chain(
             let next = field_blocks[i + 1].clone();
             if let Value::Object(obj) = &mut field_blocks[i]
                 && let Some(Value::Array(p)) = obj.get_mut("params")
-                    && p.len() >= 2 {
-                        p[1] = next;
-                    }
+                && p.len() >= 2
+            {
+                p[1] = next;
+            }
         }
     }
 
@@ -741,7 +744,6 @@ fn build_function_param_chain(
         "type": "TextInput",
         "value": name,
     });
-    
 
     if let Some(first_field) = field_blocks.first().cloned() {
         json!({
@@ -780,7 +782,10 @@ fn rewrite_function_calls(
         let was_string = script.is_string();
         // 문자열이면 파싱, 이미 Value 면 그대로. 파싱 실패 시 원본 유지하고 skip.
         let mut parsed: Value = if script.is_string() {
-            match script.as_str().and_then(|s| serde_json::from_str::<Value>(s).ok()) {
+            match script
+                .as_str()
+                .and_then(|s| serde_json::from_str::<Value>(s).ok())
+            {
                 Some(v) => v,
                 None => continue,
             }
@@ -844,17 +849,13 @@ fn rewrite_calls_in_value(
                             obj["type"] = Value::String(format!("func_{id}"));
                             // param 개수만큼 params 슬롯 emit.
                             // 부족분 null, args 초과분 무시.
-                            let mut new_params: Vec<Value> =
-                                Vec::with_capacity(param_names.len());
+                            let mut new_params: Vec<Value> = Vec::with_capacity(param_names.len());
                             for i in 0..param_names.len() {
-                                new_params
-                                    .push(raw_args.get(i).cloned().unwrap_or(Value::Null));
+                                new_params.push(raw_args.get(i).cloned().unwrap_or(Value::Null));
                             }
                             obj["params"] = Value::Array(new_params);
                         } else {
-                            eprintln!(
-                                "warning: function_call to undefined function: {name}"
-                            );
+                            eprintln!("warning: function_call to undefined function: {name}");
                         }
                     } else {
                         // 미정의 함수 호출은 stderr 경고.
@@ -932,9 +933,10 @@ fn build_threads(
         };
         // when_message 트리거면 메시지 이름 수집 (project.messages 등록용)
         if matches!(trigger_block, crate::block::Block::WhenMessageRecv { .. })
-            && let Some(name) = t.params.first() {
-                messages.push(name.clone());
-            }
+            && let Some(name) = t.params.first()
+        {
+            messages.push(name.clone());
+        }
         let mut thread = Vec::new();
         match crate::block::to_value_with_assets(&trigger_block, assets, object_name) {
             Ok(v) => thread.push(v),
@@ -969,7 +971,13 @@ fn build_threads(
     let mut helpers: Vec<FunctionDef> = Vec::new();
     let mut init_stmts: Vec<&Stmt> = Vec::new();
     for s in &program.stmts {
-        if let Stmt::FuncDef { name, params, body, return_type } = s {
+        if let Stmt::FuncDef {
+            name,
+            params,
+            body,
+            return_type,
+        } = s
+        {
             let has_return_value = return_type.is_some();
             let mut body_blocks: Vec<Value> = Vec::new();
             for bs in body {
@@ -1047,10 +1055,7 @@ fn build_threads(
 }
 
 /// 트리거 함수 이름을 Entry Block 으로 매핑.
-fn trigger_block_for(
-    name: &str,
-    params: &[String],
-) -> Result<crate::block::Block> {
+fn trigger_block_for(name: &str, params: &[String]) -> Result<crate::block::Block> {
     use crate::block::Block;
     let b = match name {
         "when_start" | "when_run" => Block::WhenStart,

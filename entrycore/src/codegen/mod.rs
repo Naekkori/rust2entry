@@ -68,10 +68,10 @@ pub fn generate(program: &Program, original: &Value) -> Result<Value> {
             && let Some(existing) = merged_vars
                 .iter_mut()
                 .find(|e| e.get("id").and_then(|x| x.as_str()) == Some(new_id))
-            {
-                *existing = v.clone();
-                continue;
-            }
+        {
+            *existing = v.clone();
+            continue;
+        }
         merged_vars.push(v.clone());
     }
     project["variables"] = json!(merged_vars);
@@ -142,7 +142,7 @@ pub fn collect_var_map(program: &Program, base: &VarMap) -> VarMap {
             id: final_id,
             name: final_name,
             original_name: name.clone(),
-            kind: kind,
+            kind,
             init: match kind {
                 VarKind::List => VarInit::EmptyList,
                 VarKind::Variable => VarInit::EmptyStr,
@@ -269,9 +269,10 @@ fn analyze_expr(expr: &Expr, out: &mut VariableAnalysis) {
                 _ => None,
             };
             if let Some(index) = list_index
-                && let Some(Expr::Var(name)) = args.get(index) {
-                    out.list_context_names.insert(name.clone());
-                }
+                && let Some(Expr::Var(name)) = args.get(index)
+            {
+                out.list_context_names.insert(name.clone());
+            }
             for arg in args {
                 analyze_expr(arg, out);
             }

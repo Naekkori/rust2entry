@@ -961,7 +961,7 @@ fn reserved_start_call_to_block(
                 "when_scene_start() 은 트리거 함수로만 사용 가능합니다. \
                  top-level fn when_scene_start() { ... } 형태로 정의하세요."
                     .into(),
-            ))
+            ));
         }
         _ => return Ok(None),
     }))
@@ -1426,7 +1426,12 @@ pub fn from_stmt_with_fn_scope(
             content: from_expr(value)?,
         }),
         Stmt::StopAll => Ok(Block::StopAll),
-        Stmt::FuncDef { name, params, body, return_type: _ } => {
+        Stmt::FuncDef {
+            name,
+            params,
+            body,
+            return_type: _,
+        } => {
             let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;
             // IR param 의 (name, kind) → Block 은 name 만. kind 는 outer scope
             // (`lib.rs`) 에서 function_create head 빌드 시 사용.
@@ -1732,7 +1737,9 @@ pub fn from_stmt_with_fn_scope(
                     }
                     if fref.name == "change_value_list_index" {
                         if args.len() != 3 {
-                            return Err(UnmappedBlock("change_value_list_index: args.len() != 3".into()));
+                            return Err(UnmappedBlock(
+                                "change_value_list_index: args.len() != 3".into(),
+                            ));
                         }
                         let index = from_expr(&args[0])?;
                         let value = from_expr(&args[1])?;
@@ -1741,9 +1748,11 @@ pub fn from_stmt_with_fn_scope(
                             Expr::Var(name) => name.clone(),
                             Expr::Str(s) => s.clone(),
                             Expr::Path(segments) => segments.last().cloned().unwrap_or_default(),
-                            other => return Err(UnmappedBlock(format!(
-                                "change_value_list_index: list arg form {other:?}"
-                            ))),
+                            other => {
+                                return Err(UnmappedBlock(format!(
+                                    "change_value_list_index: list arg form {other:?}"
+                                )));
+                            }
                         };
 
                         return Ok(Block::ChangeValueListIndex { index, value, list });
@@ -1805,9 +1814,14 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("append_row_to_table table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "append_row_to_table table must be string".into(),
+                                ));
+                            }
                         };
-                        let dimension = parse_enum_arg::<RowCol>(&args[1], "append_row_to_table dimension")?;
+                        let dimension =
+                            parse_enum_arg::<RowCol>(&args[1], "append_row_to_table dimension")?;
                         return Ok(Block::AppendRowToTable { table, dimension });
                     }
                     if fref.name == "insert_row_to_table" {
@@ -1816,11 +1830,20 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("insert_row_to_table table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "insert_row_to_table table must be string".into(),
+                                ));
+                            }
                         };
                         let index = from_expr(&args[1])?;
-                        let dimension = parse_enum_arg::<RowCol>(&args[2], "insert_row_to_table dimension")?;
-                        return Ok(Block::InsertRowToTable { table, index, dimension });
+                        let dimension =
+                            parse_enum_arg::<RowCol>(&args[2], "insert_row_to_table dimension")?;
+                        return Ok(Block::InsertRowToTable {
+                            table,
+                            index,
+                            dimension,
+                        });
                     }
                     if fref.name == "delete_row_from_table" {
                         if args.len() != 3 {
@@ -1828,11 +1851,20 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("delete_row_from_table table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "delete_row_from_table table must be string".into(),
+                                ));
+                            }
                         };
                         let index = from_expr(&args[1])?;
-                        let dimension = parse_enum_arg::<RowCol>(&args[2], "delete_row_from_table dimension")?;
-                        return Ok(Block::DeleteRowFromTable { table, index, dimension });
+                        let dimension =
+                            parse_enum_arg::<RowCol>(&args[2], "delete_row_from_table dimension")?;
+                        return Ok(Block::DeleteRowFromTable {
+                            table,
+                            index,
+                            dimension,
+                        });
                     }
                     if fref.name == "set_value_from_table" {
                         if args.len() != 4 {
@@ -1840,12 +1872,21 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("set_value_from_table table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "set_value_from_table table must be string".into(),
+                                ));
+                            }
                         };
                         let row = from_expr(&args[1])?;
                         let field = from_expr(&args[2])?;
                         let value = from_expr(&args[3])?;
-                        return Ok(Block::SetValueFromTable { table, row, field, value });
+                        return Ok(Block::SetValueFromTable {
+                            table,
+                            row,
+                            field,
+                            value,
+                        });
                     }
                     if fref.name == "save_current_table" {
                         if args.len() != 1 {
@@ -1853,7 +1894,11 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("save_current_table table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "save_current_table table must be string".into(),
+                                ));
+                            }
                         };
                         return Ok(Block::SaveCurrentTable { table });
                     }
@@ -1863,9 +1908,14 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("get_table_count table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "get_table_count table must be string".into(),
+                                ));
+                            }
                         };
-                        let dimension = parse_enum_arg::<RowCol>(&args[1], "get_table_count dimension")?;
+                        let dimension =
+                            parse_enum_arg::<RowCol>(&args[1], "get_table_count dimension")?;
                         return Ok(Block::GetTableCount { table, dimension });
                     }
                     if fref.name == "get_value_from_table" {
@@ -1874,7 +1924,11 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("get_value_from_table table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "get_value_from_table table must be string".into(),
+                                ));
+                            }
                         };
                         let row = from_expr(&args[1])?;
                         let field = from_expr(&args[2])?;
@@ -1886,7 +1940,11 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("get_value_from_last_row table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "get_value_from_last_row table must be string".into(),
+                                ));
+                            }
                         };
                         let field = from_expr(&args[1])?;
                         return Ok(Block::GetValueFromLastRow { table, field });
@@ -1897,11 +1955,22 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("calc_values_from_table table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "calc_values_from_table table must be string".into(),
+                                ));
+                            }
                         };
                         let field = from_expr(&args[1])?;
-                        let method = parse_enum_arg::<CalcMethod>(&args[2], "calc_values_from_table method")?;
-                        return Ok(Block::CalcValuesFromTable { table, field, method });
+                        let method = parse_enum_arg::<CalcMethod>(
+                            &args[2],
+                            "calc_values_from_table method",
+                        )?;
+                        return Ok(Block::CalcValuesFromTable {
+                            table,
+                            field,
+                            method,
+                        });
                     }
                     if fref.name == "open_table" {
                         if args.len() != 1 {
@@ -1919,7 +1988,11 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("open_table_wait table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "open_table_wait table must be string".into(),
+                                ));
+                            }
                         };
                         let seconds = from_expr(&args[1])?;
                         return Ok(Block::OpenTableWait { table, seconds });
@@ -1930,11 +2003,19 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("open_table_chart table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "open_table_chart table must be string".into(),
+                                ));
+                            }
                         };
                         let chart_index = match &args[1] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("open_table_chart chart_index must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "open_table_chart chart_index must be string".into(),
+                                ));
+                            }
                         };
                         return Ok(Block::OpenTableChart { table, chart_index });
                     }
@@ -1950,11 +2031,19 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("get_coefficient table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "get_coefficient table must be string".into(),
+                                ));
+                            }
                         };
                         let field1 = from_expr(&args[1])?;
                         let field2 = from_expr(&args[2])?;
-                        return Ok(Block::GetCoefficient { table, field1, field2 });
+                        return Ok(Block::GetCoefficient {
+                            table,
+                            field1,
+                            field2,
+                        });
                     }
                     if fref.name == "set_value_from_cell" {
                         if args.len() != 3 {
@@ -1962,7 +2051,11 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("set_value_from_cell table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "set_value_from_cell table must be string".into(),
+                                ));
+                            }
                         };
                         let cell = from_expr(&args[1])?;
                         let value = from_expr(&args[2])?;
@@ -1974,7 +2067,11 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("get_value_from_cell table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "get_value_from_cell table must be string".into(),
+                                ));
+                            }
                         };
                         let cell = from_expr(&args[1])?;
                         return Ok(Block::GetValueFromCell { table, cell });
@@ -1985,12 +2082,21 @@ pub fn from_stmt_with_fn_scope(
                         }
                         let table = match &args[0] {
                             Expr::Str(s) => s.clone(),
-                            _ => return Err(SyntaxError("get_value_v_lookup table must be string".into())),
+                            _ => {
+                                return Err(SyntaxError(
+                                    "get_value_v_lookup table must be string".into(),
+                                ));
+                            }
                         };
                         let field = from_expr(&args[1])?;
                         let value = from_expr(&args[2])?;
                         let return_field = from_expr(&args[3])?;
-                        return Ok(Block::GetValueVLookup { table, field, value, return_field });
+                        return Ok(Block::GetValueVLookup {
+                            table,
+                            field,
+                            value,
+                            return_field,
+                        });
                     }
                     // ── stmt 자리 거부 (값 슬롯 전용) ──
                     if fref.name == "get_table_count"
@@ -2777,7 +2883,7 @@ pub fn from_stmt_with_fn_scope(
                 lhs: end_pb,
                 rhs: start_pb.clone(),
             }));
-            let var_san = sanitize_ident(&var);
+            let var_san = sanitize_ident(var);
             let mut new_body = Vec::with_capacity(body.len() + 2);
             new_body.push(Block::SetVar {
                 variable: var_san.clone(),
@@ -2976,7 +3082,11 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 }
                 let table = match &args[0] {
                     Expr::Str(s) => s.clone(),
-                    _ => return Err(SyntaxError("get_value_from_table table must be string".into())),
+                    _ => {
+                        return Err(SyntaxError(
+                            "get_value_from_table table must be string".into(),
+                        ));
+                    }
                 };
                 let row = from_expr(&args[1])?;
                 let field = from_expr(&args[2])?;
@@ -2992,7 +3102,11 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 }
                 let table = match &args[0] {
                     Expr::Str(s) => s.clone(),
-                    _ => return Err(SyntaxError("get_value_from_last_row table must be string".into())),
+                    _ => {
+                        return Err(SyntaxError(
+                            "get_value_from_last_row table must be string".into(),
+                        ));
+                    }
                 };
                 let field = from_expr(&args[1])?;
                 return Ok(ParamBlock::Sub(Box::new(Block::GetValueFromLastRow {
@@ -3006,10 +3120,15 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 }
                 let table = match &args[0] {
                     Expr::Str(s) => s.clone(),
-                    _ => return Err(SyntaxError("calc_values_from_table table must be string".into())),
+                    _ => {
+                        return Err(SyntaxError(
+                            "calc_values_from_table table must be string".into(),
+                        ));
+                    }
                 };
                 let field = from_expr(&args[1])?;
-                let method = parse_enum_arg::<CalcMethod>(&args[2], "calc_values_from_table method")?;
+                let method =
+                    parse_enum_arg::<CalcMethod>(&args[2], "calc_values_from_table method")?;
                 return Ok(ParamBlock::Sub(Box::new(Block::CalcValuesFromTable {
                     table,
                     field,
@@ -3038,7 +3157,11 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 }
                 let table = match &args[0] {
                     Expr::Str(s) => s.clone(),
-                    _ => return Err(SyntaxError("get_value_from_cell table must be string".into())),
+                    _ => {
+                        return Err(SyntaxError(
+                            "get_value_from_cell table must be string".into(),
+                        ));
+                    }
                 };
                 let cell = from_expr(&args[1])?;
                 return Ok(ParamBlock::Sub(Box::new(Block::GetValueFromCell {
@@ -3052,7 +3175,11 @@ pub fn from_expr(expr: &crate::ir::Expr) -> crate::Result<ParamBlock> {
                 }
                 let table = match &args[0] {
                     Expr::Str(s) => s.clone(),
-                    _ => return Err(SyntaxError("get_value_v_lookup table must be string".into())),
+                    _ => {
+                        return Err(SyntaxError(
+                            "get_value_v_lookup table must be string".into(),
+                        ));
+                    }
                 };
                 let field = from_expr(&args[1])?;
                 let value = from_expr(&args[2])?;
@@ -3983,7 +4110,10 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
         // ── 데이터분석 (테이블) ──
         // EntryJS `tables` dropdown (첫 슬롯)은 런타임이 채움 → `null` emit.
         // 마지막 슬롯은 Indicator 자리 → `null`.
-        Block::AppendRowToTable { table: _, dimension } => (
+        Block::AppendRowToTable {
+            table: _,
+            dimension,
+        } => (
             vec![
                 Value::Null,
                 Value::String(row_col_to_str(*dimension).to_string()),
@@ -3991,7 +4121,11 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
-        Block::InsertRowToTable { table: _, index, dimension } => (
+        Block::InsertRowToTable {
+            table: _,
+            index,
+            dimension,
+        } => (
             vec![
                 Value::Null,
                 param_to_value(index),
@@ -4000,7 +4134,11 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
-        Block::DeleteRowFromTable { table: _, index, dimension } => (
+        Block::DeleteRowFromTable {
+            table: _,
+            index,
+            dimension,
+        } => (
             vec![
                 Value::Null,
                 param_to_value(index),
@@ -4009,7 +4147,12 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
-        Block::SetValueFromTable { table: _, row, field, value } => (
+        Block::SetValueFromTable {
+            table: _,
+            row,
+            field,
+            value,
+        } => (
             vec![
                 Value::Null,
                 param_to_value(row),
@@ -4020,26 +4163,32 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             None,
         ),
         Block::SaveCurrentTable { table: _ } => (vec![Value::Null, Value::Null], None),
-        Block::GetTableCount { table: _, dimension } => (
+        Block::GetTableCount {
+            table: _,
+            dimension,
+        } => (
             vec![
                 Value::Null,
                 Value::String(row_col_to_str(*dimension).to_string()),
             ],
             None,
         ),
-        Block::GetValueFromTable { table: _, row, field } => (
-            vec![
-                Value::Null,
-                param_to_value(row),
-                param_to_value(field),
-            ],
+        Block::GetValueFromTable {
+            table: _,
+            row,
+            field,
+        } => (
+            vec![Value::Null, param_to_value(row), param_to_value(field)],
             None,
         ),
-        Block::GetValueFromLastRow { table: _, field } => (
-            vec![Value::Null, param_to_value(field)],
-            None,
-        ),
-        Block::CalcValuesFromTable { table: _, field, method } => (
+        Block::GetValueFromLastRow { table: _, field } => {
+            (vec![Value::Null, param_to_value(field)], None)
+        }
+        Block::CalcValuesFromTable {
+            table: _,
+            field,
+            method,
+        } => (
             vec![
                 Value::Null,
                 param_to_value(field),
@@ -4052,20 +4201,24 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             vec![Value::Null, param_to_value(seconds), Value::Null],
             None,
         ),
-        Block::OpenTableChart { table: _, chart_index: _ } => (
-            vec![Value::Null, Value::Null, Value::Null],
-            None,
-        ),
+        Block::OpenTableChart {
+            table: _,
+            chart_index: _,
+        } => (vec![Value::Null, Value::Null, Value::Null], None),
         Block::CloseTableChart => (vec![Value::Null, Value::Null], None),
-        Block::GetCoefficient { table: _, field1, field2 } => (
-            vec![
-                Value::Null,
-                param_to_value(field1),
-                param_to_value(field2),
-            ],
+        Block::GetCoefficient {
+            table: _,
+            field1,
+            field2,
+        } => (
+            vec![Value::Null, param_to_value(field1), param_to_value(field2)],
             None,
         ),
-        Block::SetValueFromCell { table: _, cell, value } => (
+        Block::SetValueFromCell {
+            table: _,
+            cell,
+            value,
+        } => (
             vec![
                 Value::Null,
                 param_to_value(cell),
@@ -4074,11 +4227,15 @@ fn build_params_and_statements(block: &Block) -> crate::Result<(Vec<Value>, Opti
             ],
             None,
         ),
-        Block::GetValueFromCell { table: _, cell } => (
-            vec![Value::Null, param_to_value(cell)],
-            None,
-        ),
-        Block::GetValueVLookup { table: _, field, value, return_field } => (
+        Block::GetValueFromCell { table: _, cell } => {
+            (vec![Value::Null, param_to_value(cell)], None)
+        }
+        Block::GetValueVLookup {
+            table: _,
+            field,
+            value,
+            return_field,
+        } => (
             vec![
                 Value::Null,
                 param_to_value(field),
@@ -4605,17 +4762,20 @@ fn hangul_to_roman(c: char) -> Option<String> {
     let medial = ((n % 588) / 28) as usize;
     let final_idx = (n % 28) as usize;
     const INITIALS: &[&str] = &[
-        "g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t", "p", "h",
+        "g", "kk", "n", "d", "tt", "r", "m", "b", "pp", "s", "ss", "", "j", "jj", "ch", "k", "t",
+        "p", "h",
     ];
     const MEDIALS: &[&str] = &[
-        "a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "oa", "oe", "oi", "yo", "u", "ueo", "yu", "eu", "ui", "i", // 0..=18
+        "a", "ae", "ya", "yae", "eo", "e", "yeo", "ye", "o", "oa", "oe", "oi", "yo", "u", "ueo",
+        "yu", "eu", "ui", "i", // 0..=18
     ];
     // medials 인덱스 0..=18 (19개) — 위 19개. Revised Romanization 이중모음 매핑 확인:
     // ㅘ(oa), ㅙ(oe), ㅚ(oi), ㅝ(ueo), ㅞ(ue), ㅟ(ui), ㅢ(ui) — 우리 표와 일치.
     // 위 표에서 ㅘ=oa (idx 9), ㅙ=oe (idx 10), ㅚ=oi (idx 11), ㅝ=ueo (idx 14), ㅞ=ue — 빠짐!
     // Revised: ㅞ=ue, ㅟ=ui, ㅢ=ui — 표 보완.
     const FINALS: &[&str] = &[
-        "", "g", "kk", "ks", "n", "nj", "nh", "d", "l", "lg", "lm", "lb", "ls", "lt", "lp", "lh", "m", "b", "bs", "s", "ss", "ng", "j", "ch", "k", "t", "p", "h",
+        "", "g", "kk", "ks", "n", "nj", "nh", "d", "l", "lg", "lm", "lb", "ls", "lt", "lp", "lh",
+        "m", "b", "bs", "s", "ss", "ng", "j", "ch", "k", "t", "p", "h",
     ];
     let init = INITIALS.get(initial)?;
     let med = MEDIALS.get(medial)?;
@@ -4709,18 +4869,6 @@ pub fn kind_for(name: &str) -> crate::var::VarKind {
     }
 }
 
-// VarKind -> Entry variableType 문자열
-fn kind_to_str(kind: &crate::var::VarKind) -> &'static str {
-    match kind {
-        VarKind::Variable => "variable",
-        VarKind::Timer => "timer",
-        VarKind::List => "list",
-        VarKind::Cloud => "cloud",
-        VarKind::Answer => "answer",
-        VarKind::RealTime => "realtime",
-        VarKind::Unknown => "variable",
-    }
-}
 /// Vec<Block> -> Thread.
 fn blocks_to_thread(blocks: &[Block]) -> Result<Value> {
     let arr: Result<Vec<_>> = blocks.iter().map(to_value).collect();

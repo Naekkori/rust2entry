@@ -7,8 +7,7 @@ use std::{
 };
 
 use egui::{
-    Button, Color32, Id, Image, ImageSource, Modal, Pos2, Rect, RichText, Sense, Shape,
-    TextureHandle, Vec2, emath,
+    Button, Color32, ImageSource, Pos2, Rect, RichText, Sense, Shape, TextureHandle, Vec2, emath,
 };
 use rfd::FileDialog;
 
@@ -337,7 +336,7 @@ impl EntryCApp {
                                     [half, 50.0],
                                     Button::new("엔트리 프로젝트 열기"),
                                 )
-                                .on_hover_text("엔트리 프로젝트를 선택합니다.")
+                                .on_hover_text("엔트리 프로젝트를 선택합니다, 엔트리 파일을 rs 로 컴파일 합니다.")
                                 .clicked()
                             {
                                 self.on_click_open_entry_project();
@@ -743,7 +742,7 @@ impl EntryCApp {
             .and_then(|n| n.to_str())
             .unwrap_or("build");
         let out = folder.with_file_name(format!("{folder_name}.ent"));
-        match pick_template_for(&folder, Some(&folder_name)) {
+        match pick_template_for(&folder, Some(folder_name)) {
             TemplateChoice::Found(t) => self.spawn_build(rs_files, out, Some(t)),
             TemplateChoice::Missing => {
                 self.show_error_modal(format!(

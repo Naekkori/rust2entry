@@ -1,10 +1,10 @@
 //! parse -> codegen 통합 테스트.
 
-use entrycore::{VarKind, VarMap};
 use entrycore::codegen::{collect_var_map, generate};
 use entrycore::deparse::program_from_script_value_with_vars;
 use entrycore::parse::parse;
 use entrycore::var::var_map_from_value;
+use entrycore::{VarKind, VarMap};
 use serde_json::{Value, json};
 #[test]
 fn variable_map_supports_bidirectional_lookup() {
@@ -21,9 +21,12 @@ fn variable_map_supports_bidirectional_lookup() {
 fn variable_map_insert_is_bidirectional() {
     let mut vars = VarMap::new();
     vars.insert(entrycore::VarInfo {
-        id: "id-x".into(), name: "x".into(), original_name: "x".into(),
+        id: "id-x".into(),
+        name: "x".into(),
+        original_name: "x".into(),
         kind: VarKind::Variable,
-        init: entrycore::VarInit::Int0, scope: entrycore::ir::VarScope::Local,
+        init: entrycore::VarInit::Int0,
+        scope: entrycore::ir::VarScope::Local,
     });
     assert_eq!(vars.id_by_name("x"), Some("id-x"));
     assert_eq!(vars.name_by_id("id-x"), Some("x"));
@@ -44,13 +47,19 @@ fn simple_set_var() {
         }
     "#;
     let program = parse(src).expect("parse");
-    let json = generate(&program,&empty_project()).expect("generate");
+    let json = generate(&program, &empty_project()).expect("generate");
     let scripts = json.get("scripts").expect("scripts");
     let arr = scripts.as_array().expect("array");
     assert_eq!(arr.len(), 1);
     let block = &arr[0];
-    assert_eq!(block.get("type").and_then(|v| v.as_str()), Some("set_variable"));
-    let params = block.get("params").and_then(|v| v.as_array()).expect("params");
+    assert_eq!(
+        block.get("type").and_then(|v| v.as_str()),
+        Some("set_variable")
+    );
+    let params = block
+        .get("params")
+        .and_then(|v| v.as_array())
+        .expect("params");
     assert_eq!(
         params[0].as_str().map(|s| s.to_string()),
         Some(entrycore::block::id_for("x"))
@@ -66,7 +75,7 @@ fn arithmetic_block() {
         }
     "#;
     let program = parse(src).expect("parse");
-    let json = generate(&program,&empty_project()).expect("generate");
+    let json = generate(&program, &empty_project()).expect("generate");
     let block = &json["scripts"][0];
     assert_eq!(block["type"], "set_variable");
     // value는 calc_block (sub-block)
@@ -84,7 +93,7 @@ fn if_block() {
         }
     "#;
     let program = parse(src).expect("parse");
-    let json = generate(&program,&empty_project()).expect("generate");
+    let json = generate(&program, &empty_project()).expect("generate");
     let block = &json["scripts"][0];
     assert_eq!(block["type"], "_if");
     let cond = &block["params"][0];
@@ -99,7 +108,7 @@ fn function_call_stmt() {
         }
     "#;
     let program = parse(src).expect("parse");
-    let json = generate(&program,&empty_project()).expect("generate");
+    let json = generate(&program, &empty_project()).expect("generate");
     let block = &json["scripts"][0];
     assert_eq!(block["type"], "function_call");
 }
@@ -114,7 +123,7 @@ fn for_range_expands_to_repeat() {
         }
     "#;
     let program = parse(src).expect("parse");
-    let json = generate(&program,&empty_project()).expect("generate");
+    let json = generate(&program, &empty_project()).expect("generate");
     let block = &json["scripts"][0];
     // for i in 0..5 -> repeat_basic(5 - 0)
     assert_eq!(block["type"], "repeat_basic");
@@ -144,12 +153,11 @@ fn for_range_expands_to_repeat() {
 fn roundtrip_simple_set() {
     let src = "fn when_start() { let x = 42; }";
     let p1 = parse(src).expect("parse1");
-    let json = generate(&p1,&empty_project()).expect("generate");
+    let json = generate(&p1, &empty_project()).expect("generate");
     let vars = collect_var_map(&p1, &VarMap::new());
     // scripts = [set_variable_block]. deparse는 [[block,...]] 형태 기대.
     let scripts_wrapped = serde_json::json!([json["scripts"].clone()]);
-    let p2 = program_from_script_value_with_vars(&scripts_wrapped, &vars)
-        .expect("deparse");
+    let p2 = program_from_script_value_with_vars(&scripts_wrapped, &vars).expect("deparse");
     assert_eq!(p1.stmts.len(), p2.stmts.len());
     // Entry `set_variable`은 VarDecl/SetVar 모두 표현 가능. 변수명만 보존 확인.
     let n1 = match &p1.stmts[0] {
@@ -169,16 +177,23 @@ fn roundtrip_simple_set() {
 fn roundtrip_if() {
     let src = "fn when_start() { if 1 < 2 { let x = 1; } }";
     let p1 = parse(src).expect("parse1");
-    let json = generate(&p1,&empty_project()).expect("generate");
+    let json = generate(&p1, &empty_project()).expect("generate");
     let vars = collect_var_map(&p1, &VarMap::new());
     let scripts_wrapped = serde_json::json!([json["scripts"].clone()]);
-    let p2 = program_from_script_value_with_vars(&scripts_wrapped, &vars)
-        .expect("deparse");
+    let p2 = program_from_script_value_with_vars(&scripts_wrapped, &vars).expect("deparse");
     assert_eq!(p1.stmts.len(), p2.stmts.len());
     match (&p1.stmts[0], &p2.stmts[0]) {
         (
-            entrycore::ir::Stmt::If { then_body: tb1, else_body: eb1, .. },
-            entrycore::ir::Stmt::If { then_body: tb2, else_body: eb2, .. },
+            entrycore::ir::Stmt::If {
+                then_body: tb1,
+                else_body: eb1,
+                ..
+            },
+            entrycore::ir::Stmt::If {
+                then_body: tb2,
+                else_body: eb2,
+                ..
+            },
         ) => {
             assert_eq!(tb1.len(), tb2.len());
             assert_eq!(eb1.len(), eb2.len());
@@ -193,11 +208,10 @@ fn roundtrip_if() {
 fn for_range_roundtrip_is_repeat() {
     let src = "fn when_start() { for i in 0..5 { let x = 1; } }";
     let p1 = parse(src).expect("parse1");
-    let json = generate(&p1,&empty_project()).expect("generate");
+    let json = generate(&p1, &empty_project()).expect("generate");
     let vars = collect_var_map(&p1, &VarMap::new());
     let scripts_wrapped = serde_json::json!([json["scripts"].clone()]);
-    let p2 = program_from_script_value_with_vars(&scripts_wrapped, &vars)
-        .expect("deparse");
+    let p2 = program_from_script_value_with_vars(&scripts_wrapped, &vars).expect("deparse");
     // 첫 stmt는 Repeat.
     match &p2.stmts[0] {
         entrycore::ir::Stmt::Repeat { times, body } => {
@@ -209,7 +223,9 @@ fn for_range_roundtrip_is_repeat() {
             // body 길이: [SetVar i, SetVar x, ChangeVar i]
             assert_eq!(body.len(), 3);
             assert!(matches!(&body[0], entrycore::ir::Stmt::SetVar(vref, _) if vref.name == "i"));
-            assert!(matches!(&body[2], entrycore::ir::Stmt::ChangeVariable { variable, .. } if variable.name == "i"));
+            assert!(
+                matches!(&body[2], entrycore::ir::Stmt::ChangeVariable { variable, .. } if variable.name == "i")
+            );
         }
         other => panic!("expected Repeat, got {other:?}"),
     }
@@ -222,7 +238,9 @@ fn timer_named_var_registers_as_timer() {
     // ↑ 이건 위 거부 테스트에서 거부되므로, 등록은 collect_var_map 단독 테스트로
     let p = parse(src).expect("parse");
     let vars = collect_var_map(&p, &VarMap::new());
-    let info = vars.get(&entrycore::block::id_for("초시계")).expect("timer registered");
+    let info = vars
+        .get(&entrycore::block::id_for("초시계"))
+        .expect("timer registered");
     assert!(matches!(info.kind, VarKind::Timer));
 }
 
@@ -333,7 +351,10 @@ fn table_invalid_enum_string_rejected() {
     let p = parse(src).expect("parse");
     let err = generate(&p, &empty_project()).expect_err("should reject");
     let msg = format!("{err:?}");
-    assert!(msg.contains("invalid row/col") || msg.contains("unknown RowCol"), "got: {msg}");
+    assert!(
+        msg.contains("invalid row/col") || msg.contains("unknown RowCol"),
+        "got: {msg}"
+    );
 }
 
 #[test]
@@ -347,7 +368,10 @@ fn table_arity_mismatch_rejected() {
     let p = parse(src).expect("parse");
     let err = generate(&p, &empty_project()).expect_err("should reject");
     let msg = format!("{err:?}");
-    assert!(msg.contains("insert_row_to_table needs 3 args"), "got: {msg}");
+    assert!(
+        msg.contains("insert_row_to_table needs 3 args"),
+        "got: {msg}"
+    );
 }
 
 #[test]
@@ -437,5 +461,8 @@ fn sanitize_korean_variable_name() {
     // 한글+특수문자 혼합
     assert_eq!(sanitize_ident(&format!("{ga}!")), "ga_");
     // 충돌 방지: 같은 sanitize 결과 다른 원본
-    assert_ne!(sanitize_ident(&format!("{ga}")), sanitize_ident(&format!("{hi}")));
+    assert_ne!(
+        sanitize_ident(&format!("{ga}")),
+        sanitize_ident(&format!("{hi}"))
+    );
 }

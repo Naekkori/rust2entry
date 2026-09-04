@@ -1,4 +1,4 @@
-﻿//! Entry 釉붾줉 JSON -> IR ?????
+//! Entry 釉붾줉 JSON -> IR ?????
 //!
 //! `entrycore::block`??`Block` enum??Entry ?섎????듯빀 ?쒗쁽??
 //! ??紐⑤뱢? Entry project.json??釉붾줉 Value瑜?`Block`?쇰줈 諛붽씀怨?
@@ -9,11 +9,11 @@ use std::vec;
 use crate::Error::{Parse, SyntaxError, UnmappedBlock};
 use crate::block::{
     Block, CalcMethod, DateKind, DialogMode, Dimension, EffectType, MathOperation, ParamBlock,
-    QamMethod, RowCol,
-    calc_method_to_str, change_string_case_to_str, date_kind_to_str, device_type_to_str,
-    dim_to_dsl_str, effect_to_str, mouse_axis_to_str, object_coord_to_str, rgb_channel_to_str,
-    row_col_to_str, str_to_calc_method, str_to_change_string_case, str_to_mouse_axis,
-    str_to_object_coord, str_to_rgb_channel, str_to_row_col, str_to_text_effect, text_effect_to_str,
+    QamMethod, RowCol, calc_method_to_str, change_string_case_to_str, date_kind_to_str,
+    device_type_to_str, dim_to_dsl_str, effect_to_str, mouse_axis_to_str, object_coord_to_str,
+    rgb_channel_to_str, row_col_to_str, str_to_calc_method, str_to_change_string_case,
+    str_to_mouse_axis, str_to_object_coord, str_to_rgb_channel, str_to_row_col, str_to_text_effect,
+    text_effect_to_str,
 };
 use crate::ir::{BinOp, Expr, Stmt, UnaryOp, VarRef};
 use crate::var::VarMap;
@@ -268,20 +268,33 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let table = table_param(&params, 0);
             let index = param_at(&params, 1, vars)?;
             let dimension = row_col_param(&params, 2)?;
-            Block::InsertRowToTable { table, index, dimension }
+            Block::InsertRowToTable {
+                table,
+                index,
+                dimension,
+            }
         }
         "delete_row_from_table" => {
             let table = table_param(&params, 0);
             let index = param_at(&params, 1, vars)?;
             let dimension = row_col_param(&params, 2)?;
-            Block::DeleteRowFromTable { table, index, dimension }
+            Block::DeleteRowFromTable {
+                table,
+                index,
+                dimension,
+            }
         }
         "set_value_from_table" => {
             let table = table_param(&params, 0);
             let row = param_at(&params, 1, vars)?;
             let field = param_at(&params, 2, vars)?;
             let value = param_at(&params, 3, vars)?;
-            Block::SetValueFromTable { table, row, field, value }
+            Block::SetValueFromTable {
+                table,
+                row,
+                field,
+                value,
+            }
         }
         "save_current_table" => {
             let table = table_param(&params, 0);
@@ -307,7 +320,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let table = table_param(&params, 0);
             let field = param_at(&params, 1, vars)?;
             let method = calc_method_param(&params, 2)?;
-            Block::CalcValuesFromTable { table, field, method }
+            Block::CalcValuesFromTable {
+                table,
+                field,
+                method,
+            }
         }
         "open_table" => {
             let table = table_param(&params, 0);
@@ -333,7 +350,11 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let table = table_param(&params, 0);
             let field1 = param_at(&params, 1, vars)?;
             let field2 = param_at(&params, 2, vars)?;
-            Block::GetCoefficient { table, field1, field2 }
+            Block::GetCoefficient {
+                table,
+                field1,
+                field2,
+            }
         }
         "set_value_from_cell" => {
             let table = table_param(&params, 0);
@@ -351,7 +372,12 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
             let field = param_at(&params, 1, vars)?;
             let value = param_at(&params, 2, vars)?;
             let return_field = param_at(&params, 3, vars)?;
-            Block::GetValueVLookup { table, field, value, return_field }
+            Block::GetValueVLookup {
+                table,
+                field,
+                value,
+                return_field,
+            }
         }
         // ?먮쫫
         "if" | "_if" => {
@@ -702,10 +728,7 @@ pub fn block_from_value(v: &Value, vars: &VarMap) -> Result<Block> {
         }
         "change_hex_to_rgb" => {
             let hex = param_at(&params, 0, vars)?;
-            let channel_str = params
-                .get(1)
-                .and_then(Value::as_str)
-                .unwrap_or("r");
+            let channel_str = params.get(1).and_then(Value::as_str).unwrap_or("r");
             let channel = str_to_rgb_channel(channel_str).ok_or_else(|| {
                 crate::Error::Parse(format!("change_hex_to_rgb invalid channel:{channel_str}"))
             })?;
@@ -1416,19 +1439,13 @@ fn table_param(params: &Value, idx: usize) -> String {
 
 /// `params[idx]` 에서 RowCol 드롭다운 문자열 파싱.
 fn row_col_param(params: &Value, idx: usize) -> Result<RowCol> {
-    let s = params
-        .get(idx)
-        .and_then(Value::as_str)
-        .unwrap_or("ROW");
+    let s = params.get(idx).and_then(Value::as_str).unwrap_or("ROW");
     str_to_row_col(s).map_err(|_| SyntaxError(format!("invalid row/col dropdown: {s}")))
 }
 
 /// `params[idx]` 에서 CalcMethod 드롭다운 문자열 파싱.
 fn calc_method_param(params: &Value, idx: usize) -> Result<CalcMethod> {
-    let s = params
-        .get(idx)
-        .and_then(Value::as_str)
-        .unwrap_or("SUM");
+    let s = params.get(idx).and_then(Value::as_str).unwrap_or("SUM");
     str_to_calc_method(s).map_err(|_| SyntaxError(format!("invalid calc method dropdown: {s}")))
 }
 
@@ -1720,40 +1737,84 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         // ?? ?곗씠?곕텇??(?뚯씠釉? ??
         Block::AppendRowToTable { table, dimension } => {
             stmts.push(Stmt::Expr(Expr::Call(
-                crate::ir::FuncRef { name: "append_row_to_table".to_string(), arity: 2, raw: None },
-                vec![Expr::Str(table.clone()), Expr::Str(row_col_to_str(*dimension).to_string())],
+                crate::ir::FuncRef {
+                    name: "append_row_to_table".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
+                vec![
+                    Expr::Str(table.clone()),
+                    Expr::Str(row_col_to_str(*dimension).to_string()),
+                ],
             )));
             Ok(())
         }
-        Block::InsertRowToTable { table, index, dimension } => {
+        Block::InsertRowToTable {
+            table,
+            index,
+            dimension,
+        } => {
             let index = expr_from_param(index, vars)?;
             stmts.push(Stmt::Expr(Expr::Call(
-                crate::ir::FuncRef { name: "insert_row_to_table".to_string(), arity: 3, raw: None },
-                vec![Expr::Str(table.clone()), index, Expr::Str(row_col_to_str(*dimension).to_string())],
+                crate::ir::FuncRef {
+                    name: "insert_row_to_table".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![
+                    Expr::Str(table.clone()),
+                    index,
+                    Expr::Str(row_col_to_str(*dimension).to_string()),
+                ],
             )));
             Ok(())
         }
-        Block::DeleteRowFromTable { table, index, dimension } => {
+        Block::DeleteRowFromTable {
+            table,
+            index,
+            dimension,
+        } => {
             let index = expr_from_param(index, vars)?;
             stmts.push(Stmt::Expr(Expr::Call(
-                crate::ir::FuncRef { name: "delete_row_from_table".to_string(), arity: 3, raw: None },
-                vec![Expr::Str(table.clone()), index, Expr::Str(row_col_to_str(*dimension).to_string())],
+                crate::ir::FuncRef {
+                    name: "delete_row_from_table".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
+                vec![
+                    Expr::Str(table.clone()),
+                    index,
+                    Expr::Str(row_col_to_str(*dimension).to_string()),
+                ],
             )));
             Ok(())
         }
-        Block::SetValueFromTable { table, row, field, value } => {
+        Block::SetValueFromTable {
+            table,
+            row,
+            field,
+            value,
+        } => {
             let row = expr_from_param(row, vars)?;
             let field = expr_from_param(field, vars)?;
             let value = expr_from_param(value, vars)?;
             stmts.push(Stmt::Expr(Expr::Call(
-                crate::ir::FuncRef { name: "set_value_from_table".to_string(), arity: 4, raw: None },
+                crate::ir::FuncRef {
+                    name: "set_value_from_table".to_string(),
+                    arity: 4,
+                    raw: None,
+                },
                 vec![Expr::Str(table.clone()), row, field, value],
             )));
             Ok(())
         }
         Block::SaveCurrentTable { table } => {
             stmts.push(Stmt::Expr(Expr::Call(
-                crate::ir::FuncRef { name: "save_current_table".to_string(), arity: 1, raw: None },
+                crate::ir::FuncRef {
+                    name: "save_current_table".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
                 vec![Expr::Str(table.clone())],
             )));
             Ok(())
@@ -1772,7 +1833,11 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         )),
         Block::OpenTable { table } => {
             stmts.push(Stmt::Expr(Expr::Call(
-                crate::ir::FuncRef { name: "open_table".to_string(), arity: 1, raw: None },
+                crate::ir::FuncRef {
+                    name: "open_table".to_string(),
+                    arity: 1,
+                    raw: None,
+                },
                 vec![Expr::Str(table.clone())],
             )));
             Ok(())
@@ -1780,21 +1845,33 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         Block::OpenTableWait { table, seconds } => {
             let seconds = expr_from_param(seconds, vars)?;
             stmts.push(Stmt::Expr(Expr::Call(
-                crate::ir::FuncRef { name: "open_table_wait".to_string(), arity: 2, raw: None },
+                crate::ir::FuncRef {
+                    name: "open_table_wait".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
                 vec![Expr::Str(table.clone()), seconds],
             )));
             Ok(())
         }
         Block::OpenTableChart { table, chart_index } => {
             stmts.push(Stmt::Expr(Expr::Call(
-                crate::ir::FuncRef { name: "open_table_chart".to_string(), arity: 2, raw: None },
+                crate::ir::FuncRef {
+                    name: "open_table_chart".to_string(),
+                    arity: 2,
+                    raw: None,
+                },
                 vec![Expr::Str(table.clone()), Expr::Str(chart_index.clone())],
             )));
             Ok(())
         }
         Block::CloseTableChart => {
             stmts.push(Stmt::Expr(Expr::Call(
-                crate::ir::FuncRef { name: "close_table_chart".to_string(), arity: 0, raw: None },
+                crate::ir::FuncRef {
+                    name: "close_table_chart".to_string(),
+                    arity: 0,
+                    raw: None,
+                },
                 Vec::new(),
             )));
             Ok(())
@@ -1806,7 +1883,11 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             let cell = expr_from_param(cell, vars)?;
             let value = expr_from_param(value, vars)?;
             stmts.push(Stmt::Expr(Expr::Call(
-                crate::ir::FuncRef { name: "set_value_from_cell".to_string(), arity: 3, raw: None },
+                crate::ir::FuncRef {
+                    name: "set_value_from_cell".to_string(),
+                    arity: 3,
+                    raw: None,
+                },
                 vec![Expr::Str(table.clone()), cell, value],
             )));
             Ok(())
@@ -3724,7 +3805,10 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 arity: 2,
                 raw: None,
             },
-            vec![Expr::Str(table.clone()), Expr::Str(row_col_to_str(*dimension).to_string())],
+            vec![
+                Expr::Str(table.clone()),
+                Expr::Str(row_col_to_str(*dimension).to_string()),
+            ],
         )),
         Block::GetValueFromTable { table, row, field } => {
             let row = expr_from_param(row, vars)?;
@@ -3749,7 +3833,11 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![Expr::Str(table.clone()), field],
             ))
         }
-        Block::CalcValuesFromTable { table, field, method } => {
+        Block::CalcValuesFromTable {
+            table,
+            field,
+            method,
+        } => {
             let field = expr_from_param(field, vars)?;
             Ok(Expr::Call(
                 ir::FuncRef {
@@ -3764,7 +3852,11 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ],
             ))
         }
-        Block::GetCoefficient { table, field1, field2 } => {
+        Block::GetCoefficient {
+            table,
+            field1,
+            field2,
+        } => {
             let field1 = expr_from_param(field1, vars)?;
             let field2 = expr_from_param(field2, vars)?;
             Ok(Expr::Call(
@@ -3787,7 +3879,12 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![Expr::Str(table.clone()), cell],
             ))
         }
-        Block::GetValueVLookup { table, field, value, return_field } => {
+        Block::GetValueVLookup {
+            table,
+            field,
+            value,
+            return_field,
+        } => {
             let field = expr_from_param(field, vars)?;
             let value = expr_from_param(value, vars)?;
             let return_field = expr_from_param(return_field, vars)?;
@@ -3807,7 +3904,10 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 arity: 2,
                 raw: None,
             },
-            vec![Expr::Str(table.clone()), Expr::Str(row_col_to_str(*dimension).to_string())],
+            vec![
+                Expr::Str(table.clone()),
+                Expr::Str(row_col_to_str(*dimension).to_string()),
+            ],
         )),
         Block::GetValueFromTable { table, row, field } => {
             let row = expr_from_param(row, vars)?;
@@ -3832,7 +3932,11 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![Expr::Str(table.clone()), field],
             ))
         }
-        Block::CalcValuesFromTable { table, field, method } => {
+        Block::CalcValuesFromTable {
+            table,
+            field,
+            method,
+        } => {
             let field = expr_from_param(field, vars)?;
             Ok(Expr::Call(
                 ir::FuncRef {
@@ -3847,7 +3951,11 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 ],
             ))
         }
-        Block::GetCoefficient { table, field1, field2 } => {
+        Block::GetCoefficient {
+            table,
+            field1,
+            field2,
+        } => {
             let field1 = expr_from_param(field1, vars)?;
             let field2 = expr_from_param(field2, vars)?;
             Ok(Expr::Call(
@@ -3870,7 +3978,12 @@ fn expr_from_block(b: &Block, vars: &VarMap) -> Result<Expr> {
                 vec![Expr::Str(table.clone()), cell],
             ))
         }
-        Block::GetValueVLookup { table, field, value, return_field } => {
+        Block::GetValueVLookup {
+            table,
+            field,
+            value,
+            return_field,
+        } => {
             let field = expr_from_param(field, vars)?;
             let value = expr_from_param(value, vars)?;
             let return_field = expr_from_param(return_field, vars)?;

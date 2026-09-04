@@ -34,9 +34,7 @@ fn extract_change_variable_delta(lhs_name: &str, rhs: &syn::Expr) -> Option<syn:
     // lhs 가 rhs 의 left 에 등장하는 형태만 인식한다.
     // `n + x` 처럼 rhs 가 뒤집힌 경우는 일반 set_var 로 둔다 (의미가 모호).
     let left_ident = match &*bin.left {
-        syn::Expr::Path(p) if p.path.segments.len() == 1 => {
-            p.path.segments[0].ident.to_string()
-        }
+        syn::Expr::Path(p) if p.path.segments.len() == 1 => p.path.segments[0].ident.to_string(),
         _ => return None,
     };
     if left_ident != lhs_name {
@@ -55,8 +53,15 @@ fn extract_change_variable_delta(lhs_name: &str, rhs: &syn::Expr) -> Option<syn:
 /// 표현식의 부호를 뒤집는다. 정수/실수 리터럴은 음수로, 그 외는 UnaryOp(Neg) 로 감싼다.
 fn negate_expr(e: syn::Expr) -> syn::Expr {
     match e {
-        syn::Expr::Unary(syn::ExprUnary { op: syn::UnOp::Neg(_), expr, .. }) => *expr,
-        syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(i), .. }) => {
+        syn::Expr::Unary(syn::ExprUnary {
+            op: syn::UnOp::Neg(_),
+            expr,
+            ..
+        }) => *expr,
+        syn::Expr::Lit(syn::ExprLit {
+            lit: syn::Lit::Int(i),
+            ..
+        }) => {
             let n: i64 = i.base10_parse().unwrap_or(0);
             let neg = syn::LitInt::new(&format!("{}", -n), i.span());
             syn::Expr::Lit(syn::ExprLit {
@@ -64,7 +69,10 @@ fn negate_expr(e: syn::Expr) -> syn::Expr {
                 lit: syn::Lit::Int(neg),
             })
         }
-        syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Float(f), .. }) => {
+        syn::Expr::Lit(syn::ExprLit {
+            lit: syn::Lit::Float(f),
+            ..
+        }) => {
             let v: f64 = f.base10_parse().unwrap_or(0.0);
             let neg = syn::LitFloat::new(&format!("{}", -v), f.span());
             syn::Expr::Lit(syn::ExprLit {

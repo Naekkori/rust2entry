@@ -84,9 +84,7 @@ fn convert_item(
                 let return_type = sig_return_type(&f.sig);
                 let body = convert_block(Some((*f.block).clone()))?;
                 // return_type 이 있으면 본문 마지막이 Stmt::Return 이어야 함.
-                if return_type.is_some()
-                    && !matches!(body.last(), Some(IrStmt::Return(_)))
-                {
+                if return_type.is_some() && !matches!(body.last(), Some(IrStmt::Return(_))) {
                     return Err(crate::Error::Parse(format!(
                         "function '{name}' has return type but no `return` statement at end of body"
                     )));

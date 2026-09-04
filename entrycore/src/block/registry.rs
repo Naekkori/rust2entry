@@ -182,7 +182,6 @@ fn flatten_hw_index(map: &HwSourcemap) -> HashMap<String, BlockSchema> {
     out
 }
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // 검증 결과 타입
 // ─────────────────────────────────────────────────────────────────────────────
@@ -220,8 +219,7 @@ impl SchemaReport {
     /// 체크별 위반 수 (정렬된 목록).
     pub fn counts_by_check(&self) -> Vec<(&'static str, usize)> {
         use std::collections::BTreeSet;
-        let checks: BTreeSet<&'static str> =
-            self.violations.iter().map(|v| v.check).collect();
+        let checks: BTreeSet<&'static str> = self.violations.iter().map(|v| v.check).collect();
         checks
             .iter()
             .map(|c| (*c, self.count_by_check(c)))
@@ -288,15 +286,16 @@ impl BlockRegistry {
 
                 // 2) def_type_match — def.type 은 블럭 id 와 일치해야.
                 if let Some(dt) = &b.def_type
-                    && dt != id {
-                        report.violations.push(Violation {
-                            group: g.group.clone(),
-                            file: g.file.clone(),
-                            block: id.clone(),
-                            check: CHECK_DEF_TYPE_MATCH,
-                            detail: format!("def.type='{dt}' != block id '{id}'"),
-                        });
-                    }
+                    && dt != id
+                {
+                    report.violations.push(Violation {
+                        group: g.group.clone(),
+                        file: g.file.clone(),
+                        block: id.clone(),
+                        check: CHECK_DEF_TYPE_MATCH,
+                        detail: format!("def.type='{dt}' != block id '{id}'"),
+                    });
+                }
 
                 // 3) params_consistent — params 배열 길이는 paramCount 와 일치해야.
                 // 4) params_typed — 각 param 은 타입을 가져야.
@@ -329,15 +328,17 @@ impl BlockRegistry {
 
                 // 5) func_expected — 실행형 skeleton 은 func 를 가져야.
                 if let Some(s) = &b.skeleton
-                    && !is_non_executable_skeleton(s) && !b.has_func {
-                        report.violations.push(Violation {
-                            group: g.group.clone(),
-                            file: g.file.clone(),
-                            block: id.clone(),
-                            check: CHECK_FUNC_EXPECTED,
-                            detail: format!("executable skeleton '{s}' missing func"),
-                        });
-                    }
+                    && !is_non_executable_skeleton(s)
+                    && !b.has_func
+                {
+                    report.violations.push(Violation {
+                        group: g.group.clone(),
+                        file: g.file.clone(),
+                        block: id.clone(),
+                        check: CHECK_FUNC_EXPECTED,
+                        detail: format!("executable skeleton '{s}' missing func"),
+                    });
+                }
             }
         }
         report

@@ -7,13 +7,14 @@ use syn::{FnArg, Pat, Signature, Type};
 fn type_to_param_kind(ty: &Type) -> crate::ir::ParamKind {
     use crate::ir::ParamKind;
     if let Type::Path(tp) = ty
-        && let Some(last) = tp.path.segments.last() {
-            match last.ident.to_string().as_str() {
-                "BoolParam" | "bool" => return ParamKind::Bool,
-                // StringParam, &str, &String, String, i32, f64, 그 외 → String (default)
-                _ => return ParamKind::String,
-            }
+        && let Some(last) = tp.path.segments.last()
+    {
+        match last.ident.to_string().as_str() {
+            "BoolParam" | "bool" => return ParamKind::Bool,
+            // StringParam, &str, &String, String, i32, f64, 그 외 → String (default)
+            _ => return ParamKind::String,
         }
+    }
     ParamKind::String
 }
 
@@ -49,13 +50,14 @@ pub(crate) fn sig_return_type(sig: &Signature) -> Option<crate::ir::stmt::Return
         syn::ReturnType::Type(_, ty) => ty,
     };
     if let syn::Type::Path(tp) = &**return_type
-        && let Some(last) = tp.path.segments.last() {
-            return Some(match last.ident.to_string().as_str() {
-                "String" | "str" | "&str" | "&String" => ReturnType::String,
-                "bool" | "Bool" => ReturnType::Boolean,
-                // i32 / f64 / i64 / u32 / usize / f32 / 그 외 → Number (default).
-                _ => ReturnType::Number,
-            });
-        }
+        && let Some(last) = tp.path.segments.last()
+    {
+        return Some(match last.ident.to_string().as_str() {
+            "String" | "str" | "&str" | "&String" => ReturnType::String,
+            "bool" | "Bool" => ReturnType::Boolean,
+            // i32 / f64 / i64 / u32 / usize / f32 / 그 외 → Number (default).
+            _ => ReturnType::Number,
+        });
+    }
     Some(ReturnType::Number)
 }

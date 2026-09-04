@@ -128,8 +128,16 @@ pub fn inject_memo_blocks(
         }
     }
     for o in objects.iter_mut() {
-        let obj_name = o.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let scene_id = o.get("scene").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let obj_name = o
+            .get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let scene_id = o
+            .get("scene")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
         let rs_path = path_by_name
             .get(&obj_name)
             .cloned()
@@ -164,8 +172,8 @@ pub fn inject_memo_blocks(
                 })
                 .collect()
         } else if let Some(s) = script_raw.as_str() {
-            let parsed: Value = serde_json::from_str(s)
-                .map_err(|e| format!("script json parse: {e}"))?;
+            let parsed: Value =
+                serde_json::from_str(s).map_err(|e| format!("script json parse: {e}"))?;
             match parsed {
                 Value::Array(threads_v) => threads_v
                     .into_iter()
@@ -765,8 +773,8 @@ fn run_build(
     };
 
     // lib::compile 으로 일괄 처리 (parse 합치기 + codegen + base 패치)
-    let (mut final_project, unmapped) = entrycore::compile_with_options(&sources_ref, &base, &options)
-        .map_err(|e| {
+    let (mut final_project, unmapped) =
+        entrycore::compile_with_options(&sources_ref, &base, &options).map_err(|e| {
             // 어느 rs 에서 실패했는지 알 수 있도록 stem 정보를 활용할 수 있다면
             // 함께 출력. 현재는 syn error 메시지에 line 정보 포함.
             format!("compile: {e}")
