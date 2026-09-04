@@ -3249,6 +3249,45 @@ fn compile_change_variable_roundtrip() {
 /// decodegen 이 다시 `x = x - 1` 로 자연 표기 emit. 라운드트립 시 어색한
 /// `x = x + -1` 형태로 떨어지지 않도록.
 #[test]
+/// 트리거 함수(`when_*`) 본문의 break/continue 는 Entry 의미상 무의미 —
+/// EntryJS 의 when_* 는 루프가 아니라 시작점이라 Rust break/continue 가
+/// 컴파일을 깨뜨린다. decodegen 이 트리거 본문의 break/continue 를 skip.
+#[test]
+fn compile_skip_break_in_trigger_body() {
+    use entrycore::parse::parse;
+    let src = r#"fn when_scene_start() { sound_something_with_block("종소리"); break; }"#;
+    let p = parse(src).expect("parse");
+    let dsl = entrycore::decodegen::emit(&p).expect("emit");
+    assert!(
+        !dsl.contains("break;"),
+        "trigger body must skip break;, got: {dsl}"
+    );
+    assert!(
+        dsl.contains("sound_something_with_block"),
+        "trigger body non-break stmt must survive: {dsl}"
+    );
+}
+
+/// 트리거가 아닌 일반 함수 본문의 break 는 그대로 emit 되어야 (loop 안의 break).
+#[test]
+fn compile_keep_break_in_non_trigger_body() {
+    use entrycore::parse::parse;
+    let src = r#"
+        fn helper() {
+            loop {
+                break;
+            }
+        }
+    "#;
+    let p = parse(src).expect("parse");
+    let dsl = entrycore::decodegen::emit(&p).expect("emit");
+    assert!(
+        dsl.contains("break;"),
+        "non-trigger body must keep break;, got: {dsl}"
+    );
+}
+
+#[test]
 fn compile_change_variable_minus_emits_natural_dsl() {
     use entrycore::parse::parse;
     let src = r#"fn when_start() { let x = 10; x = x - 1; }"#;

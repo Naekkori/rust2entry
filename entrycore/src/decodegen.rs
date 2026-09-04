@@ -241,7 +241,15 @@ fn emit_stmt(
             for v in vars.iter().filter(|v| should_emit_local_decl(v, vars)) {
                 emit_var_decl(out, level + 1, v);
             }
+            // 트리거 함수 (`when_*`) 안의 break/continue 는 Entry 의미상 무의미 —
+            // EntryJS 의 when_* 는 루프가 아니라 시작점이라 Rust `break`/`continue`
+            // 가 컴파일을 깨뜨린다. parse 가 트리거 본문을 그대로 FuncDef body 로
+            // 보존한 경우 emit 시에만 skip 한다. 일반 함수 body 는 그대로 emit.
+            let is_trigger = name.starts_with("when_");
             for s in body {
+                if is_trigger && matches!(s, Stmt::Break | Stmt::Continue) {
+                    continue;
+                }
                 emit_stmt(s, out, level + 1, vars)?;
             }
             out.push_str(&indent);
