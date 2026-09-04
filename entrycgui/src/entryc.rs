@@ -91,6 +91,115 @@ fn generator_header() -> String {
     )
 }
 
+/// 각 오브젝트 script 의 첫 thread 첫 블록으로 변환기 정보 메모 prepend.
+/// CLI entryc 와 동일 로직. EntryJS 가 코드 영역에 노란 박스로 표시.
+fn inject_memo_blocks(
+    project: &mut serde_json::Value,
+    sources: &[(&str, &str)],
+    rs_paths: &[PathBuf],
+) -> Result<(), String> {
+    use serde_json::json;
+    let var_count = project
+        .get("variables")
+        .and_then(|v| v.as_array())
+        .map(|a| a.len())
+        .unwrap_or(0);
+    let objects = project
+        .get_mut("objects")
+        .and_then(|v| v.as_array_mut())
+        .ok_or_else(|| "project.objects not array".to_string())?;
+    let version = env!("CARGO_PKG_VERSION");
+    let build_sec = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    let mut path_by_name: std::collections::HashMap<String, String> =
+        std::collections::HashMap::new();
+    for (name, _) in sources {
+        if let Some(p) = rs_paths.iter().find(|p| {
+            p.file_stem()
+                .and_then(|s| s.to_str())
+                .map(|s| s == *name)
+                .unwrap_or(false)
+        }) {
+            path_by_name.insert((*name).to_string(), p.display().to_string());
+        }
+    }
+    for o in objects.iter_mut() {
+        let obj_name = o.get("name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let scene_id = o.get("scene").and_then(|v| v.as_str()).unwrap_or("").to_string();
+        let rs_path = path_by_name
+            .get(&obj_name)
+            .cloned()
+            .unwrap_or_else(|| "<unknown>".to_string());
+        let memo_text = format!(
+            "entrycgui {version}\nbuilt: {build_sec}\nfrom: {rs_path}\nobject: {obj_name}\nscene: {scene_id}\nvars: {var_count}"
+        );
+        let memo = json!({
+            "id": generate_block_id(),
+            "type": "text",
+            "params": [memo_text],
+            "statements": [],
+            "x": 0,
+            "y": 0,
+            "movable": null,
+            "deletable": 0,
+            "emphasized": false,
+            "readOnly": null,
+            "copyable": false,
+            "assemble": false,
+            "extensions": [],
+        });
+        let script_key = "script";
+        let script_raw = o.get(script_key).cloned().unwrap_or(serde_json::Value::Null);
+        let mut threads: Vec<Vec<serde_json::Value>> = if script_raw.is_null() {
+            Vec::new()
+        } else if let serde_json::Value::Array(arr) = &script_raw {
+            arr.iter()
+                .map(|t| match t {
+                    serde_json::Value::Array(a) => a.clone(),
+                    _ => Vec::new(),
+                })
+                .collect()
+        } else if let Some(s) = script_raw.as_str() {
+            let parsed: serde_json::Value = serde_json::from_str(s)
+                .map_err(|e| format!("script json parse: {e}"))?;
+            match parsed {
+                serde_json::Value::Array(threads_v) => threads_v
+                    .into_iter()
+                    .map(|t| match t {
+                        serde_json::Value::Array(a) => a,
+                        _ => Vec::new(),
+                    })
+                    .collect(),
+                _ => return Err("script root not array".into()),
+            }
+        } else {
+            return Err("script shape unknown".into());
+        };
+        if threads.is_empty() {
+            threads.push(Vec::new());
+        }
+        threads[0].insert(0, memo);
+        let encoded = serde_json::to_string(&serde_json::Value::Array(
+            threads.into_iter().map(serde_json::Value::Array).collect(),
+        ))
+        .map_err(|e| format!("script json encode: {e}"))?;
+        o[script_key] = serde_json::Value::String(encoded);
+    }
+    Ok(())
+}
+
+/// Entry 블록 JSON id — 시스템 clock 기반 짧은 hex. 충돌 가능성 무시.
+fn generate_block_id() -> String {
+    use std::time::SystemTime;
+    let nanos = SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("{:x}", nanos & 0xFFFF_FFFF_FFFF_FFFF)
+}
+
 /// 에러 메시지를 콜론(:) 기준으로 분할해 단계별 들여쓰기.
 /// 예: "unmapped block: entry block type: when_object_click"
 ///   -> "unmapped block:"
@@ -620,12 +729,22 @@ pub fn run_build(rs_files: &[PathBuf], template: Option<&Path>, out: &Path, scen
 
         outln(&mut stdout_lines, progress, "[4/6] parse + codegen 중...".to_string());
         // lib::compile 으로 일괄 처리 (parse 합치기 + codegen + base 패치)
-        let (final_project, unmapped) =
+        let (mut final_project, unmapped) =
             entrycore::compile_with_options(&sources_ref, &base, &options).map_err(|e| {
                 // 어느 rs 에서 실패했는지 알 수 있도록 stem 정보를 활용할 수 있다면
                 // 함께 출력. 현재는 syn error 메시지에 line 정보 포함.
                 format!("compile: {e}")
             })?;
+
+        // 변환기 정보 메모 블록을 각 오브젝트 script 의 첫 thread 첫 블록으로 prepend.
+        // EntryJS 가 코드 영역에 노란 박스로 표시한다.
+        if let Err(e) = inject_memo_blocks(&mut final_project, &sources_ref, rs_files) {
+            errln(
+                &mut stderr_lines,
+                progress,
+                format!("memo inject warning: {e}"),
+            );
+        }
 
         // unmapped 블록 경고 (extract 와 동일하게 stderr 로)
         if !unmapped.is_empty() {

@@ -94,7 +94,7 @@ fn generator_header() -> String {
 /// `final_project.objects[i].script` 는 JSON-encoded thread array (`[[block,...]]`)
 /// string. 디코드 후 메모 블록을 prepend 하고 다시 인코드.
 /// object 의 이름과 scene id, base 의 variables 길이, .rs 파일 경로 사용.
-fn inject_memo_blocks(
+pub fn inject_memo_blocks(
     project: &mut serde_json::Value,
     sources: &[(&str, &str)],
     rs_paths: &[PathBuf],
