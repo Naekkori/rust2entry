@@ -1,0 +1,128 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+            binary_ext: ''
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            archive: zip
+            binary_ext: .exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux system dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config \
+            libx11-dev \
+            libxcb1-dev \
+            libxcb-render0-dev \
+            libxcb-shape0-dev \
+            libxcb-xfixes0-dev \
+            libxkbcommon-dev \
+            libwayland-dev \
+            libfontconfig1-dev \
+            libfreetype-dev \
+            libexpat1-dev \
+            libgl1-mesa-dev \
+            libegl1-mesa-dev \
+            libgles2-mesa-dev \
+            libgtk-3-dev \
+            cmake \
+            build-essential
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo registry and target
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          workspaces: entrycore entryc entrycgui -> target
+
+      - name: Build entryc
+        run: cargo build --release --target ${{ matrix.target }} --bin entryc
+
+      - name: Build entrycgui
+        run: cargo build --release --target ${{ matrix.target }} --bin entrycgui
+
+      - name: Package artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG_NAME="${GITHUB_REF_NAME}"
+          VERSION="${TAG_NAME#v}"
+          STAGE="release-stage-${{ matrix.target }}"
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE"
+
+          cp "${{ matrix.target }}/release/entryc${{ matrix.binary_ext }}" "$STAGE/"
+          cp "${{ matrix.target }}/release/entrycgui${{ matrix.binary_ext }}" "$STAGE/"
+
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a "$STAGE.zip" ./$STAGE/*
+          else
+            tar -C "$STAGE" -czf "$STAGE.tar.gz" .
+          fi
+
+          ls -la
+          ls -la "$STAGE"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: |
+            release-stage-${{ matrix.target }}.${{ matrix.archive }}
+
+  release:
+    name: publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Flatten artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          shopt -s nullglob
+          for f in artifacts/*/*; do
+            mv "$f" out/
+          done
+          ls -la out
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            out/*.tar.gz
+            out/*.zip
