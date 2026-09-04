@@ -1,6 +1,7 @@
 name: roundtrip-fix
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -21,64 +22,24 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           from pathlib import Path
-
-          def replace(path: str, old: str, new: str, count: int = 1):
-              p = Path(path)
-              s = p.read_text(encoding='utf-8-sig')
-              if s.count(old) != count:
-                  raise SystemExit(f'{path}: expected {count} matches, got {s.count(old)}')
-              p.write_text(s.replace(old, new, count), encoding='utf-8')
-
-          # Entry trigger round-trip: scene-start is a real trigger, not a normal stmt.
-          replace(
-              'entrycore/src/deparse.rs',
-              '''        Block::WhenMessageRecv { .. } => "when_message",\n        _ => return None,\n''',
-              '''        Block::WhenMessageRecv { .. } => "when_message",\n        Block::WhenSceneStart => "when_scene_start",\n        _ => return None,\n''',
-          )
-
-          # Keep Entry change_variable semantics when converting IR back to Entry.
-          replace(
-              'entrycore/src/block/mod.rs',
-              '''        Stmt::SetVar(name, expr) => {\n            // Timer/Answer 변수는 Entry 전용 슬롯만 받음.\n            if matches!(kind_for(name), VarKind::Timer | VarKind::Answer) {\n''',
-              '''        Stmt::SetVar(name, expr) => {\n            // Entry의 `change_variable(name, delta)`가 Rust에서 `name = name + delta`\n            // 로 표현되더라도 다시 `change_variable`로 복원한다.\n            if let Expr::BinOp(BinOp::Add, lhs, rhs) = expr {\n                if matches!(lhs.as_ref(), Expr::Var(current) if current == name) {\n                    return Ok(Block::ChangeVar {\n                        variable: name.clone(),\n                        value: from_expr(rhs)?,\n                    });\n                }\n            }\n            if let Expr::BinOp(BinOp::Sub, lhs, rhs) = expr {\n                if matches!(lhs.as_ref(), Expr::Var(current) if current == name) {\n                    return Ok(Block::ChangeVar {\n                        variable: name.clone(),\n                        value: from_expr(&Expr::UnaryOp(UnaryOp::Neg, Box::new(rhs.clone())))?,\n                    });\n                }\n            }\n            // Timer/Answer 변수는 Entry 전용 슬롯만 받음.\n            if matches!(kind_for(name), VarKind::Timer | VarKind::Answer) {\n''',
-          )
-
-          # A Rust `loop {}` is the Entry `repeat_inf`, not `repeat_while_true`.
-          replace(
-              'entrycore/src/block/mod.rs',
-              '''        Stmt::While { cond, body } => {\n            let cond = from_expr(cond)?;\n            let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;\n            Ok(Block::While { cond, body })\n        }\n''',
-              '''        Stmt::While { cond, body } => {\n            let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;\n            if matches!(cond, Expr::Bool(true)) {\n                return Ok(Block::Forever { body });\n            }\n            let cond = from_expr(cond)?;\n            Ok(Block::While { cond, body })\n        }\n''',
-          )
-
-          # stop_object must remain a stop_object block instead of becoming an ordinary break.
-          replace(
-              'entrycore/src/block/mod.rs',
-              '''                    if fref.name == "restart_project" {\n''',
-              '''                    if fref.name == "stop_object" {\n                        if !args.is_empty() {\n                            return Err(SyntaxError("stop_object needs 0 args".into()));\n                        }\n                        return Ok(Block::Break);\n                    }\n                    if fref.name == "restart_project" {\n''',
-          )
-
-          # Emit the Entry stop-object intrinsic, and don't drop it at trigger scope.
-          replace(
-              'entrycore/src/decodegen.rs',
-              '''        if matches!(s, Stmt::Break | Stmt::Continue) {\n            continue;\n        }\n''',
-              '''        if matches!(s, Stmt::Continue) {\n            continue;\n        }\n''',
-          )
-          replace(
-              'entrycore/src/decodegen.rs',
-              '''        Stmt::Break => {\n            out.push_str(&indent);\n            out.push_str("break;\\n");\n        }\n''',
-              '''        Stmt::Break => {\n            out.push_str(&indent);\n            out.push_str("stop_object();\\n");\n        }\n''',
-          )
+          def replace(path, old, new, count=1):
+              p=Path(path); s=p.read_text(encoding='utf-8-sig')
+              if s.count(old)!=count: raise SystemExit(f'{path}: expected {count} matches, got {s.count(old)}')
+              p.write_text(s.replace(old,new,count), encoding='utf-8')
+          replace('entrycore/src/deparse.rs','''        Block::WhenMessageRecv { .. } => "when_message",\n        _ => return None,\n''','''        Block::WhenMessageRecv { .. } => "when_message",\n        Block::WhenSceneStart => "when_scene_start",\n        _ => return None,\n''')
+          replace('entrycore/src/block/mod.rs','''        Stmt::SetVar(name, expr) => {\n            // Timer/Answer 변수는 Entry 전용 슬롯만 받음.\n            if matches!(kind_for(name), VarKind::Timer | VarKind::Answer) {\n''','''        Stmt::SetVar(name, expr) => {\n            if let Expr::BinOp(BinOp::Add, lhs, rhs) = expr {\n                if matches!(lhs.as_ref(), Expr::Var(current) if current == name) {\n                    return Ok(Block::ChangeVar { variable: name.clone(), value: from_expr(rhs)? });\n                }\n            }\n            if let Expr::BinOp(BinOp::Sub, lhs, rhs) = expr {\n                if matches!(lhs.as_ref(), Expr::Var(current) if current == name) {\n                    return Ok(Block::ChangeVar { variable: name.clone(), value: from_expr(&Expr::UnaryOp(UnaryOp::Neg, Box::new(rhs.clone())))? });\n                }\n            }\n            // Timer/Answer 변수는 Entry 전용 슬롯만 받음.\n            if matches!(kind_for(name), VarKind::Timer | VarKind::Answer) {\n''')
+          replace('entrycore/src/block/mod.rs','''        Stmt::While { cond, body } => {\n            let cond = from_expr(cond)?;\n            let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;\n            Ok(Block::While { cond, body })\n        }\n''','''        Stmt::While { cond, body } => {\n            let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;\n            if matches!(cond, Expr::Bool(true)) { return Ok(Block::Forever { body }); }\n            let cond = from_expr(cond)?;\n            Ok(Block::While { cond, body })\n        }\n''')
+          replace('entrycore/src/block/mod.rs','''                    if fref.name == "restart_project" {\n''','''                    if fref.name == "stop_object" {\n                        if !args.is_empty() { return Err(SyntaxError("stop_object needs 0 args".into())); }\n                        return Ok(Block::Break);\n                    }\n                    if fref.name == "restart_project" {\n''')
+          replace('entrycore/src/decodegen.rs','''        if matches!(s, Stmt::Break | Stmt::Continue) {\n            continue;\n        }\n''','''        if matches!(s, Stmt::Continue) {\n            continue;\n        }\n''')
+          replace('entrycore/src/decodegen.rs','''        Stmt::Break => {\n            out.push_str(&indent);\n            out.push_str("break;\\n");\n        }\n''','''        Stmt::Break => {\n            out.push_str(&indent);\n            out.push_str("stop_object();\\n");\n        }\n''')
           PY
-
           cargo fmt
           cargo check --workspace
-
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add entrycore/src/deparse.rs entrycore/src/block/mod.rs entrycore/src/decodegen.rs
           git commit -m "[roundtrip-fix] preserve Entry block semantics"
           git push
-
           rm -f .github/workflows/_roundtrip_fix.yml .github/roundtrip-fix.trigger
           git add -A
           git commit -m "[roundtrip-fix] remove temporary fixer"
