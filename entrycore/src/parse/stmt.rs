@@ -4,7 +4,7 @@ use syn::Stmt as SynStmt;
 
 use crate::Error::ParseUnsupported;
 use crate::Result;
-use crate::ir::{Expr, Stmt as IrStmt};
+use crate::ir::{Expr, Stmt as IrStmt, VarRef};
 use crate::parse::{convert_block, convert_expr};
 use crate::var::VarKind;
 
@@ -64,16 +64,17 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                 // `var = expr;` → `Stmt::SetVar`
                 syn::Expr::Assign(a) => {
                     let name = match &*a.left {
-                        syn::Expr::Path(p) => p
-                            .path
-                            .segments
-                            .last()
-                            .map(|s| s.ident.to_string())
-                            .ok_or_else(|| ParseUnsupported("assign left".into()))?,
+                        syn::Expr::Path(p) => {
+                            p.path
+                                .segments
+                                .last()
+                                .map(|s| s.ident.to_string())
+                                .ok_or_else(|| ParseUnsupported("assign left".into()))?
+                        }
                         _ => return Err(ParseUnsupported("assign left".into())),
                     };
                     let value = convert_expr(*a.right)?;
-                    out.push(IrStmt::SetVar(crate::block::sanitize_ident(&name), value));
+                    out.push(IrStmt::SetVar(VarRef::new(crate::block::sanitize_ident(&name)), value));
                 }
                 syn::Expr::If(e) => {
                     let cond = convert_expr(*e.cond)?;
@@ -86,7 +87,7 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                                 let mut v = Vec::new();
                                 convert_stmt(syn::Stmt::Expr(*else_expr, None), &mut v)?;
                                 v
-                            },
+                            }
                             _ => return Err(ParseUnsupported("else branch".into())),
                         }
                     } else {
@@ -104,21 +105,17 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                     out.push(IrStmt::While { cond, body });
                 }
                 // `loop { ... }` (Rust idiomatic 무한 루프) 지원.
-                // IR 단계에는 별도 Loop variant 가 없으므로
-                // `Stmt::While { cond: Expr::Bool(true), body }` 로 매핑한다
+                // `Stmt::Loop {  body }` 로 매핑한다
                 // (decodegen.rs 가 이를 다시 `loop { ... }` 로 emit 한다).
                 syn::Expr::Loop(l) => {
                     let body = convert_block(Some(l.body))?;
-                    out.push(IrStmt::While {
-                        cond: Expr::Bool(true),
-                        body,
-                    });
+                    out.push(IrStmt::Loop { body });
                 }
-                syn::Expr::ForLoop(f)=>{
+                syn::Expr::ForLoop(f) => {
                     let var = match &*f.pat {
-                        syn::Pat::Ident(pi)=>crate::block::sanitize_ident(&pi.ident.to_string()),
+                        syn::Pat::Ident(pi) => crate::block::sanitize_ident(&pi.ident.to_string()),
                         syn::Pat::Wild(_) => "_".to_string(),
-                        _=> return Err(ParseUnsupported("for pat".into()))
+                        _ => return Err(ParseUnsupported("for pat".into())),
                     };
                     let iter = convert_expr(*f.expr)?;
                     let body = convert_block(Some(f.body))?;
@@ -131,7 +128,7 @@ pub(crate) fn convert_stmt(s: SynStmt, out: &mut Vec<IrStmt>) -> Result<()> {
                     };
                     out.push(IrStmt::Return(expr));
                 }
-                other =>{
+                other => {
                     out.push(IrStmt::Expr(convert_expr(other)?));
                 }
             }

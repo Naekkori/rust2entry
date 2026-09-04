@@ -716,11 +716,11 @@ fn compile_say_roundtrip() {
             assert_eq!(name, "when_start");
             assert_eq!(body.len(), 1);
             match &body[0] {
-                Stmt::Expr(Expr::Call(fref, args)) => {
-                    assert_eq!(fref.name, "say");
-                    assert_eq!(args.len(), 1);
+                Stmt::Dialog { value, mode } => {
+                    assert_eq!(*mode, entrycore::block::DialogMode::Say);
+                    assert!(matches!(value, Expr::Str(s) if s == "hi"));
                 }
-                other => panic!("expected Call(say), got {other:?}"),
+                other => panic!("expected Dialog(Say), got {other:?}"),
             }
         }
         other => panic!("expected FuncDef(when_start), got {other:?}"),
@@ -759,11 +759,11 @@ fn compile_think_roundtrip() {
             assert_eq!(name, "when_start");
             assert_eq!(body.len(), 1);
             match &body[0] {
-                Stmt::Expr(Expr::Call(fref, args)) => {
-                    assert_eq!(fref.name, "think");
-                    assert_eq!(args.len(), 1);
+                Stmt::Dialog { value, mode } => {
+                    assert_eq!(*mode, entrycore::block::DialogMode::Think);
+                    assert!(matches!(value, Expr::Str(s) if s == "hmm"));
                 }
-                other => panic!("expected Call(think), got {other:?}"),
+                other => panic!("expected Dialog(Think), got {other:?}"),
             }
         }
         other => panic!("expected FuncDef(when_start), got {other:?}"),
@@ -1232,12 +1232,12 @@ fn compile_value_of_index_from_list_roundtrip() {
     let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
         panic!("expected when_start function");
     };
-    let Some(Stmt::SetVar(name, Expr::Call(fref, args))) = body.iter().find(|stmt| {
-        matches!(stmt, Stmt::SetVar(name, Expr::Call(_, _)) if name == "x")
+    let Some(Stmt::SetVar(vref, Expr::Call(fref, args))) = body.iter().find(|stmt| {
+        matches!(stmt, Stmt::SetVar(vref, Expr::Call(_, _)) if vref.name == "x")
     }) else {
         panic!("expected set x to list lookup call");
     };
-    assert_eq!(name, "x");
+    assert_eq!(vref.name, "x");
     assert_eq!(fref.name, "value_of_index_from_list");
     assert_eq!(args.len(), 2);
     assert!(
@@ -3358,8 +3358,8 @@ fn compile_text_read_roundtrip() {
             assert_eq!(body.len(), 1);
             // SetVar (text_read 가 Sub 로 들어감)
             match &body[0] {
-                Stmt::SetVar(var_name, expr) => {
-                    assert_eq!(var_name, "x");
+                Stmt::SetVar(vref, expr) => {
+                    assert_eq!(vref.name, "x");
                     // SetVar 의 expr 이 Call(text_read) 이어야
                     match expr {
                         Expr::Call(fref, args) => {
@@ -4275,11 +4275,13 @@ fn compile_if_else_roundtrip() {
                     assert_eq!(then_body.len(), 1);
                     assert_eq!(else_body.len(), 1);
                     let then_var = match &then_body[0] {
-                        Stmt::VarDecl(n, _, _, _) | Stmt::SetVar(n, _) => n,
+                        Stmt::VarDecl(n, _, _, _) => n,
+                        Stmt::SetVar(vref, _) => &vref.name,
                         other => panic!("unexpected then stmt: {other:?}"),
                     };
                     let else_var = match &else_body[0] {
-                        Stmt::VarDecl(n, _, _, _) | Stmt::SetVar(n, _) => n,
+                        Stmt::VarDecl(n, _, _, _) => n,
+                        Stmt::SetVar(vref, _) => &vref.name,
                         other => panic!("unexpected else stmt: {other:?}"),
                     };
                     assert_eq!(then_var, "x");
@@ -5411,11 +5413,10 @@ fn compile_stop_run_all_roundtrip() {
     let Stmt::FuncDef { body, .. } = &p2.stmts[0] else {
         panic!("expected when_start function");
     };
-    let found_call = body.iter().find_map(|stmt| match stmt {
-        Stmt::Expr(Expr::Call(fref, _)) if fref.name == "stop_all" => Some(fref),
-        _ => None,
-    });
-    assert!(found_call.is_some(), "expected stop_all call");
+    let found_stop = body
+        .iter()
+        .find_map(|stmt| if matches!(stmt, Stmt::StopAll) { Some(stmt) } else { None });
+    assert!(found_stop.is_some(), "expected StopAll stmt");
 }
 
 /// `restart_project();` → Block::RestartProject, params = [null].

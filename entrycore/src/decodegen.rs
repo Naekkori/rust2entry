@@ -9,6 +9,7 @@
 //!   for _ in 0..n { ... }
 
 use crate::ir::{BinOp, Expr, FuncRef, Program, Stmt, UnaryOp};
+use crate::block::DialogMode;
 use crate::var::{VarInfo, VarInit, VarMap};
 use crate::Result;
 use std::sync::{Mutex, OnceLock};
@@ -152,12 +153,49 @@ fn emit_stmt(
             emit_expr(expr, out)?;
             out.push_str(";\n");
         }
-        Stmt::SetVar(name, expr) => {
+        Stmt::SetVar(vref, expr) => {
             out.push_str(&indent);
-            out.push_str(name);
+            out.push_str(&vref.name);
             out.push_str(" = ");
             emit_expr(expr, out)?;
             out.push_str(";\n");
+        }
+        Stmt::ChangeVariable { variable, value } => {
+            // Entry `change_variable` 의미 보존: Rust DSL에서는 `x = x + delta` 로
+            // 표현. parse 시 다시 ChangeVariable 으로 복구되려면 x 가 lhs 와 rhs 에
+            // 모두 등장해야 한다. 손실 없이 양방향 왕복 보장.
+            out.push_str(&indent);
+            out.push_str(&variable.name);
+            out.push_str(" = ");
+            out.push_str(&variable.name);
+            out.push_str(" + ");
+            emit_expr(value, out)?;
+            out.push_str(";\n");
+        }
+        Stmt::Dialog { value, mode } => {
+            out.push_str(&indent);
+            let name = match mode {
+                DialogMode::Say => "say",
+                DialogMode::Think => "think",
+            };
+            out.push_str(name);
+            out.push('(');
+            emit_expr(value, out)?;
+            out.push_str(");\n");
+        }
+        Stmt::StopAll => {
+            out.push_str(&indent);
+            out.push_str("stop_all();\n");
+        }
+        Stmt::Loop { body } => {
+            // Rust 의 `loop { ... }` 와 Entry 의 `repeat_inf` 모두 동일.
+            out.push_str(&indent);
+            out.push_str("loop {\n");
+            for s in body {
+                emit_stmt(s, out, level + 1, vars)?;
+            }
+            out.push_str(&indent);
+            out.push_str("}\n");
         }
         Stmt::FuncDef {
             name,

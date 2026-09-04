@@ -153,11 +153,13 @@ fn roundtrip_simple_set() {
     assert_eq!(p1.stmts.len(), p2.stmts.len());
     // Entry `set_variable`은 VarDecl/SetVar 모두 표현 가능. 변수명만 보존 확인.
     let n1 = match &p1.stmts[0] {
-        entrycore::ir::Stmt::VarDecl(n, _, _, _) | entrycore::ir::Stmt::SetVar(n, _) => n,
+        entrycore::ir::Stmt::VarDecl(n, _, _, _) => n,
+        entrycore::ir::Stmt::SetVar(vref, _) => &vref.name,
         other => panic!("p1[0] not var stmt: {other:?}"),
     };
     let n2 = match &p2.stmts[0] {
-        entrycore::ir::Stmt::VarDecl(n, _, _, _) | entrycore::ir::Stmt::SetVar(n, _) => n,
+        entrycore::ir::Stmt::VarDecl(n, _, _, _) => n,
+        entrycore::ir::Stmt::SetVar(vref, _) => &vref.name,
         other => panic!("p2[0] not var stmt: {other:?}"),
     };
     assert_eq!(n1, n2, "variable name roundtrip");
@@ -206,8 +208,8 @@ fn for_range_roundtrip_is_repeat() {
             }
             // body 길이: [SetVar i, SetVar x, ChangeVar i]
             assert_eq!(body.len(), 3);
-            assert!(matches!(&body[0], entrycore::ir::Stmt::SetVar(n, _) if n == "i"));
-            assert!(matches!(&body[2], entrycore::ir::Stmt::SetVar(n, _) if n == "i"));
+            assert!(matches!(&body[0], entrycore::ir::Stmt::SetVar(vref, _) if vref.name == "i"));
+            assert!(matches!(&body[2], entrycore::ir::Stmt::ChangeVariable { variable, .. } if variable.name == "i"));
         }
         other => panic!("expected Repeat, got {other:?}"),
     }

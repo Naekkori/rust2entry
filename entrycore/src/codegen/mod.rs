@@ -209,9 +209,13 @@ fn analyze_statements(stmts: &[Stmt], out: &mut VariableAnalysis) {
                 out.scopes.insert(name.clone(), *scope);
                 analyze_expr(expr, out);
             }
-            Stmt::SetVar(name, expr) => {
-                push_unique(&mut out.names, name);
+            Stmt::SetVar(vref, expr) => {
+                push_unique(&mut out.names, &vref.name);
                 analyze_expr(expr, out);
+            }
+            Stmt::ChangeVariable { variable, value } => {
+                push_unique(&mut out.names, &variable.name);
+                analyze_expr(value, out);
             }
             Stmt::Expr(expr) | Stmt::Return(expr) => analyze_expr(expr, out),
             Stmt::If {
@@ -232,13 +236,19 @@ fn analyze_statements(stmts: &[Stmt], out: &mut VariableAnalysis) {
                 analyze_expr(iter, out);
                 analyze_statements(body, out);
             }
+            Stmt::Loop { body } => {
+                analyze_statements(body, out);
+            }
+            Stmt::Dialog { value, .. } => {
+                analyze_expr(value, out);
+            }
             Stmt::FuncDef { params, body, .. } => {
                 for (param, _) in params {
                     push_unique(&mut out.names, param);
                 }
                 analyze_statements(body, out);
             }
-            Stmt::Break | Stmt::Continue => {}
+            Stmt::Break | Stmt::Continue | Stmt::StopAll => {}
         }
     }
 }
@@ -291,8 +301,12 @@ pub(crate) fn collect_vars_program(p: &Program, out: &mut Vec<String>) {
 
 pub(crate) fn collect_vars_stmt(s: &Stmt, out: &mut Vec<String>) {
     match s {
-        Stmt::VarDecl(n, e, _, _) | Stmt::SetVar(n, e) => {
+        Stmt::VarDecl(n, e, _, _) => {
             push_unique(out, n);
+            collect_vars_expr(e, out);
+        }
+        Stmt::SetVar(vref, e) => {
+            push_unique(out, &vref.name);
             collect_vars_expr(e, out);
         }
         Stmt::FuncDef { params, body, .. } => {
@@ -336,8 +350,18 @@ pub(crate) fn collect_vars_stmt(s: &Stmt, out: &mut Vec<String>) {
                 collect_vars_stmt(s, out);
             }
         }
+        Stmt::Loop { body } => {
+            for s in body {
+                collect_vars_stmt(s, out);
+            }
+        }
+        Stmt::Dialog { value, .. } => collect_vars_expr(value, out),
+        Stmt::ChangeVariable { variable, value } => {
+            push_unique(out, &variable.name);
+            collect_vars_expr(value, out);
+        }
         Stmt::Return(e) => collect_vars_expr(e, out),
-        Stmt::Break | Stmt::Continue => {}
+        Stmt::Break | Stmt::Continue | Stmt::StopAll => {}
     }
 }
 

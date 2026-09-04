@@ -1387,26 +1387,45 @@ pub fn from_stmt_with_fn_scope(
                 })
             }
         }
-        Stmt::SetVar(name, expr) => {
+        Stmt::SetVar(vref, expr) => {
             // Timer/Answer 변수는 Entry 전용 슬롯만 받음.
-            if matches!(kind_for(name), VarKind::Timer | VarKind::Answer) {
+            if matches!(kind_for(&vref.name), VarKind::Timer | VarKind::Answer) {
                 return Err(UnmappedBlock(format!(
-                    "{name} is reserved Entry variable (use dedicated block)"
+                    "{} is reserved Entry variable (use dedicated block)",
+                    vref.name
                 )));
             }
             // 함수 본문 안 set_func_variable 사용 시 set_func_variable 로 emit.
             if is_in_fn_body {
                 Ok(Block::SetFuncVariable {
-                    variable: name.clone(),
+                    variable: vref.name.clone(),
                     value: from_expr(expr)?,
                 })
             } else {
                 Ok(Block::SetVar {
-                    variable: name.clone(),
+                    variable: vref.name.clone(),
                     value: from_expr(expr)?,
                 })
             }
         }
+        Stmt::ChangeVariable { variable, value } => {
+            // Timer/Answer 변수는 Entry 전용 슬롯만 받음.
+            if matches!(kind_for(&variable.name), VarKind::Timer | VarKind::Answer) {
+                return Err(UnmappedBlock(format!(
+                    "{} is reserved Entry variable (use dedicated block)",
+                    variable.name
+                )));
+            }
+            Ok(Block::ChangeVar {
+                variable: variable.name.clone(),
+                value: from_expr(value)?,
+            })
+        }
+        Stmt::Dialog { value, mode } => Ok(Block::Dialog {
+            mode: *mode,
+            content: from_expr(value)?,
+        }),
+        Stmt::StopAll => Ok(Block::StopAll),
         Stmt::FuncDef { name, params, body, return_type: _ } => {
             let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;
             // IR param 의 (name, kind) → Block 은 name 만. kind 는 outer scope
@@ -1444,7 +1463,7 @@ pub fn from_stmt_with_fn_scope(
                             cond: from_expr(arg)?,
                         });
                     }
-                    if fref.name == "stop_run_all" {
+                    if fref.name == "stop_run_all" || fref.name == "stop_all" {
                         if !args.is_empty() {
                             return Err(SyntaxError("stop_run_all needs 0 args".into()));
                         }
@@ -2730,6 +2749,10 @@ pub fn from_stmt_with_fn_scope(
             let cond = from_expr(cond)?;
             let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;
             Ok(Block::While { cond, body })
+        }
+        Stmt::Loop { body } => {
+            let body = body.iter().map(from_stmt).collect::<Result<Vec<_>>>()?;
+            Ok(Block::Forever { body })
         }
         Stmt::Repeat { times, body } => {
             let times = from_expr(times)?;

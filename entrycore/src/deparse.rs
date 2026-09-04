@@ -15,7 +15,7 @@ use crate::block::{
     row_col_to_str, str_to_calc_method, str_to_change_string_case, str_to_mouse_axis,
     str_to_object_coord, str_to_rgb_channel, str_to_row_col, str_to_text_effect, text_effect_to_str,
 };
-use crate::ir::{BinOp, Expr, Stmt, UnaryOp};
+use crate::ir::{BinOp, Expr, Stmt, UnaryOp, VarRef};
 use crate::var::VarMap;
 use crate::{Result, ir};
 use serde_json::Value;
@@ -75,6 +75,7 @@ fn split_trigger(first: &Block, rest: &[Value], vars: &VarMap) -> Option<(String
         Block::WhenStart => "when_start",
         Block::WhenClick => "when_click",
         Block::WhenCloneStart => "when_clone_start",
+        Block::WhenSceneStart => "when_scene_start",
         Block::WhenMessageRecv { .. } => "when_message",
         _ => return None,
     };
@@ -1580,14 +1581,16 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             Ok(())
         }
         Block::WhenSceneStart => {
-            stmts.push(Stmt::Expr(Expr::Call(
-                crate::ir::FuncRef {
-                    name: "when_scene_start".to_string(),
-                    arity: 0,
-                    raw: None,
-                },
-                Vec::new(),
-            )));
+            // Entry `when_scene_start` 트리거 의미 보존: Expr::Call 로
+            // 떨어뜨리면 codegen 의 reserved 매칭이 거부된다 (when_scene_start
+            // 은 EntryJS 의 트리거 함수). 빈 본문 FuncDef 로 emit 해서
+            // from_script 의 split_trigger 가 `when_scene_start` 트리거로 인식.
+            stmts.push(Stmt::FuncDef {
+                name: "when_scene_start".to_string(),
+                params: Vec::new(),
+                return_type: None,
+                body: Vec::new(),
+            });
             Ok(())
         }
         Block::MessageCast { msg } => {
@@ -1640,16 +1643,16 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
         }
         Block::SetVar { variable, value } => {
             stmts.push(Stmt::SetVar(
-                variable.clone(),
+                VarRef::new(variable.clone()),
                 expr_from_param(value, vars)?,
             ));
             Ok(())
         }
         Block::SetFuncVariable { variable, value } => {
-            // ?⑥닔 蹂몃Ц local var ?ㅼ젙. IR ?덈꺼?먯꽌???쇰컲 Stmt::SetVar (scope=Local ?쒖떆 ??????
-            // from_stmt_with_fn_scope 媛 ?ㅼ떆 ?ш린 ?ㅼ뼱?ㅻ㈃ set_func_variable 濡?emit ??.
+            // ?⑥닔 蹂몃Ц local var ?ㅼ젙. IR ?덈꺼?뿉?쒕뒗 ?쇰컲 Stmt::SetVar (scope=Local ?쒖떆 ??????
+            // from_stmt_with_fn_scope ?ㅇ≪?????ш린 ?ㅼ뼱?ㅻ㈃ set_func_variable ?쇰835로 emit ??.
             stmts.push(Stmt::SetVar(
-                variable.clone(),
+                VarRef::new(variable.clone()),
                 expr_from_param(value, vars)?,
             ));
             Ok(())
@@ -1660,12 +1663,13 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             Ok(())
         }
         Block::ChangeVar { variable, value } => {
-            let cur = Expr::Var(variable.clone());
-            let rhs = expr_from_param(value, vars)?;
-            stmts.push(Stmt::SetVar(
-                variable.clone(),
-                Expr::BinOp(BinOp::Add, Box::new(cur), Box::new(rhs)),
-            ));
+            // Entry `change_variable` 의미 보존: SetVar(BinOp(Add, ...)) 로
+            // 평탄화하면 라운드트립 시 set_variable 로 떨어진다. ChangeVariable
+            // variant 로 그대로 들고 가서 codegen 에서 change_variable 로 emit.
+            stmts.push(Stmt::ChangeVariable {
+                variable: VarRef::new(variable.clone()),
+                value: expr_from_param(value, vars)?,
+            });
             Ok(())
         }
         Block::GetVar { .. } => Ok(()),
@@ -1867,14 +1871,14 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             Ok(())
         }
         Block::Forever { body } => {
+            // Entry `repeat_inf` 의미 보존: While(Bool(true)) 로 떨어뜨리면
+            // IR 일관성이 깨진다 (의미는 같지만 Entry -> IR 매핑이 무한 루프와
+            // 일반 while 루프를 구분하지 못함). Loop variant 로 직접 emit.
             let mut bb = Vec::new();
             for b in body {
                 from_block_owned(b, &mut bb, vars)?;
             }
-            stmts.push(Stmt::While {
-                cond: Expr::Bool(true),
-                body: bb,
-            });
+            stmts.push(Stmt::Loop { body: bb });
             Ok(())
         }
         Block::Break => {
@@ -1886,14 +1890,10 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             Ok(())
         }
         Block::StopAll => {
-            stmts.push(Stmt::Expr(Expr::Call(
-                crate::ir::FuncRef {
-                    name: "stop_all".to_string(),
-                    arity: 0,
-                    raw: None,
-                },
-                Vec::new(),
-            )));
+            // Entry `stop_run_all` 의미 보존: Expr::Call("stop_all") 로
+            // 떨어뜨리면 codegen 의 reserved 매칭이 안 돼 function_call 로
+            // emit 된다. 전용 Stmt::StopAll 로 직접 들고 간다.
+            stmts.push(Stmt::StopAll);
             Ok(())
         }
         Block::CalcBinOp { op, lhs, rhs }
@@ -2149,19 +2149,13 @@ fn from_block_owned(block: &Block, stmts: &mut Vec<Stmt>, vars: &VarMap) -> Resu
             Ok(())
         }
         Block::Dialog { mode, content } => {
-            let arg = expr_from_param(content, vars)?;
-            let name = match mode {
-                DialogMode::Say => "say",
-                DialogMode::Think => "think",
-            };
-            stmts.push(Stmt::Expr(Expr::Call(
-                ir::FuncRef {
-                    name: name.to_string(),
-                    arity: 1,
-                    raw: None,
-                },
-                vec![arg],
-            )));
+            // Entry `dialog` 의 Say/Think mode 의미 보존: Expr::Call 로
+            // 떨어뜨리면 codegen 이 reserved 매칭 없이 function_call 로
+            // emit 해서 mode 가 사라진다. 전용 Stmt::Dialog 로 직접 emit.
+            stmts.push(Stmt::Dialog {
+                value: expr_from_param(content, vars)?,
+                mode: *mode,
+            });
             Ok(())
         }
         Block::DialogTime {

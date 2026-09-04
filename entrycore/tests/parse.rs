@@ -309,11 +309,13 @@ fn dsl_roundtrip_simple() {
     assert_eq!(p1.stmts.len(), p2.stmts.len());
     // 둘 다 단일 변수 선언 (VarDecl 또는 SetVar, Entry 의미 동일)
     let n1 = match &p1.stmts[0] {
-        Stmt::VarDecl(n, _, _, _) | Stmt::SetVar(n, _) => n.clone(),
+        Stmt::VarDecl(n, _, _, _) => n.clone(),
+        Stmt::SetVar(vref, _) => vref.name.clone(),
         other => panic!("p1[0] unexpected: {other:?}"),
     };
     let n2 = match &p2.stmts[0] {
-        Stmt::VarDecl(n, _, _, _) | Stmt::SetVar(n, _) => n.clone(),
+        Stmt::VarDecl(n, _, _, _) => n.clone(),
+        Stmt::SetVar(vref, _) => vref.name.clone(),
         other => panic!("p2[0] unexpected: {other:?}"),
     };
     assert_eq!(n1, n2, "variable name roundtrip: dsl={dsl}");
@@ -369,16 +371,18 @@ fn dsl_roundtrip_while() {
     // 변환되므로 parse2 의 cond 는 `Expr::Var("r#true")` 로 다를 수 있음.
     // 무한 루프 자체는 보존되어야 하므로 While 블록 형태만 확인.
     match &p1.stmts[0] {
-        Stmt::While { body: b1, .. } => {
+        Stmt::While { body: b1, .. } | Stmt::Loop { body: b1 } => {
             assert_eq!(b1.len(), 1);
         }
-        _ => panic!("p1[0] not While"),
+        _ => panic!("p1[0] not While/Loop"),
     }
     match &p2.stmts[0] {
-        Stmt::While { body: b2, .. } => {
+        // decodegen 이 `while true` 를 `loop {}` 로 normalize 하므로
+        // 라운드트립 후 p2 는 While 또는 Loop 어느 쪽이든 가능.
+        Stmt::While { body: b2, .. } | Stmt::Loop { body: b2 } => {
             assert_eq!(b2.len(), 1);
         }
-        _ => panic!("p2[0] not While: dsl={dsl}"),
+        _ => panic!("p2[0] not While/Loop: dsl={dsl}"),
     }
 }
 

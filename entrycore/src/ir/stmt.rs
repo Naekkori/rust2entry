@@ -1,6 +1,7 @@
 //! IR 명령문.
 
 use super::Expr;
+use crate::block::DialogMode;
 use crate::var::VarKind;
 
 /// 변수 scope — EntryJS 의 `variables[].object` 필드 결정.
@@ -13,6 +14,30 @@ pub enum VarScope {
     Local,
     /// `static` — 전역 (EntryJS variables[].object = null).
     Global,
+}
+
+/// Entry 의미 보존용 variable 참조. id 가 있으면 EntryJS variable list 의
+/// 실제 socket id 를 그대로 emit 하고, 없으면 name 만으로 emit 한다.
+/// (e.g. codegen 시점에 VarMap 에 없으면 name 만, 있으면 id 사용)
+#[derive(Debug, Clone)]
+pub struct VarRef {
+    pub name: String,
+    pub id: Option<String>,
+}
+
+impl VarRef {
+    pub fn new(name: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            id: None,
+        }
+    }
+    pub fn with_id(name: impl Into<String>, id: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            id: Some(id.into()),
+        }
+    }
 }
 
 /// 함수 param 타입. EntryJS 의 `function_param_string` / `function_param_boolean` 매핑.
@@ -43,8 +68,25 @@ pub enum Stmt {
     /// `scope` 는 `let` (함수 내, Local) vs `static` (top-level, Global) 키워드로 결정.
     VarDecl(String, Expr, Option<VarKind>, VarScope),
 
-    /// 변수 값 정하기 (이름, 새값).
-    SetVar(String, Expr),
+    /// 변수 값 정하기 (ref, 새값). ref.name 은 사용자 변수 이름,
+    /// ref.id 가 Some 이면 EntryJS variable list 의 실제 socket id.
+    SetVar(VarRef, Expr),
+
+    /// Entry `change_variable` 의미 보존 (Rust 의 `x = x + delta` 와 구별).
+    /// 라운드트립 시 Entry JSON 이 정확히 `change_variable` 로 복원된다.
+    ChangeVariable {
+        variable: VarRef,
+        value: Expr,
+    },
+
+    /// Entry `dialog` 의미 보존. mode 가 Say / Think 로 분기.
+    Dialog {
+        value: Expr,
+        mode: DialogMode,
+    },
+
+    /// Entry `stop_run_all` 의미 보존. Rust 의 `break` 와는 다른 Entry 글로벌 stop.
+    StopAll,
 
     /// 함수 정의 (이름, 인자, 결괏값 타입, 본문).
     FuncDef {
@@ -78,6 +120,9 @@ pub enum Stmt {
     },
     Repeat {
         times: Expr,
+        body: Vec<Stmt>,
+    },
+    Loop {
         body: Vec<Stmt>,
     },
     Return(Expr),
