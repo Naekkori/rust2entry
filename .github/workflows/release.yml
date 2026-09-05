@@ -78,8 +78,8 @@ jobs:
           rm -rf "$STAGE"
           mkdir -p "$STAGE"
 
-          cp "${{ matrix.target }}/release/entryc${{ matrix.binary_ext }}" "$STAGE/"
-          cp "${{ matrix.target }}/release/entrycgui${{ matrix.binary_ext }}" "$STAGE/"
+          cp "target/${{ matrix.target }}/release/entryc${{ matrix.binary_ext }}" "$STAGE/"
+          cp "target/${{ matrix.target }}/release/entrycgui${{ matrix.binary_ext }}" "$STAGE/"
 
           if [ "${{ matrix.archive }}" = "zip" ]; then
             7z a "$STAGE.zip" ./$STAGE/*
