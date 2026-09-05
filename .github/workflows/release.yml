@@ -73,19 +73,45 @@ jobs:
           set -euo pipefail
           TAG_NAME="${GITHUB_REF_NAME}"
           VERSION="${TAG_NAME#v}"
-          STAGE="release-stage-${{ matrix.target }}"
+          TARGET="${{ matrix.target }}"
+          STAGE="release-stage-${TARGET}"
           rm -rf "$STAGE"
           mkdir -p "$STAGE"
-          
-          cp "target/${{ matrix.target }}/release/entryc${{ matrix.binary_ext }}" "$STAGE/"
-          cp "target/${{ matrix.target }}/release/entrycgui${{ matrix.binary_ext }}" "$STAGE/"
-          
+
+          # Try both cargo layout possibilities: target/<triple>/release and target/release
+          BUILD_DIRS=("target/${TARGET}/release" "target/release")
+          COPY_SRC=""
+
+          echo "Looking for build outputs in: ${BUILD_DIRS[*]}"
+          for d in "${BUILD_DIRS[@]}"; do
+            echo "Checking $d"
+            if [ -d "$d" ]; then
+              ls -la "$d" || true
+              # Prefer this dir if it contains at least one of the expected binaries
+              if [ -f "$d/entryc${{ matrix.binary_ext }}" ] || [ -f "$d/entrycgui${{ matrix.binary_ext }}" ]; then
+                COPY_SRC="$d"
+                break
+              fi
+            fi
+          done
+
+          if [ -z "$COPY_SRC" ]; then
+            echo "ERROR: could not find build output directory; looking under target/" >&2
+            ls -la target || true
+            exit 1
+          fi
+
+          echo "Using build dir: $COPY_SRC"
+
+          cp "$COPY_SRC/entryc${{ matrix.binary_ext }}" "$STAGE/" || { echo "entryc binary not found in $COPY_SRC"; ls -la "$COPY_SRC"; exit 1; }
+          cp "$COPY_SRC/entrycgui${{ matrix.binary_ext }}" "$STAGE/" || true
+
           if [ "${{ matrix.archive }}" = "zip" ]; then
             7z a "$STAGE.zip" ./$STAGE/*
           else
             tar -C "$STAGE" -czf "$STAGE.tar.gz" .
           fi
-          
+
           ls -la
           ls -la "$STAGE"
 
