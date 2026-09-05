@@ -76,16 +76,16 @@ jobs:
           STAGE="release-stage-${{ matrix.target }}"
           rm -rf "$STAGE"
           mkdir -p "$STAGE"
-
+          
           cp "target/${{ matrix.target }}/release/entryc${{ matrix.binary_ext }}" "$STAGE/"
           cp "target/${{ matrix.target }}/release/entrycgui${{ matrix.binary_ext }}" "$STAGE/"
-
+          
           if [ "${{ matrix.archive }}" = "zip" ]; then
             7z a "$STAGE.zip" ./$STAGE/*
           else
             tar -C "$STAGE" -czf "$STAGE.tar.gz" .
           fi
-
+          
           ls -la
           ls -la "$STAGE"
 
