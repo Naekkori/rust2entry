@@ -61,9 +61,9 @@ jobs:
         with:
           cache-on-failure: true
           workspaces: |
-            entrycore
-            entryc
-            entrycgui
+            ./entrycore
+            ./entryc
+            ./entrycgui
 
       - name: Build entryc
         run: cargo build --release --target ${{ matrix.target }} --bin entryc
