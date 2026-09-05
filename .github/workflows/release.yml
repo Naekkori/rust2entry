@@ -62,10 +62,10 @@ jobs:
           cache-on-failure: true
 
       - name: Build entryc
-        run: cargo build --release --target ${{ matrix.target }} --bin entryc
+        run: cargo build --release --target ${{ matrix.target }} --bin entryc --verbose
 
       - name: Build entrycgui
-        run: cargo build --release --target ${{ matrix.target }} --bin entrycgui
+        run: cargo build --release --target ${{ matrix.target }} --bin entrycgui --verbose
 
       - name: Package artifacts
         shell: bash
