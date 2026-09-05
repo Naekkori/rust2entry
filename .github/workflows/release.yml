@@ -67,46 +67,22 @@ jobs:
       - name: Build entrycgui
         run: cargo build --release --target ${{ matrix.target }} --bin entrycgui --verbose
 
-      - name: Package artifacts
+      - name: Package
         shell: bash
         run: |
           set -euo pipefail
+
           TAG_NAME="${GITHUB_REF_NAME}"
           VERSION="${TAG_NAME#v}"
-          TARGET="${{ matrix.target }}"
-          STAGE="release-stage-${TARGET}"
+          STAGE="release-stage-x86_64-unknown-linux-gnu"
+
           rm -rf "$STAGE"
           mkdir -p "$STAGE"
 
-          # Try both cargo layout possibilities: target/<triple>/release and target/release
-          BUILD_DIRS=("target/${TARGET}/release" "target/release")
-          COPY_SRC=""
+          cp "target/x86_64-unknown-linux-gnu/release/entryc" "$STAGE/"
+          cp "target/x86_64-unknown-linux-gnu/release/entrycgui" "$STAGE/"
 
-          echo "Looking for build outputs in: ${BUILD_DIRS[*]}"
-          for d in "${BUILD_DIRS[@]}"; do
-            echo "Checking $d"
-            if [ -d "$d" ]; then
-              ls -la "$d" || true
-              # Prefer this dir if it contains at least one of the expected binaries
-              if [ -f "$d/entryc${{ matrix.binary_ext }}" ] || [ -f "$d/entrycgui${{ matrix.binary_ext }}" ]; then
-                COPY_SRC="$d"
-                break
-              fi
-            fi
-          done
-
-          if [ -z "$COPY_SRC" ]; then
-            echo "ERROR: could not find build output directory; looking under target/" >&2
-            ls -la target || true
-            exit 1
-          fi
-
-          echo "Using build dir: $COPY_SRC"
-
-          cp "$COPY_SRC/entryc${{ matrix.binary_ext }}" "$STAGE/" || { echo "entryc binary not found in $COPY_SRC"; ls -la "$COPY_SRC"; exit 1; }
-          cp "$COPY_SRC/entrycgui${{ matrix.binary_ext }}" "$STAGE/" || true
-
-          if [ "${{ matrix.archive }}" = "zip" ]; then
+          if [ "tar.gz" = "zip" ]; then
             7z a "$STAGE.zip" ./$STAGE/*
           else
             tar -C "$STAGE" -czf "$STAGE.tar.gz" .
@@ -115,13 +91,23 @@ jobs:
           ls -la
           ls -la "$STAGE"
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: release-${{ matrix.target }}
-          path: |
-            release-stage-${{ matrix.target }}.${{ matrix.archive }}
+          - name: Upload artifacts
+            uses: actions/upload-artifact@v4
+            with:
+              name: release-${{ matrix.target }}
+              path: |
+                release-stage-${{ matrix.target }}.${{ matrix.archive }}
+                
+      - name: Verify build outputs
+        shell: bash
+        run: |
+          set -euo pipefail
 
+          echo "=== target directory ==="
+          find target -maxdepth 4 -type f -name 'entryc*' -print
+
+          test -f target/x86_64-unknown-linux-gnu/release/entryc
+          test -f target/x86_64-unknown-linux-gnu/release/entrycgui
   release:
     name: publish release
     needs: build
