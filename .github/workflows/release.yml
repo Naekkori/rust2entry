@@ -60,7 +60,10 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-          workspaces: entrycore entryc entrycgui -> target
+          workspaces: |
+            entrycore
+            entryc
+            entrycgui
 
       - name: Build entryc
         run: cargo build --release --target ${{ matrix.target }} --bin entryc
